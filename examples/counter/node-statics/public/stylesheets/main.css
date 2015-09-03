@@ -1,0 +1,12 @@
+ul {
+  list-style-type: none;
+}
+body {
+  padding-top: 30px;
+  margin: 0;
+  background-color: #282828;
+}
+div {
+  margin: 0;
+  padding: 0;
+}
