@@ -6,7 +6,7 @@ import rs.core.Subject
 import rs.core.javaapi.JServiceCell
 import rs.core.services.ServiceCell
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamRef
+import rs.core.services.internal.StreamId
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 
 import scala.language.implicitConversions
@@ -143,16 +143,16 @@ trait JDictionaryMapStreamPublisher extends DictionaryMapStreamPublisher {
 trait DictionaryMapStreamPublisher {
   self: ServiceCell =>
 
-  def ?#(s: StreamRef): Option[DictionaryMapStreamState] = currentStreamState(s) flatMap {
+  def ?#(s: StreamId): Option[DictionaryMapStreamState] = currentStreamState(s) flatMap {
     case s: DictionaryMapStreamState => Some(s)
     case _ => None
   }
 
   implicit def toDictionaryMapPublisher(v: String): DictionaryMapPublisher = DictionaryMapPublisher(v)
 
-  implicit def toDictionaryMapPublisher(v: StreamRef): DictionaryMapPublisher = DictionaryMapPublisher(v)
+  implicit def toDictionaryMapPublisher(v: StreamId): DictionaryMapPublisher = DictionaryMapPublisher(v)
 
-  case class DictionaryMapPublisher(s: StreamRef) {
+  case class DictionaryMapPublisher(s: StreamId) {
 
     private def fromMap(map: Map[String, Any])(implicit dict: Dictionary) = {
       val arr = Array.ofDim[Any](dict.fields.length)

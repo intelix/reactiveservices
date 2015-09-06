@@ -3,7 +3,7 @@ package rs.core.stream
 import rs.core.Subject
 import rs.core.services.ServiceCell
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamRef
+import rs.core.services.internal.StreamId
 
 import scala.language.implicitConversions
 
@@ -27,9 +27,9 @@ trait CustomRecordPublisher {
 
   implicit def toCustomPublisher(v: String): CustomPublisher = CustomPublisher(v)
 
-  implicit def toCustomPublisher(v: StreamRef): CustomPublisher = CustomPublisher(v)
+  implicit def toCustomPublisher(v: StreamId): CustomPublisher = CustomPublisher(v)
 
-  case class CustomPublisher(s: StreamRef) {
+  case class CustomPublisher(s: StreamId) {
 
     def !!(v: Any) = onStateTransition(s, CustomStreamState(v))
 

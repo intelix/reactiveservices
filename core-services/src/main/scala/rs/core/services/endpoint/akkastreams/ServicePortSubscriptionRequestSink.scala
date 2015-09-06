@@ -85,8 +85,7 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
   }
 
 
-  override def onTerminated(ref: ActorRef): Unit = {
-    super.onTerminated(ref)
+  onActorTerminated { ref =>
     if (ref == streamAggregator) {
       logger.info(s"!>>>> $ref terminated.... streamAggregator=$streamAggregator....  actor  stopping")
       cancel()

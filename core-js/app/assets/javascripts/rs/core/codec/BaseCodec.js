@@ -389,6 +389,10 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
             }
         };
     });
+    _addDecoder(TypeSubscriptionClosed, function (frame) {
+        var alias = _readSubjectAlias(frame);
+        return {};
+    });
     _addDecoder(TypePing, function (frame) {
         var id = _readInt(frame);
         return {

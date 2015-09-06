@@ -18,7 +18,6 @@ package rs.core.actors
 
 import akka.actor.{ActorRef, Terminated}
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.sysevents.SyseventOps.{stringToSyseventOps, symbolToSyseventOps}
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.NowProvider
@@ -26,7 +25,7 @@ import rs.core.tools.metrics.MetricGroups.ActorMetricGroup
 import rs.core.tools.metrics.{MeterSensor, Metrics, TimerSensor}
 
 trait BaseActorSysevents extends ComponentWithBaseSysevents {
-  val WatchedActorTerminated = 'WatchedActorTerminated.info
+//  val WatchedActorTerminated = info("WatchedActorTerminated")
   val PostStop = "Lifecycle.PostStop".info
   val PreStart = "Lifecycle.PreStart".info
   val PreRestart = "Lifecycle.PreRestart".info
@@ -42,14 +41,15 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
 
   private val NoHandler: Any => Unit = _ => {}
 
-  def onTerminated(ref: ActorRef) = {
-    WatchedActorTerminated >> ('ref -> ref)
-  }
+  private var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
+
+  def onActorTerminated(f: ActorRef => Unit) = terminatedFuncChain = terminatedFuncChain :+ f
+
 
 
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
-    PreRestart >>('reason -> reason.getMessage, 'msg -> message, 'path -> self.path.toStringWithoutAddress)
+    PreRestart ('reason -> reason.getMessage, 'msg -> message, 'path -> self.path.toStringWithoutAddress)
     super.preRestart(reason, message)
   }
 
@@ -57,23 +57,23 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
   @throws[Exception](classOf[Exception])
   override def postRestart(reason: Throwable): Unit = {
     super.postRestart(reason)
-    PostRestart >>('reason -> reason.getMessage, 'path -> self.path.toStringWithoutAddress)
+    PostRestart ('reason -> reason.getMessage, 'path -> self.path.toStringWithoutAddress)
   }
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
-    PreStart >> ('path -> self.path.toStringWithoutAddress)
+    PreStart ('path -> self.path.toStringWithoutAddress)
     super.preStart()
   }
 
   @throws[Exception](classOf[Exception])
   override def postStop(): Unit = {
     super.postStop()
-    PostStop >> ('path -> self.path.toStringWithoutAddress)
+    PostStop ('path -> self.path.toStringWithoutAddress)
   }
 
   private var commonBehavior: Receive = {
-    case Terminated(ref) => onTerminated(ref)
+    case Terminated(ref) => terminatedFuncChain.foreach(_(ref))
   }
 
   def beforeMessage() = {}
@@ -122,7 +122,7 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
       commonBehavior applyOrElse(x, NoHandler)
     } catch {
       case x: Throwable =>
-        Error >>('ctx -> "Error during message processing", 'msg -> x.getMessage, 'err -> x)
+        Error ('ctx -> "Error during message processing", 'msg -> x.getMessage, 'err -> x)
         // TODO REMOVE  !>>>>>>
         logger.error("Error", x)
         FailureRateMeter.update(1)

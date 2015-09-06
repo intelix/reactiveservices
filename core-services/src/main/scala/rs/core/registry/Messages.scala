@@ -6,7 +6,7 @@ import rs.core.ServiceKey
 object Messages {
 
   case class Register(serviceKey: ServiceKey, location: ActorRef)
-  
+
   case class Unregister(serviceKey: ServiceKey, location: ActorRef)
 
   case class StreamingLookup(serviceKey: ServiceKey)

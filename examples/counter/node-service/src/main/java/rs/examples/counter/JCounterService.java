@@ -29,7 +29,7 @@ public class JCounterService extends JServiceCell {
                 streamString("ticker", "jhello-" + (counter++));
                 streamListAdd("list", -1, "jlist-" + counter);
                 streamMapSnapshot("map", new Object[]{"a-" + counter, "b-" + (counter + 100), "c"}, dict);
-                scheduleOnceToSelf(2000, "tick");
+                scheduleOnceToSelf(5000, "tick");
             }
         });
 
@@ -60,6 +60,6 @@ public class JCounterService extends JServiceCell {
         topicToStreamRef("list", "list");
         topicToStreamRef("map", "map");
 
-        scheduleOnceToSelf(2000, "tick");
+        scheduleOnceToSelf(1000, "tick");
     }
 }

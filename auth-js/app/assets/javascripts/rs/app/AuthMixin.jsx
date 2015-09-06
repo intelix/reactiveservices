@@ -14,31 +14,35 @@
  * limitations under the License.
  */
 
-define(['react', 'auth'], function (React, Auth) {
+define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
+
+    Auth.signals.accessChanged.add(function() {
+        Appevents.signals.CoreDataChanged.dispatch();
+    });
 
     return {
         authSubscriptions:  function (props) {
             return [
                 {
-                    service: "access_control",
+                    service: "auth",
                     topic: 'token',
-                    onData: this.onAuthKey
+                    onUpdate: this.onAuthKey,
+                    onUnavailable: this.onAuthServiceUnavailable
                 },
                 {
-                    service: "access_control",
+                    service: "auth",
                     topic: 'permissions',
-                    onData: this.onPermissions
-                },
-                {
-                    service: "user_auth",
-                    topic: 'authenticate',
-                    onData: this.onLoginResponse
+                    onUpdate: this.onPermissions
                 }
             ];
         },
 
         componentWillMount: function () {
             this._addSubscriptionConfigBuilder(this.authSubscriptions);
+        },
+
+        onAuthServiceUnavailable: function() {
+            Auth.resetToken();
         },
 
         onAuthKey: function (data) {
@@ -55,18 +59,29 @@ define(['react', 'auth'], function (React, Auth) {
             Auth.setPermissions(data);
             this.logDebug("Permissions received: " + data);
         },
-        onLoginResponse: function (data) {
-            if (data && data.success) {
-                this.logInfo("Successfully authenticated, server response: " + data.msg);
-            } else {
-                this.logInfo("Authentication failed, server response: " + (data && data.msg ? data.msg : "n/a"));
-                Auth.resetToken();
-            }
+        onAuthSuccess: function (data) {
+            this.logInfo("!>>> onAuthSuccess : " + JSON.stringify(data));
+            //if (data && data.success) {
+            //    this.logInfo("Successfully authenticated, server response: " + data.msg);
+            //} else {
+            //    this.logInfo("Authentication failed, server response: " + (data && data.msg ? data.msg : "n/a"));
+            //    Auth.resetToken();
+            //}
+        },
+        onAuthFailure: function (data) {
+            this.logInfo("!>>> onAuthFailure : " + JSON.stringify(data));
+            Auth.resetToken();
+            //if (data && data.success) {
+            //    this.logInfo("Successfully authenticated, server response: " + data.msg);
+            //} else {
+            //    this.logInfo("Authentication failed, server response: " + (data && data.msg ? data.msg : "n/a"));
+            //    Auth.resetToken();
+            //}
         },
         initiateLogin: function() {
             if (Auth.hasToken()) {
                 this.logInfo("Authenticating with token: " + Auth.getToken());
-                this.sendSignal("auth", "authenticate", {t: Auth.getToken()});
+                this.sendSignal("auth", "authenticate", {t: Auth.getToken()}, false, 5, this.onAuthSuccess, this.onAuthFailure);
                 Auth.setAuthenticationPending();
             } else {
                 Auth.resetSession();
@@ -77,7 +92,7 @@ define(['react', 'auth'], function (React, Auth) {
             Auth.resetToken();
             Auth.setAuthenticationPending();
             this.logInfo("Authenticating with credentials, as " + user);
-            this.sendSignal("auth", "authenticate", {l: user, p: passw});
+            this.sendSignal("auth", "authenticate", {l: user, p: passw}, false, 5, this.onAuthSuccess, this.onAuthFailure);
         },
 
         onConnected: function () {

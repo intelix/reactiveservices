@@ -1,11 +1,10 @@
-
 ProjectBuild.coreSettings("reactiveservices")
 
 
 lazy val sysevents = Project(
   id = "core-sysevents",
   base = file("core-sysevents")
-).enablePlugins()
+)
 
 
 lazy val core = Project(
@@ -38,6 +37,7 @@ lazy val websocket_server = Project(
   base = file("websocket-server"),
   dependencies = Seq(
     core % "compile;test->test",
+    auth,
     codec_binary % "compile;test->test"
   )
 )
@@ -76,6 +76,7 @@ lazy val auth = Project(
   dependencies = Seq(
     sysevents % "compile;test->test",
     core % "compile;test->test",
+    node % "compile;test->test",
     auth_api % "compile;test->test"
   )
 )
@@ -120,6 +121,7 @@ lazy val examples_counter_websocket = Project(
   dependencies = Seq(
     core % "compile;test->test",
     node,
+    auth,
     websocket_server
   )
 )
@@ -129,6 +131,7 @@ lazy val examples_counter_service = Project(
   base = file("examples/counter/node-service"),
   dependencies = Seq(
   core,
+  auth,
     node % "compile;test->test"
   )
 ).enablePlugins(JavaServerAppPackaging)

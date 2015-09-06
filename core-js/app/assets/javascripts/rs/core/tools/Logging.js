@@ -22,7 +22,7 @@ define([], function () {
     var WARN = 3;
     var ERROR = 4;
 
-    var defaultLogLevel = WARN;
+    var defaultLogLevel = INFO;
 
     function format(prefix, msg) {
         return new Date().toISOString() + ": " + (prefix ? prefix + ": " + msg : msg);

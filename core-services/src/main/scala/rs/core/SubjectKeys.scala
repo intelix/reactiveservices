@@ -11,12 +11,16 @@ object SubjectKeys {
 
     final def apply(value: String) = completeToken + value
 
-    final def unapply(value: String): Option[String] = value.indexOf(completeToken) match {
-      case -1 => None
-      case i => value.indexOf('+', i + 1) match {
-        case -1 => Some(value.substring(i + completeToken.length))
-        case j => Some(value.substring(i + completeToken.length, j))
+    final def unapply(value: String): Option[String] = {
+      val xxx = value.indexOf(completeToken) match {
+        case -1 => None
+        case i => value.indexOf(tokenPrefix, i + 1) match {
+          case -1 => Some(value.substring(i + completeToken.length))
+          case j => Some(value.substring(i + completeToken.length, j))
+        }
       }
+      println(s"!>>> $value unapplied to $xxx for $token")
+      xxx
     }
   }
 

@@ -78,6 +78,7 @@ class Bucket(val subj: Subject, val priorityKey: Option[String], aggregationInte
   private var state: Option[StreamState] = None
 
   def publishPending(canUpdate: () => Boolean, send: Any => Unit) = {
+
     if (canUpdate() && pendingState.isDefined && isAggregationCriteriaMet) pendingState foreach { pending =>
       lastUpdatePublishedAt = now
       send(StreamStateUpdate(subj, pending))
@@ -111,6 +112,7 @@ trait ConsumerPortActor extends Actor with DemandProducerContract with StreamDem
   //  private var pendingInvalidRequestUpdates: List[Subject] = List.empty
 
   private val canUpdate = () => hasDemand && hasTarget
+
   private var pendingPublisherIdx = 0
 
   private case object SendPending
@@ -235,6 +237,7 @@ trait ConsumerPortActor extends Actor with DemandProducerContract with StreamDem
     logger.info(s"!>>>> onUpdate : $key = $tran from ${sender()}")
     upstreamDemandFulfilled(sender(), 1)
     streamToBucket get key foreach { b =>
+      logger.info("!>>>>> Ok, converted " + key)
       b.onNewState(canUpdate, tran, send)
     }
   }
@@ -259,7 +262,7 @@ class StreamAggregatorActor
       case Some(loc) =>
         startDemandProducerFor(loc, withAcknowledgedDelivery = false)
         serviceAvailable(service)
-        loc ! OpenLocalStreamsForAll(activeSubjects.toList)
+        loc ! OpenLocalStreamsForAll(activeSubjects.filter(_.service == service).toList)
       case None =>
         serviceUnavailable(service)
     }

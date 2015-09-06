@@ -10,6 +10,6 @@ object InternalMessages {
 
   case class SignalPayload(subj: Subject, payload: Any, expireAt: Long, correlationId: Option[Any]) extends Expirable
 
-  case class StreamUpdate(key: StreamRef, tran: StreamStateTransition)
+  case class StreamUpdate(key: StreamId, tran: StreamStateTransition)
 
 }

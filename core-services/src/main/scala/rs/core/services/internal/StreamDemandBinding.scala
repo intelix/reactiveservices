@@ -9,7 +9,11 @@ trait StreamDemandBinding extends ActorWithComposableBehavior with DuplicateMess
 
   def onConsumerDemand(sender: ActorRef, demand: Long)
 
-  private def processDemand(m: DownstreamDemandRequest) = if (isNotDuplicate(sender(), "DownstreamDemandRequest", m.messageId)) onConsumerDemand(sender(), m.count)
+  private def processDemand(m: DownstreamDemandRequest) = if (isNotDuplicate(sender(), "DownstreamDemandRequest", m.messageId)) {
+    onConsumerDemand(sender(), m.count)
+  } else {
+    println(s"!>>> Duplicate demand request? " + m)
+  }
 
 
   onMessage {

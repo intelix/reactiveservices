@@ -1,83 +1,92 @@
 package rs.core.sysevents
 
-import core.sysevents.FieldAndValue
+import core.sysevents._
 
 import scala.language.implicitConversions
 
 sealed trait Sysevent {
 
+
   def id: String
 
   def componentId: String
 
-  def >>>[T](f1: => Seq[FieldAndValue], f: => T)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): T = {
-    var fields = ctx.commonFields match {
-      case x if x.isEmpty => f1
-      case x => f1 ++ x
-    }
-    val start = System.nanoTime()
-    try f catch {
+  type EffectBlock[T] = SyseventPublisherContext => T
+
+  private val dummy: EffectBlock[Unit] = SyseventPublisherContext => ()
+
+  private def run[T](ff: => Seq[FieldAndValue], f: EffectBlock[T])(implicit ctx: WithSyseventPublisher, system: SyseventSystem): T = {
+    val eCtx = ctx.evtPublisher.contextFor(system, this, ff)
+    val start = if (eCtx.isMute) 0 else System.nanoTime()
+
+    try f(eCtx) catch {
       case e: Throwable =>
-        fields = fields :+ 'Exception -> e
+        eCtx + ('Exception -> e)
         throw e
     } finally {
-      val diff = System.nanoTime() - start
-      fields = fields :+ 'ms -> ((diff / 1000).toDouble / 1000)
-      ctx.evtPublisher.publish(system, this, fields)
+      if (!eCtx.isMute) {
+        if (ctx.commonFields.nonEmpty) eCtx ++ ctx.commonFields
+        val diff = System.nanoTime() - start
+        eCtx + ('ms -> ((diff / 1000).toDouble / 1000))
+      }
+      ctx.evtPublisher.publish(eCtx)
     }
   }
 
-  def >>>[T](f1: => Seq[FieldAndValue])(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = {
-    val fields = ctx.commonFields match {
-      case x if x.isEmpty => f1
-      case x => f1 ++ x
-    }
-    ctx.evtPublisher.publish(system, this, fields)
-  }
+  def apply[T](f: EffectBlock[T])(implicit ctx: WithSyseventPublisher, system: SyseventSystem): T = run(Seq.empty, f)
 
-  def >>()(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = >>>(Seq())
+  def apply[T](f1: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1), dummy)
 
-  def >>(f1: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = >>>(Seq(f1))
+  def apply[T](f1: => FieldAndValue,
+               f2: => FieldAndValue)
+              (implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1, f2), dummy)
 
-  def >>(f1: => FieldAndValue, f2: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = >>>(Seq(f1, f2))
+  def apply[T](f1: => FieldAndValue,
+               f2: => FieldAndValue,
+               f3: => FieldAndValue)
+              (implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1, f2, f3), dummy)
 
-  def >>(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = >>>(Seq(f1, f2, f3))
+  def apply[T](f1: => FieldAndValue,
+               f2: => FieldAndValue,
+               f3: => FieldAndValue,
+               f4: => FieldAndValue)
+              (implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1, f2, f3, f4), dummy)
 
-  def >>(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = >>>(Seq(f1, f2, f3, f4))
+  def apply[T](f1: => FieldAndValue,
+               f2: => FieldAndValue,
+               f3: => FieldAndValue,
+               f4: => FieldAndValue,
+               f5: => FieldAndValue)
+              (implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1, f2, f3, f4, f5), dummy)
 
-  def >>(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue, f5: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = >>>(Seq(f1, f2, f3, f4, f5))
+  def apply[T](f1: => FieldAndValue,
+               f2: => FieldAndValue,
+               f3: => FieldAndValue,
+               f4: => FieldAndValue,
+               f5: => FieldAndValue,
+               f6: => FieldAndValue)
+              (implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1, f2, f3, f4, f5, f6), dummy)
 
-  def >>(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue, f5: => FieldAndValue, f6: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = >>>(Seq(f1, f2, f3, f4, f5, f6))
-
-
-  def >>[T](f: => T)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): T = >>>(Seq.empty, f)
-
-  def apply(f1: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): EventWithFields = new EventWithFields(this, Seq(f1))
-
-  def apply(f1: => FieldAndValue, f2: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): EventWithFields = new EventWithFields(this, Seq(f1, f2))
-
-  def apply(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): EventWithFields = new EventWithFields(this, Seq(f1, f2, f3))
-
-  def apply(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): EventWithFields = new EventWithFields(this, Seq(f1, f2, f3, f4))
-
-  def apply(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue, f5: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): EventWithFields = new EventWithFields(this, Seq(f1, f2, f3, f4, f5))
-
-  def apply(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue, f5: => FieldAndValue, f6: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): EventWithFields = new EventWithFields(this, Seq(f1, f2, f3, f4, f5, f6))
-
+  def apply[T](f1: => FieldAndValue,
+               f2: => FieldAndValue,
+               f3: => FieldAndValue,
+               f4: => FieldAndValue,
+               f5: => FieldAndValue,
+               f6: => FieldAndValue,
+               f7: => FieldAndValue)
+              (implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1, f2, f3, f4, f5, f6, f7), dummy)
 
 }
 
-class EventWithFields(se: Sysevent, fields: => Seq[FieldAndValue]) {
-  def >>[T](implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = se >>>(fields, {})
 
-  def >>[T](f: => T = {})(implicit ctx: WithSyseventPublisher, system: SyseventSystem): T = se >>>(fields, f)
-}
-
-object SyseventOps {
+trait SyseventImplicits {
   implicit def stringToSyseventOps(s: String)(implicit component: SyseventComponent): SyseventOps = new SyseventOps(s, component)
 
   implicit def symbolToSyseventOps(s: Symbol)(implicit component: SyseventComponent): SyseventOps = new SyseventOps(s.name, component)
 }
+
+object SyseventOps extends SyseventImplicits
+
 
 class SyseventOps(id: String, component: SyseventComponent) {
   def trace: Sysevent = TraceSysevent(id, component.componentId)

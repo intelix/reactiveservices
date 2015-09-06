@@ -6,7 +6,7 @@ import rs.core.Subject
 import rs.core.javaapi.JServiceCell
 import rs.core.services.ServiceCell
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.{StreamRef, StringStreamRef}
+import rs.core.services.internal.StreamId
 import rs.core.stream.SetStreamState._
 
 import scala.language.implicitConversions
@@ -81,18 +81,16 @@ trait SetStreamConsumer extends StreamConsumer {
 trait JSetStreamPublisher extends SetStreamPublisher {
   self: JServiceCell =>
 
-  import scala.collection.JavaConversions._
-
-  def streamSetSnapshot(s: StreamRef, l: util.Set[String], allowPartialUpdates: Boolean): Unit = {
+  def streamSetSnapshot(s: StreamId, l: util.Set[String], allowPartialUpdates: Boolean): Unit = {
     implicit val setSpecs = SetSpecs(allowPartialUpdates)
     s !% l.toArray.toSet.asInstanceOf[Set[String]]
   }
 
-  def streamSetSnapshot(s: String, l: util.Set[String], allowPartialUpdates: Boolean): Unit = streamSetSnapshot(StringStreamRef(s), l, allowPartialUpdates)
+  def streamSetSnapshot(s: String, l: util.Set[String], allowPartialUpdates: Boolean): Unit = streamSetSnapshot(StreamId(s), l, allowPartialUpdates)
 
-  def streamSetAdd(s: StreamRef, v: String): Unit = s !%+ v
+  def streamSetAdd(s: StreamId, v: String): Unit = s !%+ v
 
-  def streamSetRemove(s: StreamRef, v: String): Unit = s !%- v
+  def streamSetRemove(s: StreamId, v: String): Unit = s !%- v
 
   def streamSetAdd(s: String, v: String): Unit = s !%+ v
 
@@ -105,14 +103,14 @@ trait SetStreamPublisher {
 
   implicit def toSetPublisher(v: String): SetPublisher = SetPublisher(v)
 
-  implicit def toSetPublisher(v: StreamRef): SetPublisher = SetPublisher(v)
+  implicit def toSetPublisher(v: StreamId): SetPublisher = SetPublisher(v)
 
-  def ?%(s: StreamRef): Option[SetStreamState] = currentStreamState(s) flatMap {
+  def ?%(s: StreamId): Option[SetStreamState] = currentStreamState(s) flatMap {
     case s: SetStreamState => Some(s)
     case _ => None
   }
 
-  case class SetPublisher(s: StreamRef) {
+  case class SetPublisher(s: StreamId) {
 
     def !%(l: => Set[String])(implicit specs: SetSpecs): Unit = ?%(s) match {
       case Some(x) => onStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))

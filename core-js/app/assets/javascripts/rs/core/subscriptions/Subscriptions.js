@@ -186,7 +186,7 @@ define([
 
         function _onInvalidRequest(alias) {
             var subjectKey = _keyFromAlias(alias);
-            Log.logError("Invalid subject: " + subjectKey);
+            Log.logError(componentId, "Invalid subject: " + subjectKey);
             // TODO later - expose as onError callback for the client
         }
 

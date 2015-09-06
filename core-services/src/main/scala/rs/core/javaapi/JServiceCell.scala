@@ -2,7 +2,7 @@ package rs.core.javaapi
 
 import rs.core.Subject
 import rs.core.services.ServiceCell
-import rs.core.services.internal.StringStreamRef
+import rs.core.services.internal.StreamId
 import rs.core.stream._
 
 import scala.concurrent.duration._
@@ -53,8 +53,7 @@ abstract class JServiceCell(id: String) extends ServiceCell(id) with JStringStre
 
   def onStreamActive(streamRef: String, callback: StreamStateCallback): Unit = {
     onStreamActive {
-      case x: StringStreamRef if x.id == streamRef => callback.handle(x.id)
-      case x: StringStreamRef if streamRef.endsWith("*") && x.id.startsWith(streamRef.substring(0, streamRef.length - 1)) => callback.handle(x.id)
+      case x: StreamId if x.id == streamRef => callback.handle(x.id)
     }
   }
 
@@ -66,14 +65,14 @@ abstract class JServiceCell(id: String) extends ServiceCell(id) with JStringStre
   }
 
   def topicToStreamRef(topic: String, streamRef: String): Unit = {
-    subjectToStreamKey {
-      case s if s.topic.id == topic => streamRef
+    onSubject {
+      case s if s.topic.id == topic => Some(streamRef)
     }
   }
 
   def topicToStreamRef(topic: String, mapper: SubjectMapper): Unit = {
-    subjectToStreamKey {
-      case s if s.topic.id == topic => mapper.map(s)
+    onSubject {
+      case s if s.topic.id == topic => Some(mapper.map(s))
     }
   }
 

@@ -5,7 +5,7 @@ import rs.core.Subject
 import rs.core.javaapi.JServiceCell
 import rs.core.services.ServiceCell
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamRef
+import rs.core.services.internal.StreamId
 
 import scala.language.implicitConversions
 
@@ -26,7 +26,7 @@ case class StringStreamState(value: String) extends StreamState with StreamState
 trait JStringStreamPublisher {
   self: JServiceCell =>
   def streamString(stream: String, value: String) = onStateTransition(stream, StringStreamState(value))
-  def streamString(stream: StreamRef, value: String) = onStateTransition(stream, StringStreamState(value))
+  def streamString(stream: StreamId, value: String) = onStateTransition(stream, StringStreamState(value))
 }
 
 
@@ -37,9 +37,9 @@ trait StringStreamPublisher {
 
   implicit def toStringPublisher(v: String): StringPublisher = StringPublisher(v)
 
-  implicit def toStringPublisher(v: StreamRef): StringPublisher = StringPublisher(v)
+  implicit def toStringPublisher(v: StreamId): StringPublisher = StringPublisher(v)
 
-  case class StringPublisher(s: StreamRef) {
+  case class StringPublisher(s: StreamId) {
 
     def !~(v: String) = onStateTransition(s, StringStreamState(v))
 

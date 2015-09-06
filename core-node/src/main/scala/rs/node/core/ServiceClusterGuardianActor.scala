@@ -4,10 +4,10 @@ import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.sysevents.WithSyseventPublisher
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import net.ceedubs.ficus.Ficus._
 import rs.core.actors.BaseActorSysevents
+import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceClusterGuardianActor.RestartRequestException
 
 import scala.concurrent.duration._
@@ -20,16 +20,18 @@ trait ServiceClusterGuardianSysevents extends ComponentWithBaseSysevents with Ba
 }
 
 object ServiceClusterGuardianActor {
+
   class RestartRequestException extends Exception
 
   def props(config: Config) = Props(new ServiceClusterGuardianActor(config))
+
   def start(config: Config)(implicit f: ActorRefFactory) = f.actorOf(props(config))
 }
 
 class ServiceClusterGuardianActor(config: Config)
   extends Actor
+  with ServiceClusterBootstrapSysevents
   with StrictLogging
-  with ServiceClusterGuardianSysevents
   with WithSyseventPublisher {
 
   private val maxRetries = config.as[Option[Int]]("node.cluster.max-retries") | -1

@@ -27,14 +27,13 @@ object ServiceStreamingEndpointActor {
 
   case class OpenLocalStreamsForAll(subjects: List[Subject])
 
-
   def props(serviceKey: ServiceKey, serviceRef: ActorRef) = Props(classOf[AgentActor], serviceKey, serviceRef)
 
   def props2(serviceKey: ServiceKey, serviceRef: ActorRef) = Props(classOf[ServiceStreamingEndpointActor], serviceKey, serviceRef)
 }
 
 
-class LocalSubjectStreamSink(val streamKey: StreamRef, subj: Subject, canUpdate: () => Boolean, updateDownstream: StreamState => Unit) {
+class LocalSubjectStreamSink(val streamKey: StreamId, subj: Subject, canUpdate: () => Boolean, updateDownstream: StreamState => Unit) {
 
   private var pendingState: Option[StreamState] = None
   private var remoteView: Option[StreamState] = None
@@ -77,7 +76,7 @@ class LocalTargetWithSinks(ref: ActorRef, self: ActorRef) extends ConsumerDemand
     }
   }
 
-  def addStream(key: StreamRef, subj: Subject): LocalSubjectStreamSink = {
+  def addStream(key: StreamId, subj: Subject): LocalSubjectStreamSink = {
     closeStream(subj)
     val newSink = new LocalSubjectStreamSink(key, subj, canUpdate, updateForTarget(subj))
     subjectToSink += subj -> newSink
@@ -151,19 +150,19 @@ class LocalStreamBroadcaster {
 trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWithTicks {
 
   private val targets: mutable.Map[ActorRef, LocalTargetWithSinks] = mutable.HashMap()
-  private val streams: mutable.Map[StreamRef, LocalStreamBroadcaster] = mutable.HashMap()
+  private val streams: mutable.Map[StreamId, LocalStreamBroadcaster] = mutable.HashMap()
 
   def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = targets get consumer foreach (_.addDemand(demand))
 
-  final def onStateUpdate(subj: StreamRef, state: StreamState) = {
+  final def onStateUpdate(subj: StreamId, state: StreamState) = {
     streams get subj foreach (_.onNewState(state))
   }
 
-  final def onStateTransition(subj: StreamRef, state: StreamStateTransition) = {
+  final def onStateTransition(subj: StreamId, state: StreamStateTransition) = {
     streams get subj forall (_.onStateTransition(state))
   }
 
-  def initiateStreamFor(ref: ActorRef, key: StreamRef, subj: Subject) = {
+  def initiateStreamFor(ref: ActorRef, key: StreamId, subj: Subject) = {
     closeStreamFor(ref, subj)
     val target = targets getOrElse(ref, newTarget(ref))
     val stream = streams getOrElse(key, newStreamBroadcaster(key))
@@ -183,9 +182,9 @@ trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWith
 
   }
 
-  def onIdleStream(key: StreamRef)
+  def onIdleStream(key: StreamId)
 
-  def onActiveStream(key: StreamRef)
+  def onActiveStream(key: StreamId)
 
 
   def closeStreamFor(ref: ActorRef, subj: Subject) = {
@@ -210,7 +209,7 @@ trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWith
     super.processTick()
   }
 
-  private def newStreamBroadcaster(streamKey: StreamRef) = {
+  private def newStreamBroadcaster(streamKey: StreamId) = {
     val sb = new LocalStreamBroadcaster()
     streams += streamKey -> sb
     onActiveStream(streamKey)
@@ -255,7 +254,7 @@ class ServiceStreamingEndpointActor(serviceKey: ServiceKey, serviceRef: ActorRef
   override def componentId: String = "ServiceRemoteAgentActor"
 
   private var pendingMappings: Map[Subject, Long] = Map.empty
-  private var mappings: Map[Subject, Option[StreamRef]] = Map.empty
+  private var mappings: Map[Subject, Option[StreamId]] = Map.empty
   private var interests: Map[ActorRef, Set[Subject]] = Map.empty
 
 
@@ -268,7 +267,7 @@ class ServiceStreamingEndpointActor(serviceKey: ServiceKey, serviceRef: ActorRef
   }
 
 
-  override def onIdleStream(key: StreamRef): Unit = {
+  override def onIdleStream(key: StreamId): Unit = {
     acknowledgedDelivery(key, CloseStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
     mappings = mappings filter {
       case (k, Some(v)) if v == key =>
@@ -279,7 +278,7 @@ class ServiceStreamingEndpointActor(serviceKey: ServiceKey, serviceRef: ActorRef
   }
 
 
-  override def onActiveStream(key: StreamRef): Unit = {
+  override def onActiveStream(key: StreamId): Unit = {
     acknowledgedDelivery(key, OpenStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
   }
 
@@ -330,7 +329,7 @@ class ServiceStreamingEndpointActor(serviceKey: ServiceKey, serviceRef: ActorRef
     case (ref, set) if set.contains(subj) => publishNotAvailable(ref, subj)
   }
 
-  private def onReceivedStreamMapping(subj: Subject, maybeKey: Option[StreamRef]): Unit = {
+  private def onReceivedStreamMapping(subj: Subject, maybeKey: Option[StreamId]): Unit = {
     logger.info(s"!>>> onReceivedStreamMapping($subj, $maybeKey)")
 
     pendingMappings -= subj
@@ -343,7 +342,7 @@ class ServiceStreamingEndpointActor(serviceKey: ServiceKey, serviceRef: ActorRef
     }
   }
 
-  private def addStreamMapping(subj: Subject, maybeKey: Option[StreamRef]) = {
+  private def addStreamMapping(subj: Subject, maybeKey: Option[StreamId]) = {
     interests foreach {
       case (ref, v) => if (v.contains(subj)) closeStreamFor(ref, subj)
     }
@@ -361,7 +360,7 @@ class ServiceStreamingEndpointActor(serviceKey: ServiceKey, serviceRef: ActorRef
   }
 
 
-  private def updateLocalStream(key: StreamRef, tran: StreamStateTransition): Unit = {
+  private def updateLocalStream(key: StreamId, tran: StreamStateTransition): Unit = {
     logger.info(s"!>>>>>> Received stream update $key - $tran")
     upstreamDemandFulfilled(serviceRef, 1)
     if (!onStateTransition(key, tran)) serviceRef ! StreamResyncRequest(key)
@@ -403,9 +402,8 @@ class ServiceStreamingEndpointActor(serviceKey: ServiceKey, serviceRef: ActorRef
   override def onConsumerDemand(sender: ActorRef, demand: Long): Unit = newConsumerDemand(sender, demand)
 
 
-  override def onTerminated(ref: ActorRef): Unit = {
+  onActorTerminated { ref =>
     closeAllFor(ref)
-    super.onTerminated(ref)
   }
 
 

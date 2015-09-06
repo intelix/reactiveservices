@@ -4,7 +4,7 @@ import akka.actor.{ActorRef, PoisonPill, Props}
 import akka.stream.actor.ActorPublisher
 import akka.stream.actor.ActorPublisherMessage.{Cancel, Request}
 import rs.core.actors.ActorWithComposableBehavior
-import rs.core.services.Messages.{ServiceNotAvailable, StreamStateUpdate}
+import rs.core.services.Messages.{ServiceOutboundMessage, ServiceNotAvailable, StreamStateUpdate}
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
 
@@ -25,18 +25,14 @@ class ServiceSubscriptionStreamSource(streamAggregator: ActorRef)
     case Cancel =>
       streamAggregator ! PoisonPill
       context.stop(self)
-    case m: ServiceNotAvailable =>
-      onNext(m)
-    case m: StreamStateUpdate =>
+    case m: ServiceOutboundMessage =>
+      logger.info("!>>>>> ON NEXT, current demand: " + totalDemand)
       onNext(m)
   }
 
 
-  override def onTerminated(ref: ActorRef): Unit = {
-    super.onTerminated(ref)
-    if (ref == streamAggregator) {
-      onCompleteThenStop()
-    }
+  onActorTerminated { ref =>
+    if (ref == streamAggregator) onCompleteThenStop()
   }
 
   @throws[Exception](classOf[Exception]) override

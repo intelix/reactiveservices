@@ -3,12 +3,12 @@ package rs.core.services
 import akka.actor.{ActorRef, Address, Deploy}
 import akka.remote.RemoteScope
 import rs.core.actors.{ActorWithComposableBehavior, ClusterAwareness}
-import rs.core.stream.{StreamState, StreamStateTransition}
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.ServiceCell._
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
 import rs.core.services.internal.acks.SimpleInMemoryAcknowledgedDelivery
+import rs.core.stream.{StreamState, StreamStateTransition}
 import rs.core.tools.metrics.WithCHMetrics
 import rs.core.{ServiceKey, Subject}
 
@@ -18,19 +18,19 @@ import scala.language.postfixOps
 object ServiceCell {
 
   // TODO mark case classes as private where needed
-  case class StreamKeyPerLocationId(streamKey: StreamRef, ref: ActorRef)
+  case class StreamKeyPerLocationId(streamKey: StreamId, ref: ActorRef)
 
   case class OpenAgentAt(address: Address)
 
-  case class CloseStreamFor(streamKey: StreamRef)
+  case class CloseStreamFor(streamKey: StreamId)
 
-  case class OpenStreamFor(streamKey: StreamRef)
+  case class OpenStreamFor(streamKey: StreamId)
 
   case class GetMappingFor(subj: Subject)
 
-  case class StreamMapping(subj: Subject, mappedStreamKey: Option[StreamRef])
+  case class StreamMapping(subj: Subject, mappedStreamKey: Option[StreamId])
 
-  case class StreamResyncRequest(streamKey: StreamRef)
+  case class StreamResyncRequest(streamKey: StreamId)
 
   case class ServiceEndpoint(ref: ActorRef, address: Address)
 
@@ -53,24 +53,24 @@ abstract class ServiceCell(id: String)
     def addEndpoint(ref: ActorRef): Unit = endpoint = Some(ref)
 
 
-    private var streams: Set[StreamRef] = Set.empty
+    private var streams: Set[StreamId] = Set.empty
 
-    def add(s: StreamRef) = streams += s
+    def add(s: StreamId) = streams += s
 
-    def remove(s: StreamRef) = streams -= s
+    def remove(s: StreamId) = streams -= s
 
     def currentStreams = streams
 
-    def hasInterestIn(s: StreamRef) = streams contains s
+    def hasInterestIn(s: StreamId) = streams contains s
 
   }
 
 
-  type SubjectToStreamKeyMapper = PartialFunction[Subject, StreamRef]
-  type StreamKeyToUnit = PartialFunction[StreamRef, Unit]
+  type SubjectToStreamKeyMapper = PartialFunction[Subject, Option[StreamId]]
+  type StreamKeyToUnit = PartialFunction[StreamId, Unit]
   type SignalHandler = PartialFunction[(Subject, Any), Option[SignalResponse]]
   private var subjectToStreamKeyMapperFunc: SubjectToStreamKeyMapper = {
-    case _ => NilStreamRef
+    case _ => None
   }
   private var streamActiveFunc: StreamKeyToUnit = {
     case _ =>
@@ -82,22 +82,22 @@ abstract class ServiceCell(id: String)
     case _ => None
   }
 
-  private var activeStreams: Set[StreamRef] = Set.empty
+  private var activeStreams: Set[StreamId] = Set.empty
   private var activeAgents: Map[Address, AgentView] = Map.empty
 
   val serviceKey: ServiceKey = id
 
-  final def subjectToStreamKey(f: SubjectToStreamKeyMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
+  final def onSubject(f: SubjectToStreamKeyMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
 
   final def onStreamActive(f: StreamKeyToUnit): Unit = streamActiveFunc = f orElse streamActiveFunc
 
   final def onStreamPassive(f: StreamKeyToUnit): Unit = streamPassiveFunc = f orElse streamPassiveFunc
 
-  final def isActiveStream(streamKey: StreamRef) = activeStreams.contains(streamKey)
+  final def isActiveStream(streamKey: StreamId) = activeStreams.contains(streamKey)
 
-  final def onStateTransition(key: StreamRef, transition: => StreamStateTransition) = stateTransitionFor(key, transition)
+  final def onStateTransition(key: StreamId, transition: => StreamStateTransition) = stateTransitionFor(key, transition)
 
-  final def currentStreamState(key: StreamRef): Option[StreamState] = stateOf(key)
+  final def currentStreamState(key: StreamId): Option[StreamState] = stateOf(key)
 
   final def onSignal(f: SignalHandler): Unit = signalHandlerFunc = f orElse signalHandlerFunc
 
@@ -107,6 +107,7 @@ abstract class ServiceCell(id: String)
   sealed trait SignalResponse
 
   case class SignalOk(payload: Option[Any] = None) extends SignalResponse
+
   case class SignalFailed(payload: Option[Any] = None) extends SignalResponse
 
 
@@ -128,7 +129,7 @@ abstract class ServiceCell(id: String)
     super.onClusterMemberUp(address)
   }
 
-  override def onTerminated(ref: ActorRef): Unit = {
+  onActorTerminated { ref =>
     activeAgents get ref.path.address foreach { loc =>
       cancelMessages(SpecificDestination(ref))
       activeAgents -= ref.path.address
@@ -137,11 +138,10 @@ abstract class ServiceCell(id: String)
       }
       scheduleOnce(1 seconds, OpenAgentAt(ref.path.address))
     }
-    super.onTerminated(ref)
   }
 
 
-  private def closeStreamAt(endpoint: ActorRef, streamKey: StreamRef) = {
+  private def closeStreamAt(endpoint: ActorRef, streamKey: StreamId) = {
     agentWithEndpointAt(endpoint) foreach { loc =>
       loc.endpoint foreach { ref => closeStreamFor(ref, streamKey) }
       loc remove streamKey
@@ -152,11 +152,11 @@ abstract class ServiceCell(id: String)
     }
   }
 
-  private def hasAgentWithInterestIn(key: StreamRef): Boolean = activeAgents.values exists (_.hasInterestIn(key))
+  private def hasAgentWithInterestIn(key: StreamId): Boolean = activeAgents.values exists (_.hasInterestIn(key))
 
   private def agentWithEndpointAt(ref: ActorRef) = activeAgents.values.find(_.endpoint.contains(ref))
 
-  private def registerStreamInterest(streamKey: StreamRef, requestor: ActorRef): Unit = {
+  private def registerStreamInterest(streamKey: StreamId, requestor: ActorRef): Unit = {
 
     agentWithEndpointAt(requestor) foreach { agentView =>
       val existingStream = isActiveStream(streamKey)
@@ -173,7 +173,7 @@ abstract class ServiceCell(id: String)
   }
 
 
-  private def publishStreamMapping(agent: ActorRef, subject: Subject, mapping: Option[StreamRef]) =
+  private def publishStreamMapping(agent: ActorRef, subject: Subject, mapping: Option[StreamId]) =
     acknowledgedDelivery(
       (agent, subject),
       StreamMapping(subject, mapping),
@@ -205,9 +205,13 @@ abstract class ServiceCell(id: String)
     case OpenAgentAt(address) => if (isAddressReachable(address)) ensureAgentIsRunningAt(address)
     case GetMappingFor(subj) =>
       subjectToStreamKeyMapperFunc(subj) match {
-        case NilStreamRef => sender() ! StreamMapping(subj, None)
-        case streamKey =>
-          sender() ! StreamMapping(subj, Some(streamKey))
+        case None =>
+
+          println(s"!>>> in $serviceKey ${getClass.getSimpleName} Requested mapping for $subj, found none")
+          sender() ! StreamMapping(subj, None)
+        case x@Some(streamKey) =>
+          println(s"!>>> Requested mapping for $subj, found " + streamKey)
+          sender() ! StreamMapping(subj, x)
       }
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
     case OpenStreamFor(streamKey) =>

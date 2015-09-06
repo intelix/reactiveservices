@@ -1,14 +1,17 @@
 package rs.core.registry
 
 import akka.actor._
-import rs.core.sysevents.SyseventOps.stringToSyseventOps
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.ServiceKey
 import rs.core.actors.ActorWithComposableBehavior
 import rs.core.registry.Messages._
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 trait ServiceRegistrySysevents extends ComponentWithBaseSysevents {
-  val ProviderRegistered = "ProviderRegistered".info
+
+
+  val ServiceRegistered = "ServiceRegistered".info
+  val ServiceUnregistered = "ServiceUnregistered".info
+
   val LookupFor = "LookupFor".trace
   val RegistryAgentRequest = "RegistryAgentRequest".trace
   val ServicesSetChange = "ServicesSetChange".trace
@@ -41,16 +44,18 @@ class ServiceRegistryActor
     interests get serviceKey foreach (_.foreach(_ ! update))
   }
 
-  private def addService(serviceKey: ServiceKey, location: ActorRef): Unit = {
-    println(s"!>>>>> addService - $serviceKey -> $location")
-    services get serviceKey match {
-      case Some(r) if r == location =>
-      case _ =>
-        println(s"!>>>> Watching $location  !!")
-        services += serviceKey -> context.watch(location)
-        updateStream(serviceKey, Some(location))
+  private def addService(serviceKey: ServiceKey, location: ActorRef): Unit =
+    ServiceRegistered { ctx =>
+      ctx +('key -> serviceKey, 'ref -> location)
+      services get serviceKey match {
+        case Some(r) if r == location =>
+          ctx + ('new -> false)
+        case _ =>
+          ctx + ('new -> true)
+          services += serviceKey -> context.watch(location)
+          updateStream(serviceKey, Some(location))
+      }
     }
-  }
 
 
   private def addInterest(ref: ActorRef, serviceKey: ServiceKey): Unit = {
@@ -81,7 +86,8 @@ class ServiceRegistryActor
     case CancelAllStreamingLookups => removeAllInterests(sender())
   }
 
-  private def removeService(serviceKey: ServiceKey, ref: ActorRef): Unit = {
+  private def removeService(serviceKey: ServiceKey, ref: ActorRef): Unit = ServiceUnregistered { ctx =>
+    ctx +('key -> serviceKey, 'ref -> ref)
     if (services.get(serviceKey) contains ref) {
       services -= serviceKey
       updateStream(serviceKey, None)
@@ -98,9 +104,7 @@ class ServiceRegistryActor
     }
   }
 
-  override def onTerminated(ref: ActorRef): Unit = {
-    println(s"!>>>>> Terminated - $ref")
-    super.onTerminated(ref)
+  onActorTerminated { ref =>
     removeService(ref)
     removeAllInterests(ref)
   }

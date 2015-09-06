@@ -82,13 +82,13 @@ class StreamSink(canUpdate: () => Boolean, update: StreamStateTransition => Unit
 trait MultipleStreamsBroadcaster {
   this: ActorWithComposableBehavior =>
   private val targets: mutable.Map[ActorRef, ConsumerWithStreamSinks] = mutable.HashMap()
-  private val streams: mutable.Map[StreamRef, StreamBroadcaster] = mutable.HashMap()
+  private val streams: mutable.Map[StreamId, StreamBroadcaster] = mutable.HashMap()
 
-  def stateOf(key: StreamRef): Option[StreamState] = streams get key flatMap (_.state)
+  def stateOf(key: StreamId): Option[StreamState] = streams get key flatMap (_.state)
 
   def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = targets get consumer foreach (_.addDemand(demand))
 
-  def stateTransitionFor(key: StreamRef, transition: => StreamStateTransition): Boolean = {
+  def stateTransitionFor(key: StreamId, transition: => StreamStateTransition): Boolean = {
     logger.info(s"!>>>> stateTransitionFor($key, $transition)")
     val result = streams get key forall (_.run(transition))
     result
@@ -98,7 +98,7 @@ trait MultipleStreamsBroadcaster {
     targets getOrElse(ref, newTarget(ref))
   }
 
-  def initiateStreamFor(ref: ActorRef, key: StreamRef) = {
+  def initiateStreamFor(ref: ActorRef, key: StreamId) = {
     val target = targets getOrElse(ref, newTarget(ref))
     val stream = streams getOrElse(key, newStreamBroadcaster(key))
 
@@ -113,7 +113,7 @@ trait MultipleStreamsBroadcaster {
 
   }
 
-  def closeStreamFor(ref: ActorRef, key: StreamRef) = {
+  def closeStreamFor(ref: ActorRef, key: StreamId) = {
     targets get ref foreach { target =>
       target locateExistingSinkFor key foreach { existingSink =>
         target.closeStream(key)
@@ -124,7 +124,7 @@ trait MultipleStreamsBroadcaster {
     }
   }
 
-  private def newStreamBroadcaster(key: StreamRef) = {
+  private def newStreamBroadcaster(key: StreamId) = {
     val sb = new StreamBroadcaster()
     streams += key -> sb
     sb
@@ -142,21 +142,21 @@ trait MultipleStreamsBroadcaster {
 
 
 class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef) extends ConsumerDemandTracker {
-  private val streamKeyToSink: mutable.Map[StreamRef, StreamSink] = mutable.HashMap()
+  private val streamKeyToSink: mutable.Map[StreamId, StreamSink] = mutable.HashMap()
   private val streams: util.ArrayList[StreamSink] = new util.ArrayList[StreamSink]()
   private val canUpdate = () => hasDemand
   private var nextPublishIdx = 0
 
-  def locateExistingSinkFor(key: StreamRef): Option[StreamSink] = streamKeyToSink get key
+  def locateExistingSinkFor(key: StreamId): Option[StreamSink] = streamKeyToSink get key
 
-  def closeStream(key: StreamRef) = {
+  def closeStream(key: StreamId) = {
     streamKeyToSink get key foreach { existingSink =>
       streamKeyToSink -= key
       streams remove existingSink
     }
   }
 
-  def addStream(key: StreamRef): StreamSink = {
+  def addStream(key: StreamId): StreamSink = {
     closeStream(key)
     val newSink = new StreamSink(canUpdate, updateForTarget(key))
     streamKeyToSink += key -> newSink
@@ -170,7 +170,7 @@ class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef) extends Consume
     publishToAll()
   }
 
-  private def updateForTarget(key: StreamRef)(tran: StreamStateTransition) = fulfillDownstreamDemandWith {
+  private def updateForTarget(key: StreamId)(tran: StreamStateTransition) = fulfillDownstreamDemandWith {
     println(s"!>>> updateForTarget $key -> $ref : " + tran)
     ref.tell(StreamUpdate(key, tran), self)
   }
@@ -205,6 +205,8 @@ trait ConsumerDemandTracker {
       println(s"!>>> ${this.getClass.getSimpleName}] : Fulfilling demand.... $currentDemand")
       f
       currentDemand -= 1
+    } else {
+      println(s"!>>> NO DEMAND!")
     }
   }
 }

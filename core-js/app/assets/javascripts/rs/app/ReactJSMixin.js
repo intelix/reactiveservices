@@ -235,7 +235,9 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions'],
             _unsubscribeFromStream: function (config) {
                 var self = this;
 
-                self.handle.unsubscribe(config.service, config.topic);
+                if (self.handle && _.isFunction(self.handle.unsubscribe)) {
+                    self.handle.unsubscribe(config.service, config.topic);
+                }
                 if (self.isDebug()) {
                     self.logDebug("Closed subscription for " + _subId2String(config)); // TODO should say 'dropped interest' or something like that
                 }

@@ -3,12 +3,10 @@ package rs.node.core
 import akka.actor.{ActorRef, Address, FSM, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
-import com.typesafe.config._
-import rs.core.sysevents.SyseventOps.stringToSyseventOps
-import rs.core.sysevents.WithSyseventPublisher
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import net.ceedubs.ficus.Ficus._
 import rs.core.actors.{ActorUtils, BaseActorSysevents}
+import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.UUIDTools
 import rs.core.tools.metrics.WithCHMetrics
 import rs.node.core.ServiceNodeActor._
@@ -145,10 +143,10 @@ object ServiceNodeActor {
 }
 
 class ServiceNodeActor
-  extends ServiceNodeSysevents
+  extends FSM[State, Data]
   with WithSyseventPublisher
   with ActorUtils
-  with FSM[State, Data]
+  with ServiceClusterBootstrapSysevents
   with WithCHMetrics {
 
   // !>>>> TODO Remove

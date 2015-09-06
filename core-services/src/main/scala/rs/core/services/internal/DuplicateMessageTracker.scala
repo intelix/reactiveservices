@@ -33,9 +33,8 @@ trait DuplicateMessageTracker extends ActorWithComposableBehavior {
   }
 
   // do not explitly watch, but hook into onTerminated. Let trait user define the rules
-  override def onTerminated(ref: ActorRef): Unit = {
+  onActorTerminated { ref =>
     clearAllFor(ref)
-    super.onTerminated(ref)
   }
 
   def clearAllFor(source: ActorRef): Unit = tracking.remove(source)

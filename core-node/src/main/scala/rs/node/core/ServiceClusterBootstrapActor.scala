@@ -81,7 +81,7 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
 
 
   private def startCluster() = {
-    StartingCluster >> {
+    StartingCluster { ctx =>
       clusterSystem = Some(ActorSystem(clusterSystemId, cfg))
       clusterSystem foreach { sys =>
         ServiceRegistryActor.start(sys)

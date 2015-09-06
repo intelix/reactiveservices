@@ -33,9 +33,9 @@ class TestPublisherActor2(id: String) extends ServiceCell(id) with StringStreamP
     case key => logger.info(s"!>>>> Stream passive $key")
   }
 
-  subjectToStreamKey {
-    case Subject(_, TopicKey("string"), _) => "ticker"
-    case Subject(_, TopicKey("list"), _) => "counterlist"
+  onSubject {
+    case Subject(_, TopicKey("string"), _) => Some("ticker")
+    case Subject(_, TopicKey("list"), _) => Some("counterlist")
   }
 
 }

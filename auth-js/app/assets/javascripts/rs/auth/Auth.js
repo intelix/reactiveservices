@@ -82,6 +82,7 @@ define(['logging', 'signals', 'cookies'], function (Log, Signal, Cookies) {
 
     return {
         isSessionValid: isSessionValid,
+        signals: signals,
 
         setToken: updateToken,
         hasToken: getCachedToken,

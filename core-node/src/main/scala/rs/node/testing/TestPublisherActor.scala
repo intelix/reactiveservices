@@ -2,7 +2,7 @@ package rs.node.testing
 
 import rs.core.actors.ActorWithTicks
 import rs.core.services.ServiceCell
-import rs.core.services.internal.StringStreamRef
+import rs.core.services.internal.StreamId
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromHead, ListSpecs}
 import rs.core.stream.SetStreamState.SetSpecs
@@ -40,15 +40,15 @@ class TestPublisherActor(id: String) extends ServiceCell(id) with StringStreamPu
   onSignal {
     case (_, s) =>
       Some(SignalOk(Some("Well done - " + s)))
-//    None
+    //    None
   }
 
   onStreamActive {
-    case StringStreamRef("counterlist") => "counterlist" !:! List.empty
-    case StringStreamRef("counterset") => "counterset" !% Set.empty
+    case StreamId("counterlist") => "counterlist" !:! List.empty
+    case StreamId("counterset") => "counterset" !% Set.empty
 
-    case StringStreamRef("token") => "token" !~ "tok123"
-    case StringStreamRef("permissions") => "permissions" !~ "allow_*"
+    case StreamId("token") => "token" !~ "tok123"
+    case StreamId("permissions") => "permissions" !~ "allow_*"
 
     case key => logger.info(s"!>>>> Stream active $key")
   }
@@ -57,14 +57,14 @@ class TestPublisherActor(id: String) extends ServiceCell(id) with StringStreamPu
     case key => logger.info(s"!>>>> Stream passive $key")
   }
 
-  subjectToStreamKey {
-    case Subject(_, TopicKey("token"), _) => "token"
-    case Subject(_, TopicKey("permissions"), _) => "permissions"
+  onSubject {
+    case Subject(_, TopicKey("token"), _) => Some("token")
+    case Subject(_, TopicKey("permissions"), _) => Some("permissions")
 
-    case Subject(_, TopicKey("string"), _) => "ticker"
-    case Subject(_, TopicKey("list"), _) => "counterlist"
-    case Subject(_, TopicKey("set"), _) => "counterset"
-    case Subject(_, TopicKey("map"), _) => "map"
+    case Subject(_, TopicKey("string"), _) => Some("ticker")
+    case Subject(_, TopicKey("list"), _) => Some("counterlist")
+    case Subject(_, TopicKey("set"), _) => Some("counterset")
+    case Subject(_, TopicKey("map"), _) => Some("map")
   }
 
   override def componentId: String = "TestPublisherActor"

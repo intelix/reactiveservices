@@ -6,7 +6,7 @@ import rs.core.Subject
 import rs.core.javaapi.JServiceCell
 import rs.core.services.ServiceCell
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.{StringStreamRef, StreamRef}
+import rs.core.services.internal.StreamId
 import rs.core.stream.ListStreamState._
 
 import scala.language.implicitConversions
@@ -108,18 +108,20 @@ trait JListStreamPublisher extends ListStreamPublisher {
   self: JServiceCell =>
 
   def listEvictionFromHead = FromHead
+
   def listEvictionFromTail = FromTail
+
   def listEvictionReject = RejectAdd
 
-  def streamListSnapshot(s: StreamRef, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit = {
+  def streamListSnapshot(s: StreamId, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit = {
     implicit val specs = ListSpecs(maxEntries, evictionStrategy)
     s !:! l.toArray.toList.asInstanceOf[List[String]]
   }
 
   def streamListSnapshot(s: String, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
-    streamListSnapshot(StringStreamRef(s), l, maxEntries, evictionStrategy)
+    streamListSnapshot(StreamId(s), l, maxEntries, evictionStrategy)
 
-  def streamListSnapshot(s: StreamRef, l: util.List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
+  def streamListSnapshot(s: StreamId, l: util.List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
     streamListSnapshot(s, l.toArray.toList.asInstanceOf[List[String]], maxEntries, evictionStrategy)
 
   def streamListSnapshot(s: String, l: util.List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
@@ -143,15 +145,15 @@ trait ListStreamPublisher {
 
   implicit def toListPublisher(v: String): ListPublisher = ListPublisher(v)
 
-  implicit def toListPublisher(v: StreamRef): ListPublisher = ListPublisher(v)
+  implicit def toListPublisher(v: StreamId): ListPublisher = ListPublisher(v)
 
-  def ?:(s: StreamRef): Option[ListStreamState] = currentStreamState(s) flatMap {
+  def ?:(s: StreamId): Option[ListStreamState] = currentStreamState(s) flatMap {
     case s: ListStreamState => Some(s)
     case _ => None
   }
 
 
-  case class ListPublisher(s: StreamRef) {
+  case class ListPublisher(s: StreamId) {
 
     private def locateValue(v: String, t: ListStreamState): Option[Int] =
       t.list.zipWithIndex.find(_._1 == v).map(_._2)
