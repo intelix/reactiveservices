@@ -25,6 +25,7 @@ trait ActorWithTicks extends ActorWithComposableBehavior {
   implicit private val ec = context.dispatcher
 
   private var callbacks: List[CallbackRequest] = List()
+  private var callbacksOnEveryTick: List[() => Unit] = List()
 
   def tickInterval = 1.second
 
@@ -37,7 +38,8 @@ trait ActorWithTicks extends ActorWithComposableBehavior {
   def internalProcessTick(): Unit = {}
   def processTick(): Unit = {}
 
-  def addTickCallback(callback: () => Unit, intervalMs: Long) = callbacks = callbacks :+ CallbackRequest(callback, intervalMs, 0)
+  def onTick(intervalMs: Long)(callback: => Unit): Unit = callbacks = callbacks :+ CallbackRequest(() => callback, intervalMs, 0)
+  def onTick(callback: => Unit): Unit = callbacksOnEveryTick = callbacksOnEveryTick :+ (() => callback)
 
   private def scheduleTick() = this.context.system.scheduler.scheduleOnce(tickInterval, self, Tick())(context.dispatcher)
 
@@ -49,13 +51,17 @@ trait ActorWithTicks extends ActorWithComposableBehavior {
       scheduleTick()
   }
 
-  private def processCallbacks() =
-    callbacks = callbacks.map {
-      case CallbackRequest(f, i, l) if now - l >= i =>
-        f()
-        CallbackRequest(f, i, now)
-      case x => x
-    }
+  private def processCallbacks() = {
+    if (callbacks.nonEmpty)
+      callbacks = callbacks.map {
+        case CallbackRequest(f, i, l) if now - l >= i =>
+          f()
+          CallbackRequest(f, i, now)
+        case x => x
+      }
+    if (callbacksOnEveryTick.nonEmpty)
+      callbacksOnEveryTick foreach(_())
+  }
 
   private case class Tick()
 

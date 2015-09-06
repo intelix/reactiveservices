@@ -37,6 +37,8 @@ sealed trait Sysevent {
 
   def apply[T](f1: => FieldAndValue)(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1), dummy)
 
+  def apply[T]()(implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq.empty, dummy)
+
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue)
               (implicit ctx: WithSyseventPublisher, system: SyseventSystem): Unit = run(Seq(f1, f2), dummy)

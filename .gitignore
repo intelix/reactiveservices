@@ -1,4 +1,20 @@
 .idea/*
 
 /auth/target
+/auth-js/target
+/auth-js/target/*
+/auth-api/target
+/core-codec-binary/target
+/core-js/target
+/core-node/target
+/core-services/target
+/core-sysevents/target
+/examples/counter/node-service/target
+/examples/counter/node-statics/target
+/examples/counter/node-websocket/target
+/project/target
+/repl-server/target
+/target
+/tcp-server/target
+/websocket-server/target
 .idea

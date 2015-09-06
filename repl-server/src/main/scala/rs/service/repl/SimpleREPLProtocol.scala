@@ -1,4 +1,4 @@
-package rs.core.services.endpoint.akkastreams
+package rs.service.repl
 
 import akka.stream._
 import akka.stream.scaladsl._

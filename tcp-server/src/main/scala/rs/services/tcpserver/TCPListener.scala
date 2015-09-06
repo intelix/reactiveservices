@@ -1,8 +1,8 @@
-package rs.core.services.endpoint.akkastreams
+package rs.services.tcpserver
 
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Tcp, Source}
 import akka.stream.scaladsl.Tcp.{IncomingConnection, ServerBinding}
+import akka.stream.scaladsl.{Source, Tcp}
 
 import scala.concurrent.Future
 

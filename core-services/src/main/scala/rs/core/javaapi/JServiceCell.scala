@@ -1,8 +1,7 @@
 package rs.core.javaapi
 
 import rs.core.Subject
-import rs.core.services.ServiceCell
-import rs.core.services.internal.StreamId
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.stream._
 
 import scala.concurrent.duration._
@@ -65,13 +64,13 @@ abstract class JServiceCell(id: String) extends ServiceCell(id) with JStringStre
   }
 
   def topicToStreamRef(topic: String, streamRef: String): Unit = {
-    onSubject {
+    onSubjectSubscription {
       case s if s.topic.id == topic => Some(streamRef)
     }
   }
 
   def topicToStreamRef(topic: String, mapper: SubjectMapper): Unit = {
-    onSubject {
+    onSubjectSubscription {
       case s if s.topic.id == topic => Some(mapper.map(s))
     }
   }

@@ -29,11 +29,11 @@ trait ClusterAwareness extends ActorWithComposableBehavior {
 
   def onClusterStateSnapshot(): Unit = {}
 
-  def onClusterMemberUp(address: Address): Unit = {}
+  def onClusterMemberUp(address: Address, roles: Set[String]): Unit = {}
 
-  def onClusterMemberUnreachable(address: Address): Unit = {}
+  def onClusterMemberUnreachable(address: Address, roles: Set[String]): Unit = {}
 
-  def onClusterMemberRemoved(address: Address): Unit = {}
+  def onClusterMemberRemoved(address: Address, roles: Set[String]): Unit = {}
 
   def onLeaderHandover(): Unit = {}
 
@@ -55,22 +55,22 @@ trait ClusterAwareness extends ActorWithComposableBehavior {
   onMessage {
     case CurrentClusterState(m, u, _, l, _) =>
       m.foreach { member =>
-        onClusterMemberUp(member.address)
+        onClusterMemberUp(member.address, member.roles)
       }
       processLeaderChange(l)
       onClusterStateSnapshot()
     case MemberUp(member) =>
       reachableMembers = reachableMembers + member.address
-      onClusterMemberUp(member.address)
+      onClusterMemberUp(member.address, member.roles)
     case UnreachableMember(member) =>
       reachableMembers = reachableMembers - member.address
-      onClusterMemberUnreachable(member.address)
+      onClusterMemberUnreachable(member.address, member.roles)
     case ReachableMember(member) =>
       reachableMembers = reachableMembers + member.address
-      onClusterMemberUp(member.address)
+      onClusterMemberUp(member.address, member.roles)
     case MemberRemoved(member, previousStatus) =>
       reachableMembers = reachableMembers - member.address
-      onClusterMemberRemoved(member.address)
+      onClusterMemberRemoved(member.address, member.roles)
     case LeaderChanged(l) => processLeaderChange(l)
   }
 

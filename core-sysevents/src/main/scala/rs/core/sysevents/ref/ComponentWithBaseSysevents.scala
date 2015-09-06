@@ -21,6 +21,7 @@ import rs.core.sysevents.SyseventOps.symbolToSyseventOps
 
 trait ComponentWithBaseSysevents extends SyseventComponent {
 
+  val Invalid = 'Invalid.warn
   val Warning = 'Warning.warn
   val Error = 'Error.error
 

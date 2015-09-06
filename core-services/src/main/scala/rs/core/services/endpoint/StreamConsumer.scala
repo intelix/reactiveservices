@@ -15,7 +15,6 @@ import scala.language.postfixOps
 
 trait StreamConsumer extends ActorWithComposableBehavior with ServicePortSubscriptionRequestSink {
 
-
   type StreamUpdateHandler = PartialFunction[(Subject, StreamState), Unit]
   type ServiceKeyEventHandler = PartialFunction[ServiceKey, Unit]
 
@@ -33,7 +32,7 @@ trait StreamConsumer extends ActorWithComposableBehavior with ServicePortSubscri
     case _ =>
   }
 
-  val signalPort: ActorRef = context.actorOf(SignalPort.props, "signalport")
+  val signalPort: ActorRef = context.actorOf(SignalPort.props, "signal-port")
 
   def onStreamUpdate(handler: StreamUpdateHandler) = streamUpdateHandlerFunc = handler orElse streamUpdateHandlerFunc
 
@@ -50,12 +49,10 @@ trait StreamConsumer extends ActorWithComposableBehavior with ServicePortSubscri
 
   final def subscribe(subj: Subject, priorityKey: Option[String] = None, aggregationIntervalMs: Int = 0) = {
     addSubscription(OpenSubscription(subj, priorityKey, aggregationIntervalMs))
-    //    servicePort ! OpenSubscription(subj, priorityKey, aggregationIntervalMs)
   }
 
   final def unsubscribe(subj: Subject) = {
     removeSubscription(CloseSubscription(subj))
-    //    servicePort ! CloseSubscription(subj)
   }
 
   private def update(subj: Subject, tran: StreamState) = {

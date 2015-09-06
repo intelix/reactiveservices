@@ -1,9 +1,8 @@
 package rs.core.stream
 
 import rs.core.Subject
-import rs.core.services.ServiceCell
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamId
 
 import scala.language.implicitConversions
 
@@ -31,7 +30,7 @@ trait CustomRecordPublisher {
 
   case class CustomPublisher(s: StreamId) {
 
-    def !!(v: Any) = onStateTransition(s, CustomStreamState(v))
+    def !!(v: Any) = performStateTransition(s, CustomStreamState(v))
 
     def anyRec = !! _
   }

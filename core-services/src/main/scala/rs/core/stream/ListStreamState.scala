@@ -4,9 +4,8 @@ import java.util
 
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
-import rs.core.services.ServiceCell
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamId
 import rs.core.stream.ListStreamState._
 
 import scala.language.implicitConversions
@@ -159,8 +158,8 @@ trait ListStreamPublisher {
       t.list.zipWithIndex.find(_._1 == v).map(_._2)
 
     def !:!(l: => List[String])(implicit specs: ListSpecs): Unit = ?:(s) match {
-      case Some(x) => onStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
-      case None => onStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
+      case Some(x) => performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
+      case None => performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
     }
 
 
@@ -168,7 +167,7 @@ trait ListStreamPublisher {
 
 
     def !:+(pos: Int, v: => String): Unit = ?:(s) match {
-      case Some(x) => onStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Add(pos, v))))
+      case Some(x) => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Add(pos, v))))
       case None => logger.error("!>>>> OH!")
     }
 
@@ -176,7 +175,7 @@ trait ListStreamPublisher {
 
 
     def !:-(pos: Int): Unit = ?:(s) match {
-      case Some(x) => onStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(pos))))
+      case Some(x) => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(pos))))
       case None =>
     }
 
@@ -184,7 +183,7 @@ trait ListStreamPublisher {
 
 
     def !:-?(v: => String): Unit = ?:(s) match {
-      case Some(x) => locateValue(v, x) foreach { pos => onStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(pos)))) }
+      case Some(x) => locateValue(v, x) foreach { pos => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(pos)))) }
       case None =>
     }
 
@@ -192,7 +191,7 @@ trait ListStreamPublisher {
 
 
     def !:*(pos: Int, v: => String): Unit = ?:(s) match {
-      case Some(x) => onStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Replace(pos, v))))
+      case Some(x) => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Replace(pos, v))))
       case None =>
     }
 
@@ -200,7 +199,7 @@ trait ListStreamPublisher {
 
 
     def !:*?(v: => String, newV: => String): Unit = ?:(s) match {
-      case Some(x) => locateValue(v, x) foreach { pos => onStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Replace(pos, newV)))) }
+      case Some(x) => locateValue(v, x) foreach { pos => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Replace(pos, newV)))) }
       case None =>
     }
 

@@ -4,9 +4,8 @@ import java.util
 
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
-import rs.core.services.ServiceCell
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamId
 import rs.core.stream.SetStreamState._
 
 import scala.language.implicitConversions
@@ -113,21 +112,21 @@ trait SetStreamPublisher {
   case class SetPublisher(s: StreamId) {
 
     def !%(l: => Set[String])(implicit specs: SetSpecs): Unit = ?%(s) match {
-      case Some(x) => onStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
-      case None => onStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
+      case Some(x) => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
+      case None => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
     }
 
     def streamSetSnapshot(l: => Set[String])(implicit specs: SetSpecs): Unit = !%(l)
 
     def !%+(v: => String): Unit = ?%(s) match {
-      case Some(x) => onStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Add(v))))
+      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Add(v))))
       case None => logger.error("!>>>> OH!")
     }
 
     def streamSetAdd(v: => String): Unit = !%+(v)
 
     def !%-(v: => String): Unit = ?%(s) match {
-      case Some(x) => onStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(v))))
+      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(v))))
       case None => logger.error("!>>>> OH!")
     }
 

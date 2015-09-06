@@ -8,17 +8,8 @@ import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 trait ServiceRegistrySysevents extends ComponentWithBaseSysevents {
 
-
   val ServiceRegistered = "ServiceRegistered".info
   val ServiceUnregistered = "ServiceUnregistered".info
-
-  val LookupFor = "LookupFor".trace
-  val RegistryAgentRequest = "RegistryAgentRequest".trace
-  val ServicesSetChange = "ServicesSetChange".trace
-  val ServiceProvidersChange = "ServiceProvidersChange".trace
-  val NowWatching = "NowWatching".info
-  val NoLongerWatching = "NoLongerWatching".info
-  val ProviderTerminated = "ProviderTerminated".info
 
   override def componentId: String = "ServiceRegistry"
 }
@@ -87,22 +78,23 @@ class ServiceRegistryActor
   }
 
   private def removeService(serviceKey: ServiceKey, ref: ActorRef): Unit = ServiceUnregistered { ctx =>
-    ctx +('key -> serviceKey, 'ref -> ref)
+    ctx +('key -> serviceKey, 'ref -> ref, 'reason -> "request")
     if (services.get(serviceKey) contains ref) {
       services -= serviceKey
       updateStream(serviceKey, None)
     }
   }
 
-  private def removeService(ref: ActorRef): Unit = {
+  private def removeService(ref: ActorRef): Unit =
     services = services filter {
       case (k, v) =>
         if (v == ref) {
+          ServiceUnregistered('key -> k, 'ref -> ref, 'reason -> "termination")
           updateStream(k, None)
           false
         } else true
     }
-  }
+
 
   onActorTerminated { ref =>
     removeService(ref)

@@ -8,11 +8,27 @@ import akka.stream.stage._
 import akka.stream.{Attributes, FlowShape, UniformFanOutShape}
 import rs.core.services.Messages._
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
+import rs.core.sysevents.SyseventPublisher
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
-object EndpointFlow {
+
+trait ServicePortSysevents extends ComponentWithBaseSysevents {
+
+  val FlowStarting = "FlowStarting".info
+  val FlowStopping = "FlowStopping".info
+  val SignalRequest = "SignalRequest".info
+  val SignalResponse = "SignalResponse".info
+  val SignalExpired = "SignalExpired".info
+  val SignalFailure = "SignalFailure".warn
+
+  override def componentId: String = "ServicePort"
+}
 
 
-  def buildFlow(id: String)(implicit context: ActorRefFactory) = Flow.wrap[ServiceInboundMessage, ServiceOutboundMessage, Any](FlowGraph.partial() { implicit b =>
+object ServicePort extends ServicePortSysevents {
+
+
+  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: SyseventPublisher) = Flow.wrap[ServiceInboundMessage, ServiceOutboundMessage, Any](FlowGraph.partial() { implicit b =>
 
     import FlowGraph.Implicits._
 
@@ -35,12 +51,6 @@ object EndpointFlow {
               SameState
           }
 
-
-        override def postStop(): Unit = {
-          println(s"!>>> Router stopped")
-          super.postStop()
-        }
-
         override def initialCompletionHandling: CompletionHandling = CompletionHandling(
           onUpstreamFailure = (ctx, cause)  => ctx.finish(),
           onUpstreamFinish = ctx => ctx.finish(),
@@ -48,69 +58,63 @@ object EndpointFlow {
         )
       }
 
-
     }
 
-
-
-
-    println(s"!>>> Starting aggregator, $id")
-    val aggregator = context.actorOf(StreamAggregatorActor.props(), s"aggregator-$id")
-    val signalPort = context.actorOf(SignalPort.props, s"signalport-$id")
-
-    println(s"!>>> aggregator: $aggregator")
-
+    val aggregator = context.actorOf(StreamAggregatorActor.props(), s"aggregator-$tokenId")
+    val signalPort = context.actorOf(SignalPort.props, s"signal-port-$tokenId")
 
     val lifecycleMonitor = new PushStage[ServiceInboundMessage, ServiceInboundMessage] {
       override def onPush(elem: ServiceInboundMessage, ctx: Context[ServiceInboundMessage]): SyncDirective = {
         ctx.push(elem)
       }
 
-
       @throws[Exception](classOf[Exception])
       override def preStart(ctx: LifecycleContext): Unit = {
+        FlowStarting('token -> tokenId)
         super.preStart(ctx)
       }
 
-
       @throws[Exception](classOf[Exception])
       override def postStop(): Unit = {
-        println(s"!>>> lifecycleMonitor stopping .... ")
-        // terminating
-        context.stop(aggregator)
-        context.stop(signalPort)
+        FlowStopping { ctx =>
+          ctx + ('token -> tokenId)
+          context.stop(aggregator)
+          context.stop(signalPort)
+        }
         super.postStop()
       }
-
     }
 
+    val publisher = Source.actorPublisher(ServicePortStreamSource.props(aggregator, tokenId))
 
-
-
-
-    val publisher = Source.actorPublisher(ServiceSubscriptionStreamSource.props(aggregator))
-
-    val requestSink = b.add(Sink.actorSubscriber(ServicePortSubscriptionRequestSinkSubscriber.props(aggregator)))
+    val requestSink = b.add(Sink.actorSubscriber(ServicePortSubscriptionRequestSinkSubscriber.props(aggregator, tokenId)))
 
     val signalExecStage = b.add(Flow[ServiceInboundMessage].mapAsyncUnordered[ServiceOutboundMessage](100) {
       case m: Signal =>
-        println(s"!>>> SIGNAL IN: $m, now: ${System.currentTimeMillis()} millis tm: " + (m.expireAt - System.currentTimeMillis()))
-        m.expireAt - System.currentTimeMillis() match {
+        val start = System.nanoTime()
+        val expiredIn = m.expireAt - System.currentTimeMillis()
+        SignalRequest('correlation -> m.correlationId, 'expiry -> m.expireAt, 'expiredin -> expiredIn, 'subj -> m.subj, 'group -> m.orderingGroup)
+        expiredIn match {
           case expireInMillis if expireInMillis > 0 =>
             Patterns.ask(signalPort, m, expireInMillis).recover {
               case t =>
-                // TODO event
-                println(s"!>>> EXPIRED!")
+                SignalExpired('correlation -> m.correlationId, 'subj -> m.subj)
                 SignalAckFailed(m.correlationId, m.subj, None)
             }.map {
-              case t: ServiceOutboundMessage => t
+              case t: SignalAckOk =>
+                val diff = System.nanoTime() - start
+                SignalResponse('success -> true, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
+                t
+              case t: SignalAckFailed =>
+                val diff = System.nanoTime() - start
+                SignalResponse('success -> false, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
+                t
               case t =>
-                // TODO event
+                SignalFailure('correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t))
                 SignalAckFailed(m.correlationId, m.subj, None)
             }
             case _ => Futures.successful(SignalAckFailed(m.correlationId, m.subj, None))
         }
-//        case _ => Futures.
 
     })
 
@@ -119,7 +123,6 @@ object EndpointFlow {
 
     val publisherSource = b.add(publisher)
 
-    val ignore = Sink.ignore
     val router = b.add(new MessageRouter[ServiceInboundMessage])
 
     val monitor = b.add(Flow[ServiceInboundMessage].transform(() => lifecycleMonitor))

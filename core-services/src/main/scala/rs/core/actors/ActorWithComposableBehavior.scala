@@ -22,10 +22,9 @@ import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.NowProvider
 import rs.core.tools.metrics.MetricGroups.ActorMetricGroup
-import rs.core.tools.metrics.{MeterSensor, Metrics, TimerSensor}
+import rs.core.tools.metrics.Metrics
 
 trait BaseActorSysevents extends ComponentWithBaseSysevents {
-//  val WatchedActorTerminated = info("WatchedActorTerminated")
   val PostStop = "Lifecycle.PostStop".info
   val PreStart = "Lifecycle.PreStart".info
   val PreRestart = "Lifecycle.PreRestart".info
@@ -46,10 +45,12 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
   def onActorTerminated(f: ActorRef => Unit) = terminatedFuncChain = terminatedFuncChain :+ f
 
 
+  private val pathAsString = self.path.toStringWithoutAddress
+  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('path -> pathAsString)
 
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
-    PreRestart ('reason -> reason.getMessage, 'msg -> message, 'path -> self.path.toStringWithoutAddress)
+    PreRestart('reason -> reason.getMessage, 'msg -> message, 'path -> self.path.toStringWithoutAddress)
     super.preRestart(reason, message)
   }
 
@@ -57,23 +58,23 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
   @throws[Exception](classOf[Exception])
   override def postRestart(reason: Throwable): Unit = {
     super.postRestart(reason)
-    PostRestart ('reason -> reason.getMessage, 'path -> self.path.toStringWithoutAddress)
+    PostRestart('reason -> reason.getMessage, 'path -> self.path.toStringWithoutAddress)
   }
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
-    PreStart ('path -> self.path.toStringWithoutAddress)
+    PreStart('path -> self.path.toStringWithoutAddress)
     super.preStart()
   }
 
   @throws[Exception](classOf[Exception])
   override def postStop(): Unit = {
     super.postStop()
-    PostStop ('path -> self.path.toStringWithoutAddress)
+    PostStop('path -> self.path.toStringWithoutAddress)
   }
 
   private var commonBehavior: Receive = {
-    case Terminated(ref) => terminatedFuncChain.foreach(_(ref))
+    case Terminated(ref) => terminatedFuncChain.foreach(_ (ref))
   }
 
   def beforeMessage() = {}
@@ -86,33 +87,11 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
     case x =>
       val startStamp = System.nanoTime()
 
-      var ArrivalRateMeterByType: Option[MeterSensor] = None
-      var MessageProcessingTimerByType: Option[TimerSensor] = None
-
-      // TODO rethink and reenable
-      //      if (!x.getClass.isArray) {
-      //        val simpleName = x.getClass.getSimpleName
-      //        ArrivalRateMeterByType = Some(meterSensor(ActorMetricGroup, "By_Message_Type." + simpleName + "." + Metrics.ArrivalRate))
-      //        MessageProcessingTimerByType = Some(timerSensor(ActorMetricGroup, "By_Message_Type." + simpleName + "." + Metrics.ProcessingTime))
-      //      }
-
-      // TODO rethink and reenable
-      //      ArrivalRateMeter.update(1)
-      //      ArrivalRateMeterByType.foreach(_.update(1))
-
-
-
       beforeMessage()
 
       processMessage(x)
 
       afterMessage()
-
-    // TODO rethink and reenable
-    //      val ns: Long = System.nanoTime() - startStamp
-    //      MessageProcessingTimer.updateNs(ns)
-    //      MessageProcessingTimerByType.foreach(_.updateNs(ns))
-
 
   }
 
@@ -122,9 +101,7 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
       commonBehavior applyOrElse(x, NoHandler)
     } catch {
       case x: Throwable =>
-        Error ('ctx -> "Error during message processing", 'msg -> x.getMessage, 'err -> x)
-        // TODO REMOVE  !>>>>>>
-        logger.error("Error", x)
+        Error('ctx -> "Error during message processing", 'msg -> x.getMessage, 'err -> x)
         FailureRateMeter.update(1)
 
     }

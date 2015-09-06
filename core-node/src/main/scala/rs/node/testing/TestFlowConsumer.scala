@@ -8,7 +8,7 @@ import akka.stream.actor.ActorPublisher
 import akka.stream.scaladsl._
 import rs.core.actors.{ActorWithComposableBehavior, ActorWithTicks}
 import rs.core.services.Messages.{CloseSubscription, OpenSubscription, Signal, StreamStateUpdate}
-import rs.core.services.endpoint.akkastreams.{ServicePortSubscriptionRequestSinkSubscriber, ServiceSubscriptionStreamSource}
+import rs.core.services.endpoint.akkastreams.{ServicePortSubscriptionRequestSinkSubscriber, ServicePortStreamSource}
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
 import rs.core.stream.StringStreamState
 import rs.core.{ServiceKey, Subject, TopicKey}
@@ -150,7 +150,7 @@ class TestFlowConsumer extends ActorWithComposableBehavior {
     val aggregator = context.actorOf(StreamAggregatorActor.props(), "aggregator")
     val signalPort = context.actorOf(SignalPort.props, "signalport")
 
-    val publisher = Source.actorPublisher(ServiceSubscriptionStreamSource.props(aggregator))
+    val publisher = Source.actorPublisher(ServicePortStreamSource.props(aggregator))
 
     val requestSink = b.add(Sink.actorSubscriber(ServicePortSubscriptionRequestSinkSubscriber.props(aggregator)))
 

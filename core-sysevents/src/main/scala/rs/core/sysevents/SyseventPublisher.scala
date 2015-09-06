@@ -19,6 +19,19 @@ trait SyseventPublisherContext {
     this + f2
     this + f3
   }
+  def +(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue): Unit = {
+    this + f1
+    this + f2
+    this + f3
+    this + f4
+  }
+  def +(f1: => FieldAndValue, f2: => FieldAndValue, f3: => FieldAndValue, f4: => FieldAndValue, f5: => FieldAndValue): Unit = {
+    this + f1
+    this + f2
+    this + f3
+    this + f4
+    this + f5
+  }
   def ++(fields: => Seq[FieldAndValue]): Unit
 
 }

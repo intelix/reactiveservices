@@ -1,11 +1,16 @@
 package rs.core.services.internal
 
 import akka.actor.{ActorRef, Props}
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.{BaseActorSysevents, ActorWithComposableBehavior}
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages.Signal
 import rs.core.services.internal.InternalMessages.SignalPayload
-import rs.core.services.internal.acks.SimpleInMemoryAckedDeliveryWithDynamicRouting
+import rs.core.services.internal.SimpleInMemoryAckedDeliveryWithDynamicRouting
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
+
+trait SignalPortSysevents extends BaseActorSysevents {
+  override def componentId: String = "SignalPort"
+}
 
 object SignalPort {
   def props = Props[SignalPort]
@@ -14,7 +19,8 @@ object SignalPort {
 class SignalPort
   extends ActorWithComposableBehavior
   with SimpleInMemoryAckedDeliveryWithDynamicRouting
-  with RegistryRef {
+  with RegistryRef
+  with SignalPortSysevents {
 
   private var routes: Map[String, ActorRef] = Map.empty
 
@@ -41,5 +47,4 @@ class SignalPort
       acknowledgedDelivery(x, signal, LogicalDestination(subj.service.id))(sender())
   }
 
-  override def componentId: String = "SignalPort"
 }

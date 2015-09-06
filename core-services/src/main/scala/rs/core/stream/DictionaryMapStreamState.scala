@@ -4,9 +4,8 @@ import java.util
 
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
-import rs.core.services.ServiceCell
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamId
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 
 import scala.language.implicitConversions
@@ -166,7 +165,7 @@ trait DictionaryMapStreamPublisher {
     }
 
 
-    private def transition(values: Array[Any])(implicit dict: Dictionary): Unit = onStateTransition(s, ?#(s) match {
+    private def transition(values: Array[Any])(implicit dict: Dictionary): Unit = performStateTransition(s, ?#(s) match {
       case Some(state) => state.transitionTo(values)
       case None => new DictionaryMapStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, values, dict)
     })

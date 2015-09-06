@@ -1,7 +1,7 @@
 package rs.core.services.internal
 
 import rs.core.Subject
-import rs.core.services.{Expirable, MessageId}
+import rs.core.services.{StreamId, Expirable, MessageId}
 import rs.core.stream.StreamStateTransition
 
 object InternalMessages {

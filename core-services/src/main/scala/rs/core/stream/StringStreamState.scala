@@ -3,9 +3,8 @@ package rs.core.stream
 import play.api.libs.json.{JsValue, Json}
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
-import rs.core.services.ServiceCell
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.internal.StreamId
 
 import scala.language.implicitConversions
 
@@ -25,8 +24,8 @@ case class StringStreamState(value: String) extends StreamState with StreamState
 
 trait JStringStreamPublisher {
   self: JServiceCell =>
-  def streamString(stream: String, value: String) = onStateTransition(stream, StringStreamState(value))
-  def streamString(stream: StreamId, value: String) = onStateTransition(stream, StringStreamState(value))
+  def streamString(stream: String, value: String) = performStateTransition(stream, StringStreamState(value))
+  def streamString(stream: StreamId, value: String) = performStateTransition(stream, StringStreamState(value))
 }
 
 
@@ -41,7 +40,7 @@ trait StringStreamPublisher {
 
   case class StringPublisher(s: StreamId) {
 
-    def !~(v: String) = onStateTransition(s, StringStreamState(v))
+    def !~(v: String) = performStateTransition(s, StringStreamState(v))
 
     def strRec = !~ _
   }

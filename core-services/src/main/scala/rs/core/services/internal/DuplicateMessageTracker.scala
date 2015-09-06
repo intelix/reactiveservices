@@ -45,7 +45,6 @@ trait DuplicateMessageTracker extends ActorWithComposableBehavior {
       tracking.put(sender, newTracking)
       newTracking
     })
-    logger.info(s"!>>>> Dup checking $groupId, $id, $sender = " + tracker.isValid(groupId, id))
     tracker.isValid(groupId, id)
   }
 

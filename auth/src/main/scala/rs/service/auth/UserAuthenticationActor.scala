@@ -3,14 +3,12 @@ package rs.service.auth
 import play.api.libs.json.Json
 import rs.core.SubjectKeys.UserToken
 import rs.core.actors.{ActorWithTicks, BaseActorSysevents}
-import rs.core.services.ServiceCell
-import rs.core.services.internal.CompositeStreamId
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.stream.SetStreamState.SetSpecs
 import rs.core.stream.{SetStreamPublisher, StringStreamPublisher}
 import rs.core.tools.Tools.configHelper
 import rs.core.{Subject, TopicKey}
 import rs.service.auth.UserAuthenticationActor.{Session, User}
-import rs.core.sysevents.SyseventOps._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -25,6 +23,7 @@ trait UserAuthenticationSysevents extends BaseActorSysevents {
   val UserTokenAdded = "UserTokenAdded".info
   val SessionCreated = "SessionCreated".info
   val UserSessionExpired = "UserSessionExpired".info
+  val AuthRequest = "AuthRequest".info
   val SuccessfulCredentialsLoginRequest = "SuccessfulCredentialsLoginRequest".info
   val SuccessfulTokenLoginRequest = "SuccessfulTokenLoginRequest".info
   val FailedCredentialsLoginRequest = "FailedCredentialsLoginRequest".info
@@ -52,89 +51,51 @@ abstract class UserAuthenticationActor(id: String)
 
   implicit val specs = SetSpecs(allowPartialUpdates = true)
 
-  val CanDoAnything = Json.stringify(Json.obj(
-    "p" -> Json.arr(
-      Json.obj(
-        "d" -> Json.obj(
-          "id" -> "*"
-        ),
-        "p" -> Json.arr(Json.obj(
-          "t" -> ".*"
-        ))
-      )
-    )
-  ))
 
-  val CanAccessBlotter = Json.stringify(Json.obj(
-    "p" -> Json.arr(
-      Json.obj(
-        "d" -> Json.obj(
-          "id" -> "blotter"
-        ),
-        "p" -> Json.arr(Json.obj(
-          "t" -> "xx"
-        ))
-      )
-    )
-  ))
-  val CanNotAccessBlotter = Json.stringify(Json.obj(
-    "p" -> Json.arr(
-      Json.obj(
-        "d" -> Json.obj(
-          "id" -> ""
-        ),
-        "p" -> Json.arr(Json.obj(
-          "t" -> "xx"
-        ))
-      )
-    )
-  ))
-
-  val CanAccessAUD = Json.stringify(Json.obj(
-    "p" -> Json.arr(
-      Json.obj(
-        "d" -> Json.obj(
-          "id" -> "xx"
-        ),
-        "p" -> Json.arr(Json.obj(
-          "t" -> ".*"
-        ))
-      )
-    )
-  ))
-  val CanNotAccessAUD = Json.stringify(Json.obj(
-    "p" -> Json.arr(
-      Json.obj(
-        "d" -> Json.obj(
-          "id" -> "xx"
-        ),
-        "p" -> Json.obj(
-          "t" -> ".*AUD.*"
-        )
-      )
-    )
-  ))
-
+  val TokenPrefix = "t"
+  val PermissionsPrefix = "p"
+  val InfoPrefix = "i"
 
   private val SessionTimeout = 5 minutes
-
   private var sessions: Set[Session] = Set.empty
 
-  override def processTick(): Unit = {
-    super.processTick()
-    invalidateSessions()
+  onSignal {
+    case (Subject(_, TopicKey("authenticate"), UserToken(ut)), v: String) =>
+      AuthRequest { ctx =>
+        ctx + ('token -> ut)
+        authenticateWithCredentials(v, ut) orElse authenticateWithToken(v, ut) orElse {
+          FailedCredentialsLoginRequest('login -> (Json.parse(v) ~> 'l))
+          Some(SignalOk(Some(false)))
+        }
+      }
+    case (a, b) =>
+      Invalid('subj -> a, 'payload -> b)
+      None
   }
 
-  // TODO do properly
-  private var permByUser: Map[String, Set[String]] = Map.empty
+  onSubjectSubscription {
+    case Subject(_, TopicKey("token"), UserToken(ut)) => Some(tokenStream(ut))
+    case Subject(_, TopicKey("permissions"), UserToken(ut)) => Some(permissionsStream(ut))
+    case Subject(_, TopicKey("info"), UserToken(ut)) => Some(infoStream(ut))
+  }
+
+  onStreamActive {
+    case StreamId(TokenPrefix, Some(ut: String)) => publishToken(ut)
+    case StreamId(InfoPrefix, Some(ut: String)) => publishInfo(ut)
+    case StreamId(PermissionsPrefix, Some(ut: String)) => publishPermissions(ut)
+  }
+
+  onTick { invalidateSessions() }
+
+
+  def tokenStream(ut: String) = StreamId(TokenPrefix, Some(ut))
+
+  def permissionsStream(ut: String) = StreamId(PermissionsPrefix, Some(ut))
+
+  def infoStream(ut: String) = StreamId(InfoPrefix, Some(ut))
 
   def user(userId: String): Option[User]
 
-  def tokenStream(ut: String) = CompositeStreamId("t", ut)
-
-  def permissionsStream(ut: String) = CompositeStreamId("p", ut)
-
-  def infoStream(ut: String) = CompositeStreamId("i", ut)
 
   def sessionByUserToken(userToken: String) = sessions.find(_.userTokens.contains(userToken))
 
@@ -146,7 +107,6 @@ abstract class UserAuthenticationActor(id: String)
       case _ => ""
     }
     tokenStream(userToken) !~ securityToken
-    //    println(s"!>>>>> token $securityToken published to ${tokenTopic(userToken)}")
     AuthToken('token -> userToken, 'authkey -> securityToken)
   }
 
@@ -159,7 +119,7 @@ abstract class UserAuthenticationActor(id: String)
     UserInfo('token -> userToken, 'info -> info)
   }
 
-  def publishPermissions(userToken: String): Unit = {
+  def publishPermissions(userToken: String): Unit =
     UserPermissions { ctx =>
       val permissions = sessionByUserToken(userToken) match {
         case Some(s) => user(s.userId) match {
@@ -168,12 +128,9 @@ abstract class UserAuthenticationActor(id: String)
         }
         case _ => Set.empty[String]
       }
-      ctx + ('token -> userToken)
-      ctx + ('perm -> permissions.mkString(";"))
+      ctx +('token -> userToken, 'perm -> permissions.mkString(";"))
       permissionsStream(userToken) !% permissions
     }
-    //    UserPermissions >>('token -> userToken, 'perm -> permissions.mkString(";"))
-  }
 
 
   def removeUserToken(userToken: String): Unit = {
@@ -252,29 +209,4 @@ abstract class UserAuthenticationActor(id: String)
       SignalOk(Some(true))
     }
 
-  onSignal {
-    case (Subject(_, TopicKey("authenticate"), UserToken(ut)), v: String) =>
-      println(s"!>>>>> SIGNALx: " + v)
-      authenticateWithCredentials(v, ut) orElse authenticateWithToken(v, ut) orElse {
-        FailedCredentialsLoginRequest('login -> (Json.parse(v) ~> 'l))
-        Some(SignalOk(Some(false)))
-      }
-    case (a,b) =>
-      println(s"!>>>>> SIGNAL2: " + a +" : " + b)
-      None
-  }
-
-  onStreamActive {
-    case CompositeStreamId("t", ut) => publishToken(ut)
-    case CompositeStreamId("i", ut) => publishInfo(ut)
-    case CompositeStreamId("p", ut) => publishPermissions(ut)
-  }
-
-  onSubject {
-    case Subject(_, TopicKey("token"), UserToken(ut)) =>
-      println(s"!>>>> $ut subscribed to token")
-      Some(tokenStream(ut))
-    case Subject(_, TopicKey("permissions"), UserToken(ut)) => Some(permissionsStream(ut))
-    case Subject(_, TopicKey("info"), UserToken(ut)) => Some(infoStream(ut))
-  }
 }

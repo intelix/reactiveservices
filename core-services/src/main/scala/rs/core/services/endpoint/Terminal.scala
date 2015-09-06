@@ -20,7 +20,6 @@ trait Terminal
 
   startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)
 
-
   override def preStart(): Unit = {
     super.preStart()
     startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)

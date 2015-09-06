@@ -1,17 +1,17 @@
-package rs.core.services.internal.acks
+package rs.core.services.internal
 
 import java.util
 
 import akka.actor.ActorRef
 import rs.core.actors.ActorWithTicks
+import rs.core.services.internal.acks.{AcknowledgeableWithSpecificId, Acknowledgeable, Acknowledgement}
 import rs.core.services.{Expirable, MessageId, SequentialMessageIdGenerator}
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 
 trait DestinationRoute
 
 trait SimpleInMemoryAckedDeliveryWithDynamicRouting extends SimpleInMemoryAcknowledgedDelivery {
-
-  case class LogicalDestination(route: String) extends DestinationRoute
 
   def resolveLogicalRoute(routeId: String): Option[ActorRef]
 
@@ -19,23 +19,29 @@ trait SimpleInMemoryAckedDeliveryWithDynamicRouting extends SimpleInMemoryAcknow
     case LogicalDestination(routeId) => resolveLogicalRoute(routeId)
     case _ => super.resolveRoute(id)
   }
+
+  case class LogicalDestination(route: String) extends DestinationRoute
+
 }
 
-trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
 
-  case class SpecificDestination(ref: ActorRef) extends DestinationRoute
+trait SimpleInMemoryAcknowledgedDeliverySysevents extends ComponentWithBaseSysevents {
+  val UnorderedDeliveryScheduled = "UnorderedDeliveryScheduled".trace
+  val OrderedDeliveryScheduled = "OrderedDeliveryScheduled".trace
+  val DeliveryCancelled = "DeliveryCancelled".trace
+  val DeliveryAcknowledged = "DeliveryAcknowledged".trace
+  val DeliveryAttempt = "DeliveryAttempt".trace
+}
 
+trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMemoryAcknowledgedDeliverySysevents {
 
   type MessageSelection = Any => Boolean
-
   private val SharedGroup = None
   private val groups: util.ArrayList[OrderedGroup] = new util.ArrayList[OrderedGroup]()
+  private val messageIdGenerator = new SequentialMessageIdGenerator()
   private var groupsMap: Map[GroupId, OrderedGroup] = Map()
   private var pendingOrderedDeliveries: Map[MessageId, OrderedGroup] = Map.empty
   private var pendingUnorderedDeliveries: Map[MessageId, DeliveryInfo] = Map.empty
-
-  private val messageIdGenerator = new SequentialMessageIdGenerator()
-
 
   def resolveRoute(id: DestinationRoute): Option[ActorRef] = id match {
     case SpecificDestination(ref) => Some(ref)
@@ -56,7 +62,6 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
   def cancelMessages(key: Any, route: DestinationRoute, selection: MessageSelection): Unit =
     cancelMessages(GroupId(key, route), selection)
 
-
   def cancelMessages(id: GroupId, selection: MessageSelection): Unit = {
     groupsMap get id foreach { grp =>
       grp cancel selection
@@ -72,40 +77,43 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     }
   }
 
+  def unorderedAcknowledgedDelivery(msg: Any, route: DestinationRoute)(implicit sender: ActorRef): Unit = UnorderedDeliveryScheduled { ctx =>
 
-  def unorderedAcknowledgedDelivery(msg: Any, route: DestinationRoute)(implicit sender: ActorRef): Unit = {
     val ackTo = if (sender == self) None else Some(self)
 
     val ackMsg = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
 
     val di = DeliveryInfo(ackMsg, sender, 0, route, None, 0)
 
-    logger.info("!>>>> Unordered delivery of " + ackMsg)
-
     pendingUnorderedDeliveries += ackMsg.messageId -> process(di)
 
+    ctx +('id -> ackMsg.messageId, 'target -> route)
+
   }
 
+  def acknowledgedDelivery(orderedGroupId: Any, msg: Any, route: DestinationRoute, cancelWithSelection: Option[MessageSelection] = None)(implicit sender: ActorRef): Unit =
+    OrderedDeliveryScheduled { ctx =>
 
-  def acknowledgedDelivery(orderedGroupId: Any, msg: Any, route: DestinationRoute, cancelWithSelection: Option[MessageSelection] = None)(implicit sender: ActorRef): Unit = {
+      val id = GroupId(orderedGroupId, route)
 
-    val id = GroupId(orderedGroupId, route)
+      cancelWithSelection foreach (cancelMessages(id, _))
 
-    cancelWithSelection foreach (cancelMessages(id, _))
+      val group = groupsMap getOrElse(id, newOrderedGroup(id))
 
-    val group = groupsMap getOrElse(id, newOrderedGroup(id))
+      val ackTo = if (sender == self) None else Some(self)
 
-    val ackTo = if (sender == self) None else Some(self)
+      val acknowledgeable: AcknowledgeableWithSpecificId = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
+      group.deliver(acknowledgeable, sender)
 
-    group.deliver(Acknowledgeable(messageIdGenerator.next(), msg, ackTo), sender)
+      ctx + ('group -> id, 'id -> acknowledgeable.messageId)
+    }
+
+  def cancelDelivery(id: MessageId) = DeliveryCancelled { ctx =>
+    markAsDelivered(id)
+    ctx + ('id -> id)
   }
 
-  def cancelDelivery(id: MessageId) = markAsDelivered(id)
-
-  override def processTick(): Unit = {
-    processQueue()
-    super.processTick()
-  }
+  onTick { processQueue() }
 
   def totalAcknowledgedDeliveryInflights = {
     def totalEnqueued = {
@@ -120,7 +128,6 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     }
     totalEnqueued + pendingOrderedDeliveries.size + pendingUnorderedDeliveries.size
   }
-
 
   def processQueue() = {
     var forRemoval: Seq[OrderedGroup] = Seq()
@@ -156,12 +163,6 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     pendingUnorderedDeliveries -= id
   }
 
-
-  onMessage {
-    case Acknowledgement(id) if pendingOrderedDeliveries.contains(id) || pendingUnorderedDeliveries.contains(id) => markAsDelivered(id)
-  }
-
-
   // TODO configurable interval
   private def process(info: DeliveryInfo): DeliveryInfo =
     if (now - info.sent > 3000) {
@@ -170,17 +171,32 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
         case None => info
         case location@Some(ref) =>
           ref.tell(info.msg, info.sender)
-          logger.info(s"!>>> Sent ${info.msg} [${info.msg.messageId}] -> ${info.route} -> $ref")
-          info.copy(sent = now, attempts = info.attempts + 1, sentTo = location)
+          val attempts = info.attempts + 1
+          DeliveryAttempt ('id -> info.msg.messageId, 'attempts -> attempts, 'route -> info.route, 'ref -> ref, 'payload -> info.msg.payload)
+          info.copy(sent = now, attempts = attempts, sentTo = location)
       }
     } else info
 
+
+  onMessage {
+    case Acknowledgement(id) if pendingOrderedDeliveries.contains(id) || pendingUnorderedDeliveries.contains(id) =>
+      DeliveryAcknowledged { ctx =>
+        markAsDelivered(id)
+        ctx + ('id -> id)
+      }
+  }
+
+  case class SpecificDestination(ref: ActorRef) extends DestinationRoute
 
   private case class GroupId(key: Any, route: DestinationRoute)
 
   private case class DeliveryInfo(msg: Acknowledgeable, sender: ActorRef, sent: Long, route: DestinationRoute, sentTo: Option[ActorRef], attempts: Int)
 
   private class OrderedGroup(val id: GroupId) {
+
+    private var queue: List[DeliveryInfo] = List()
+    private var currentDelivery: Option[DeliveryInfo] = None
+    private var idleSince: Long = -1
 
     def cancelAll() = {
       queue = List()
@@ -202,11 +218,6 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
       processMessages()
     }
 
-
-    private var queue: List[DeliveryInfo] = List()
-    private var currentDelivery: Option[DeliveryInfo] = None
-    private var idleSince: Long = -1
-
     def totalEnqueued = queue.size
 
     def clearCurrentDelivery() =
@@ -218,21 +229,6 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     def ack(): Unit = {
       clearCurrentDelivery()
       processMessages()
-    }
-
-    private def proceedToNextMessage() = {
-      clearCurrentDelivery()
-      queue = queue.filter(_.msg.payload match {
-        case t: Expirable => t.expireAt > now
-        case _ => true
-      })
-      if (queue.isEmpty)
-        idleSince = now
-      else {
-        val next = queue.head
-        queue = queue.tail
-        deliverNext(next)
-      }
     }
 
     def processMessages() = {
@@ -254,6 +250,21 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     }
 
     def shouldBeRemoved = idleSince > -1 && now - idleSince > 5000
+
+    private def proceedToNextMessage() = {
+      clearCurrentDelivery()
+      queue = queue.filter(_.msg.payload match {
+        case t: Expirable => t.expireAt > now
+        case _ => true
+      })
+      if (queue.isEmpty)
+        idleSince = now
+      else {
+        val next = queue.head
+        queue = queue.tail
+        deliverNext(next)
+      }
+    }
 
     private def scheduleNext(msg: DeliveryInfo) = queue = queue :+ msg
 

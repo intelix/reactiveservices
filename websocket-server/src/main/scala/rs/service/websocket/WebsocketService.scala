@@ -62,7 +62,7 @@ class WebsocketService(id: String) extends ServiceCell(id) {
       PartialUpdatesProducer.buildStage() atop
       BinaryCodec.Streams.buildServerSideTranslator() atop
       AuthStage.buildStage(id) join
-      EndpointFlow.buildFlow(id)
+      ServicePort.buildFlow(id)
   }
 
   val binding = Http().bindAndHandleSync(handler = {

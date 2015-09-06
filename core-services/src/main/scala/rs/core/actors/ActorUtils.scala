@@ -50,9 +50,6 @@ trait ActorUtils extends Actor {
     } else key
 
 
-//  def cfg[T](key: String)(implicit cfg: Config) = cfg.as[T](fieldFor(key))
-//  def cfg[T](key: String, default: T)(implicit cfg: Config) = cfg.as[Option[T]](fieldFor(key)) | default
-
   def configValueAsOptConfigList(key: String)(implicit cfg: Config) = cfg.as[Option[List[Config]]](fieldFor(key))
 
   def configValueAsOptConfig(key: String)(implicit cfg: Config) = cfg.as[Option[Config]](fieldFor(key))

@@ -1,20 +1,19 @@
 package rs.service.auth
 
 import akka.stream.BidiShape
-import akka.stream.scaladsl.{Flow, FlowGraph, BidiFlow}
+import akka.stream.scaladsl.{BidiFlow, Flow}
 import rs.core.SubjectKeys.UserToken
 import rs.core.services.Messages._
 
 object AuthStage {
 
-
-  def buildStage(id: String): BidiFlow[ServiceInboundMessage, ServiceInboundMessage, ServiceOutboundMessage, ServiceOutboundMessage, Unit] =
+  def buildStage(userToken: String): BidiFlow[ServiceInboundMessage, ServiceInboundMessage, ServiceOutboundMessage, ServiceOutboundMessage, Unit] =
     BidiFlow() { b =>
 
       val in = b.add(Flow[ServiceInboundMessage].map {
-        case s: OpenSubscription => s.copy(subj = s.subj.withKeys(UserToken(id)))
-        case s: CloseSubscription => s.copy(subj = s.subj.withKeys(UserToken(id)))
-        case s: Signal => s.copy(subj = s.subj.withKeys(UserToken(id)))
+        case s: OpenSubscription => s.copy(subj = s.subj.withKeys(UserToken(userToken)))
+        case s: CloseSubscription => s.copy(subj = s.subj.withKeys(UserToken(userToken)))
+        case s: Signal => s.copy(subj = s.subj.withKeys(UserToken(userToken)))
         case s => s
       })
 
@@ -30,8 +29,5 @@ object AuthStage {
       BidiShape(in, out)
 
     }
-
-
-
 
 }

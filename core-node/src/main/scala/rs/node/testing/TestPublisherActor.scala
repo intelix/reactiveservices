@@ -1,8 +1,7 @@
 package rs.node.testing
 
 import rs.core.actors.ActorWithTicks
-import rs.core.services.ServiceCell
-import rs.core.services.internal.StreamId
+import rs.core.services.{StreamId, ServiceCell}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromHead, ListSpecs}
 import rs.core.stream.SetStreamState.SetSpecs
@@ -44,11 +43,11 @@ class TestPublisherActor(id: String) extends ServiceCell(id) with StringStreamPu
   }
 
   onStreamActive {
-    case StreamId("counterlist") => "counterlist" !:! List.empty
-    case StreamId("counterset") => "counterset" !% Set.empty
+    case StreamId("counterlist", _) => "counterlist" !:! List.empty
+    case StreamId("counterset", _) => "counterset" !% Set.empty
 
-    case StreamId("token") => "token" !~ "tok123"
-    case StreamId("permissions") => "permissions" !~ "allow_*"
+    case StreamId("token", _) => "token" !~ "tok123"
+    case StreamId("permissions", _) => "permissions" !~ "allow_*"
 
     case key => logger.info(s"!>>>> Stream active $key")
   }
@@ -57,7 +56,7 @@ class TestPublisherActor(id: String) extends ServiceCell(id) with StringStreamPu
     case key => logger.info(s"!>>>> Stream passive $key")
   }
 
-  onSubject {
+  onSubjectSubscription {
     case Subject(_, TopicKey("token"), _) => Some("token")
     case Subject(_, TopicKey("permissions"), _) => Some("permissions")
 
