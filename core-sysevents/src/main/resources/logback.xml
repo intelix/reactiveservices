@@ -24,11 +24,11 @@
 
     <appender name="EVENTS" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
-            <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%-40thread] - %msg%n</Pattern>
+            <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level - %msg%n</Pattern>
         </layout>
     </appender>
 
-    <logger name="sysevents" level="INFO" additivity="false">
+    <logger name="sysevents" level="DEBUG" additivity="false">
         <appender-ref ref="EVENTS" />
     </logger>
 
@@ -38,7 +38,7 @@
     <logger name="akka.cluster.ClusterHeartbeatSender" level="WARN" />
     <logger name="akka.cluster.ClusterRemoteWatcher" level="WARN" />
 
-    <root level="INFO">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>
 

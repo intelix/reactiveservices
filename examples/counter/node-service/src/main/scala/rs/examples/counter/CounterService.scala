@@ -29,9 +29,7 @@ class CounterService(id: String) extends ServiceCell(id) with StringStreamPublis
       "counterlist" !:+(-1, "element-" + cnt)
       "counterset" !%+ "set-" + cnt
       "counterset" !%- "set-" + (cnt - 20)
-      println(s"!>>> before map publish")
       "map" !# Array[Any]("abc" + cnt, cnt, true,"a","1234567890")
-      println(s"!>>> after map publish")
       scheduleOnce(2 seconds, "tick")
   }
 

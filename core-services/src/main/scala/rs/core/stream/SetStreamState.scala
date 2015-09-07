@@ -12,6 +12,10 @@ import scala.language.implicitConversions
 
 object SetStreamState {
 
+  private def calculateDiff(fromSet: Set[String], toSet: Set[String]): Seq[SetOp] = {
+    (fromSet diff toSet).map(Remove).toSeq ++ (toSet diff fromSet).map(Add).toSeq
+  }
+
   sealed trait SetOp
 
   case class Add(el: String) extends SetOp
@@ -19,11 +23,6 @@ object SetStreamState {
   case class Remove(el: String) extends SetOp
 
   case class SetSpecs(allowPartialUpdates: Boolean = true)
-
-
-  private def calculateDiff(fromSet: Set[String], toSet: Set[String]): Seq[SetOp] = {
-    (fromSet diff toSet).map(Remove).toSeq ++ (toSet diff fromSet).map(Add).toSeq
-  }
 
 }
 
@@ -67,25 +66,24 @@ trait SetStreamConsumer extends StreamConsumer {
   onStreamUpdate {
     case (s, x: SetStreamState) => composedFunction(s, x.set)
   }
-
-  final def onSetRecord(f: SetStreamConsumer) =
-    composedFunction = f orElse composedFunction
-
   private var composedFunction: SetStreamConsumer = {
     case _ =>
   }
+
+  final def onSetRecord(f: SetStreamConsumer) =
+    composedFunction = f orElse composedFunction
 
 }
 
 trait JSetStreamPublisher extends SetStreamPublisher {
   self: JServiceCell =>
 
+  def streamSetSnapshot(s: String, l: util.Set[String], allowPartialUpdates: Boolean): Unit = streamSetSnapshot(StreamId(s), l, allowPartialUpdates)
+
   def streamSetSnapshot(s: StreamId, l: util.Set[String], allowPartialUpdates: Boolean): Unit = {
     implicit val setSpecs = SetSpecs(allowPartialUpdates)
     s !% l.toArray.toSet.asInstanceOf[Set[String]]
   }
-
-  def streamSetSnapshot(s: String, l: util.Set[String], allowPartialUpdates: Boolean): Unit = streamSetSnapshot(StreamId(s), l, allowPartialUpdates)
 
   def streamSetAdd(s: StreamId, v: String): Unit = s !%+ v
 
@@ -111,26 +109,26 @@ trait SetStreamPublisher {
 
   case class SetPublisher(s: StreamId) {
 
+    def streamSetSnapshot(l: => Set[String])(implicit specs: SetSpecs): Unit = !%(l)
+
     def !%(l: => Set[String])(implicit specs: SetSpecs): Unit = ?%(s) match {
       case Some(x) => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
       case None => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
     }
 
-    def streamSetSnapshot(l: => Set[String])(implicit specs: SetSpecs): Unit = !%(l)
+    def streamSetAdd(v: => String): Unit = !%+(v)
 
     def !%+(v: => String): Unit = ?%(s) match {
       case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Add(v))))
-      case None => logger.error("!>>>> OH!")
-    }
-
-    def streamSetAdd(v: => String): Unit = !%+(v)
-
-    def !%-(v: => String): Unit = ?%(s) match {
-      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(v))))
-      case None => logger.error("!>>>> OH!")
+      case None =>
     }
 
     def streamSetRemove(v: => String): Unit = !%-(v)
+
+    def !%-(v: => String): Unit = ?%(s) match {
+      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(v))))
+      case None =>
+    }
 
   }
 

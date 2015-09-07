@@ -36,10 +36,10 @@ object Messages {
 
   case class Signal(subj: Subject, payload: Any, expireAt: Long, orderingGroup: Option[Any], correlationId: Option[Any]) extends Expirable with ServiceInboundMessage with InboundSubjectMessage
 
-  trait SignalAck extends ServiceOutboundMessage
+//  trait SignalAck extends ServiceOutboundMessage
 
-  case class SignalAckOk(correlationId: Option[Any], subj: Subject, payload: Option[Any]) extends SignalAck
+  case class SignalAckOk(correlationId: Option[Any], subj: Subject, payload: Option[Any]) extends ServiceOutboundMessage
 
-  case class SignalAckFailed(correlationId: Option[Any], subj: Subject, payload: Option[Any]) extends SignalAck
+  case class SignalAckFailed(correlationId: Option[Any], subj: Subject, payload: Option[Any]) extends ServiceOutboundMessage
 
 }

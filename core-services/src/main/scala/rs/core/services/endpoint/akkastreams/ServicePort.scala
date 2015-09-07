@@ -8,7 +8,7 @@ import akka.stream.stage._
 import akka.stream.{Attributes, FlowShape, UniformFanOutShape}
 import rs.core.services.Messages._
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
-import rs.core.sysevents.SyseventPublisher
+import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 
@@ -28,7 +28,7 @@ trait ServicePortSysevents extends ComponentWithBaseSysevents {
 object ServicePort extends ServicePortSysevents {
 
 
-  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: SyseventPublisher) = Flow.wrap[ServiceInboundMessage, ServiceOutboundMessage, Any](FlowGraph.partial() { implicit b =>
+  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: WithSyseventPublisher) = Flow.wrap[ServiceInboundMessage, ServiceOutboundMessage, Any](FlowGraph.partial() { implicit b =>
 
     import FlowGraph.Implicits._
 
@@ -60,7 +60,7 @@ object ServicePort extends ServicePortSysevents {
 
     }
 
-    val aggregator = context.actorOf(StreamAggregatorActor.props(), s"aggregator-$tokenId")
+    val aggregator = context.actorOf(StreamAggregatorActor.props(tokenId), s"aggregator-$tokenId")
     val signalPort = context.actorOf(SignalPort.props, s"signal-port-$tokenId")
 
     val lifecycleMonitor = new PushStage[ServiceInboundMessage, ServiceInboundMessage] {
@@ -115,7 +115,12 @@ object ServicePort extends ServicePortSysevents {
             }
             case _ => Futures.successful(SignalAckFailed(m.correlationId, m.subj, None))
         }
-
+        case m: CloseSubscription =>
+          Invalid('type -> m.getClass, 'reason -> "Signal expected")
+          Futures.successful(SignalAckFailed(None, m.subj, None))
+        case m: OpenSubscription =>
+          Invalid('type -> m.getClass, 'reason -> "Signal expected")
+          Futures.successful(SignalAckFailed(None, m.subj, None))
     })
 
 

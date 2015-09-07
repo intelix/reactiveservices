@@ -7,9 +7,11 @@ case class Subject(service: ServiceKey, topic: TopicKey, keys: String = "") {
   override def toString: String = asString
 
   def withKeys(otherKeys: String) = this.copy(keys = keys + otherKeys)
+  def withKeys(otherKeys: Option[String]) = otherKeys match {
+    case Some(k) => this.copy(keys = keys + k)
+    case None => this
+  }
 
-  //  def isSupersetOf(s: Subject) = service == s.service && topic == s.topic && keys.contains(s.keys) // TODO better keys comparison!
-  //  def isSubsetOf(s: Subject) = s.isSupersetOf(this)
 }
 
 

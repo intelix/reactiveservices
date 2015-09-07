@@ -16,7 +16,7 @@ trait Terminal
   with DemandProducerContract {
 
 
-  override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(), "stream-aggregator")
+  override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(componentId), "stream-aggregator")
 
   startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)
 

@@ -12,13 +12,7 @@ object TopicKey {
 }
 
 
-object StaticTopicKey {
-  def apply(id: String) = new TopicKey(id)
-
-  def unapply(t: TopicKey): String = t.id
-}
-
-object DynamicTopicKey {
+object CompositeTopicKey {
   def apply(prefix: String, entityId: String) = new TopicKey(prefix + ":" + entityId)
 
   def unapply(t: TopicKey): Option[(String, String)] = t.id match {
@@ -29,7 +23,7 @@ object DynamicTopicKey {
   }
 }
 
-object DynamicMultiValueTopicKey {
+object ComplexTopicKey {
   def apply(prefix: String, entityId: String*) = new TopicKey(prefix + ":" + entityId.mkString("~"))
 
   def unapply(t: TopicKey): Option[(String, Array[String])] = t.id match {

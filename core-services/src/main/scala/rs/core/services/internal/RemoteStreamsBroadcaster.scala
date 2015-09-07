@@ -42,7 +42,7 @@ trait RemoteStreamsBroadcaster extends RemoteStreamsBroadcasterSysevents {
     }
   }
 
-  final def initiateTarget(ref: ActorRef) = targets getOrElse(ref, newTarget(ref))
+  final def initiateTarget(ref: ActorRef) = if (!targets.contains(ref)) newTarget(ref)
 
 
   final def initiateStreamFor(ref: ActorRef, key: StreamId) = InitiatingStreamForDestination { ctx =>

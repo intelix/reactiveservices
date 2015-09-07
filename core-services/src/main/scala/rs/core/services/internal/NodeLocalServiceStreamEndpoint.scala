@@ -36,15 +36,15 @@ trait NodeLocalServiceStreamEndpointSysevents extends ComponentWithBaseSysevents
   val StreamResyncRequested = "StreamResyncRequest".warn
   val StreamUpdatedBroadcasted = "StreamUpdatedBroadcasted".trace
 
-  val AcknowledgeableForwarded = "AcknowledgeableForwarded".info
+  val AcknowledgeableForwarded = "AcknowledgeableForwarded".trace
 
-  override def componentId: String = "NodeLocalStreamEndpoint"
+  override def componentId: String = "ServiceProxy"
 
 }
 
 object NodeLocalServiceStreamEndpoint {
 
-  def remoteStreamAgentProps(serviceKey: ServiceKey, serviceRef: ActorRef) = Props(classOf[AgentActor], serviceKey, serviceRef)
+  def remoteStreamAgentProps(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String) = Props(classOf[AgentActor], serviceKey, serviceRef, instanceId)
 
   case class OpenLocalStreamFor(subject: Subject)
 
@@ -339,7 +339,7 @@ private class LocalStreamBroadcaster {
 }
 
 
-private trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWithTicks {
+trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWithTicks {
 
   private val targets: mutable.Map[ActorRef, LocalTargetWithSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, LocalStreamBroadcaster] = mutable.HashMap()
@@ -422,7 +422,7 @@ trait NodeLocalServiceAgentSysevents extends ComponentWithBaseSysevents {
   val AgentStarted = "AgentStarted".info
   val AgentStopped = "AgentStopped".warn
 
-  override def componentId: String = "NodeLocalServiceAgent"
+  override def componentId: String = "ServiceAgent"
 
 }
 
@@ -430,13 +430,13 @@ object AgentActor {
   private def localStreamLinkProps(serviceKey: ServiceKey, serviceRef: ActorRef) = Props(classOf[NodeLocalServiceStreamEndpoint], serviceKey, serviceRef)
 }
 
-class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef)
+class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String)
   extends ActorWithComposableBehavior
   with MessageAcknowledging
   with SimpleInMemoryAcknowledgedDelivery
   with NodeLocalServiceAgentSysevents {
 
-  val actor = context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef))
+  val actor = context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId")
 
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey, 'ref -> serviceRef)
@@ -446,7 +446,7 @@ class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef)
     super.preStart()
     val cluster = Cluster.get(context.system)
     acknowledgedDelivery(serviceRef, ServiceEndpoint(actor, cluster.selfAddress), SpecificDestination(serviceRef))
-    AgentStarted()
+    AgentStarted('proxy -> actor)
   }
 
   @throws[Exception](classOf[Exception]) override

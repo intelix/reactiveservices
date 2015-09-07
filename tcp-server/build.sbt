@@ -1,4 +1,4 @@
 ProjectBuild.coreSettings("tcp-server")
 
-libraryDependencies ++= Dependencies.eventStreamsCore
+libraryDependencies ++= Dependencies.core
 

@@ -14,15 +14,13 @@ private[websocket] object WebsocketBinaryFrameFolder {
     val top = Flow[Message]
       .filter {
         case t: BinaryMessage => true
-        case t =>
-         println("!>>>> Message filtered: " + t)
-         false
+        case t => false
       }.mapAsync[ByteString](50) {
         case BinaryMessage.Strict(bs) => Future.successful(bs)
         case t: BinaryMessage =>
           val sink = Sink.fold[ByteString, ByteString](ByteString.empty) {
             case (bx, n) =>
-              println(s"!>>> Folding next, ${n.size}")
+              // TODO metrics here
               bx ++ n
           }
           t.dataStream.runWith(sink)

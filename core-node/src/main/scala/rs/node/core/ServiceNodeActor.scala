@@ -18,8 +18,13 @@ import scalaz.Scalaz._
 
 trait ServiceNodeSysevents extends ComponentWithBaseSysevents with BaseActorSysevents {
 
-  val StartingCluster = "StartingCluster".info
-  val StoppingCluster = "StoppingCluster".info
+  val StartingService = "StartingService".trace
+  val DiscoveryTimeout = "DiscoveryTimeout".info
+  val StateChange = "StateChange".info
+  val UnableToJoinCluster = "UnableToJoinCluster".error
+  val ClusterMergeTrigger = "ClusterMergeTrigger".info
+  val FormingClusterWithSelf = "FormingClusterWithSelf".info
+  val JoiningCluster = "JoiningCluster".info
 
   override def componentId: String = "Cluster.Node"
 }
@@ -90,6 +95,8 @@ object ServiceNodeActor {
     def isHigherPriorityNodeAlive =
       clusterNodes.takeWhile(_ != selfAddress).exists { node => perspectives.values.find(_.addr.equalsIgnoreCase(node)).exists(_.clusterView.isDefined) }
 
+    def canJoinSelf = clusterNodes.contains(selfAddress)
+
     def locateMembersOfAnotherLargestFormedCluster: Option[Set[Address]] =
       perspectives.foldLeft[Option[Set[Address]]](None) {
         case (pick, (a, NodePerspective(addr, Some(cv)))) if cv.formed && !isBelongToMyCluster(cv.activeMembers) =>
@@ -146,25 +153,8 @@ class ServiceNodeActor
   extends FSM[State, Data]
   with WithSyseventPublisher
   with ActorUtils
-  with ServiceClusterBootstrapSysevents
+  with ServiceNodeSysevents
   with WithCHMetrics {
-
-  // !>>>> TODO Remove
-  //  val reporter = Slf4jReporter.forRegistry(metricRegistry)
-  //    .convertRatesTo(TimeUnit.SECONDS)
-  //    .convertDurationsTo(TimeUnit.MILLISECONDS)
-  //    .build()
-  //
-  //  reporter.start(10, TimeUnit.SECONDS)
-
-
-  //  val reporter2 = CsvReporter.forRegistry(metricRegistry)
-  //    .convertRatesTo(TimeUnit.SECONDS)
-  //    .convertDurationsTo(TimeUnit.MILLISECONDS)
-  //    .build(new java.io.File(System.getProperty("csvout")))
-  //
-  //  reporter2.start(10, TimeUnit.SECONDS)
-
 
   implicit val cluster = Cluster(context.system)
   private val selfAddress = cluster.selfAddress
@@ -186,7 +176,6 @@ class ServiceNodeActor
 
   private def contactNode(node: String) = {
     val correlation = UUIDTools.generateShortUUID
-    //    println(s"!>>> controllerSelectorAt = " + controllerSelectorAt(node))
     controllerSelectorAt(node) ! ClusterViewEnquiry(correlation)
     correlation -> NodePerspective(node, None)
   }
@@ -199,20 +188,23 @@ class ServiceNodeActor
       case (a, b) => a > b
     }
 
+  var servicesCounter = 0
 
-  private def startProvider(sm: ServiceMeta) = {
-    //    log.info("!>>>> Starting " + sm)
-    context.actorOf(Props(Class.forName(sm.cl), sm.id))
-    //    log.info("!>>>> Started " + sm)
+  private def startProvider(sm: ServiceMeta) = StartingService { ctx =>
+    servicesCounter += 1
+    val id = sm.id + "-" + servicesCounter
+    val actor = context.actorOf(Props(Class.forName(sm.cl), sm.id), id)
+    ctx +('service -> sm.id, 'class -> sm.cl, 'ref -> actor)
   }
 
-  private def startProviders() = services foreach startProvider
+  private def startProviders() = {
+    services foreach startProvider
+  }
 
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
     super.preStart()
-    //    println("!>>> Hello from ServiceNodeActor")
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
       classOf[LeaderChanged],
       classOf[MemberUp],
@@ -230,19 +222,22 @@ class ServiceNodeActor
     super.postStop()
   }
 
+  private def transitionTo(state: ServiceNodeActor.State) = {
+    if (stateName != state) StateChange('to -> state, 'from -> stateName)
+    goto(state)
+  }
 
   startWith(Initial, Data(selfAddress = selfAddress.toString, clusterNodes = clusterNodes))
 
   when(Initial) {
-    case Event(Start, t) => goto(DetachedWaitingForAllSeeds) using t.copy(clusterGuardian = Some(sender()))
+    case Event(Start, t) => transitionTo(DetachedWaitingForAllSeeds) using t.copy(clusterGuardian = Some(sender()))
   }
 
   when(DetachedWaitingForAllSeeds) {
     case Event(DiscoveryTimeout, _) =>
-      //      println("!>>>> DetachedWaitingForAllSeeds timeout")
-      goto(DetachedWaitingForFirstSeed)
+      DiscoveryTimeout()
+      transitionTo(DetachedWaitingForFirstSeed)
     case Event(CheckState, t: Data) =>
-      //      println("!>>> CheckState in DetachedWaitingForAllSeeds")
       if (t.isReceivedResponsesFromAllNodes) self ! PerformJoinIfPossible
       stay()
   }
@@ -254,20 +249,22 @@ class ServiceNodeActor
   }
 
   when(AwaitingJoin) {
-    case Event(JoinTimeout, t) => stop(FSM.Failure("Unable to join cluster, seeds: " + t.seeds))
+    case Event(JoinTimeout, t) =>
+      UnableToJoinCluster('seeds -> t.seeds)
+      stop(FSM.Failure("Unable to join cluster, seeds: " + t.seeds))
     case Event(PerformJoinIfPossible, t: Data) => stay()
     case Event(CheckState, t: Data) => t.currentClusterState match {
       case ClusterStateStable | ClusterStateUnstable =>
-        if (t.isExpectedMemberMissing) goto(PartiallyBuilt) else goto(FullyBuilt)
+        if (t.isExpectedMemberMissing) transitionTo(PartiallyBuilt) else transitionTo(FullyBuilt)
       case _ => stay()
     }
   }
 
   when(PartiallyBuilt) {
     case Event(CheckState, t) =>
-      if (t.isAllExpectedMembersPresent) goto(FullyBuilt)
+      if (t.isAllExpectedMembersPresent) transitionTo(FullyBuilt)
       else if (t.isFormedClusterFound && t.locateMembersOfAnotherLargestFormedCluster.exists(t.shouldMergeWith)) {
-
+        ClusterMergeTrigger('other -> t.locateMembersOfAnotherLargestFormedCluster)
         stop()
       } else stay()
     case Event(e: ClusterViewEnquiry, t: Data) =>
@@ -276,7 +273,7 @@ class ServiceNodeActor
   }
 
   when(FullyBuilt) {
-    case Event(CheckState, t) => if (t.isExpectedMemberMissing) goto(PartiallyBuilt) else stay()
+    case Event(CheckState, t) => if (t.isExpectedMemberMissing) transitionTo(PartiallyBuilt) else stay()
     case Event(e: ClusterViewEnquiry, t: Data) =>
       sender() ! ClusterView(e.correlationId, formed = true, t.members.keySet)
       stay()
@@ -287,18 +284,19 @@ class ServiceNodeActor
       stay using t.copy(perspectives = t.missingClusterNodes.map(contactNode).toMap)
     case Event(e: ClusterView, t: Data) =>
       self ! CheckState
-      goto(stateName) using t.addResponse(e)
+      transitionTo(stateName) using t.addResponse(e)
     case Event(e: ClusterViewEnquiry, t: Data) =>
       sender() ! ClusterView(e.correlationId, formed = false, Set.empty)
       stay()
     case Event(PerformJoinIfPossible, t: Data) =>
       if (t.isFormedClusterFound) {
         t.locateMembersOfAnotherLargestFormedCluster match {
-          case Some(members) => goto(AwaitingJoin) using t.copy(seeds = members.toList.filter(_ != selfAddress).sortWith(isHigherPriority), perspectives = Map.empty)
+          case Some(members) => transitionTo(AwaitingJoin) using t.copy(seeds = members.toList.filter(_ != selfAddress).sortWith(isHigherPriority), perspectives = Map.empty)
           case None => stay()
         }
-      } else if (!t.isHigherPriorityNodeAlive) {
-        goto(AwaitingJoin) using t.copy(seeds = List(selfAddress), perspectives = Map.empty)
+      } else if (!t.isHigherPriorityNodeAlive && t.canJoinSelf) {
+        FormingClusterWithSelf('self -> selfAddress)
+        transitionTo(AwaitingJoin) using t.copy(seeds = List(selfAddress), perspectives = Map.empty)
       } else stay()
     case Event(LeaderChanged(leader), t) =>
       self ! CheckState
@@ -320,44 +318,38 @@ class ServiceNodeActor
       stay using t.copy(members = t.members + (member.address -> MemberStateUp))
     case Event(DiscoveryTimeout, _) => stay()
     case Event(JoinTimeout, _) => stay()
-    case Event(x, _) => println(s"!>>> $x in $stateName")
+    case Event(x, _) => Invalid('msg -> x)
       stay()
   }
 
   onTransition {
     case _ -> DetachedWaitingForAllSeeds =>
-      //      println("!>>>> -> DetachedWaitingForAllSeeds")
       setTimer("timeout", DiscoveryTimeout, 10 seconds, repeat = false)
       setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
       setTimer("checkState", CheckState, 3 seconds, repeat = true)
     case _ -> DetachedWaitingForFirstSeed =>
-      //      println("!>>>> -> DetachedWaitingForFirstSeed")
       setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
       setTimer("checkState", CheckState, 3 seconds, repeat = true)
     case _ -> AwaitingJoin =>
       setTimer("timeout", JoinTimeout, 20 seconds, repeat = false)
       cancelTimer("handshake")
       setTimer("checkState", CheckState, 1 seconds, repeat = true)
-      //      log.info(s"!>>>> Joining ${nextStateData.seeds}")
+      JoiningCluster('seeds -> nextStateData.seeds)
       cluster.joinSeedNodes(nextStateData.seeds)
     case AwaitingJoin -> PartiallyBuilt =>
-      //      log.info(s"!>>>> AwaitingJoin -> PartiallyBuilt")
       cancelTimer("timeout")
       startProviders()
       setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
       setTimer("checkState", CheckState, 3 seconds, repeat = true)
     case _ -> PartiallyBuilt =>
-      //      log.info(s"!>>>> ? -> PartiallyBuilt")
       setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
       setTimer("checkState", CheckState, 3 seconds, repeat = true)
     case AwaitingJoin -> FullyBuilt =>
-      //      log.info(s"!>>>> AwaitingJoin -> FullyBuilt")
       cancelTimer("timeout")
       startProviders()
       cancelTimer("handshake")
       cancelTimer("checkState")
     case _ -> FullyBuilt =>
-      //      log.info(s"!>>>> ? -> FullyBuilt")
       cancelTimer("handshake")
       cancelTimer("checkState")
   }

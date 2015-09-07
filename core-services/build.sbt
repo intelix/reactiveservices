@@ -1,4 +1,4 @@
 ProjectBuild.coreSettings("core-services")
 
-libraryDependencies ++= Dependencies.eventStreamsCore
+libraryDependencies ++= Dependencies.core
 

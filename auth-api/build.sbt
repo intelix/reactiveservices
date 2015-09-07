@@ -1,4 +1,4 @@
 ProjectBuild.coreSettings("auth-api")
 
-libraryDependencies ++= Dependencies.eventStreamsCore
+libraryDependencies ++= Dependencies.core
 

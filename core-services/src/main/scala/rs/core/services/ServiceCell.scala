@@ -42,7 +42,10 @@ trait ServiceCellSysevents extends ComponentWithBaseSysevents {
   val RemoteEndpointRegistered = "RemoteEndpointRegistered".info
   val StreamInterestAdded = "StreamInterestAdded".info
   val StreamInterestRemoved = "StreamInterestRemoved".info
+  val StreamResync = "StreamResync".info
   val IdleStream = "IdleStream".info
+  val SubjectMapped = "SubjectMapped".info
+  val SubjectMappingError = "SubjectMappingError".warn
 }
 
 abstract class ServiceCell(id: String)
@@ -96,7 +99,7 @@ abstract class ServiceCell(id: String)
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
 
   override def onClusterMemberUp(address: Address, roles: Set[String]): Unit = {
-    if (roles.exists(nodeRoles.contains)) {
+    if (nodeRoles.isEmpty || roles.exists(nodeRoles.contains)) {
       NodeAvailable('address -> address, 'host -> address.host, 'roles -> roles)
       ensureAgentIsRunningAt(address)
     }
@@ -127,17 +130,19 @@ abstract class ServiceCell(id: String)
       subjectToStreamKeyMapperFunc(subj) match {
         case None =>
           sender() ! StreamMapping(subj, None)
+          SubjectMappingError('subj -> subj)
         case x@Some(streamKey) =>
           sender() ! StreamMapping(subj, x)
+          SubjectMapped('stream -> streamKey, 'subj -> subj)
       }
     case OpenStreamFor(streamKey) => registerStreamInterest(streamKey, sender())
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
-    case StreamResyncRequest(key) =>
-      logger.info(s"!>>>> StreamResyncRequest, $key requested by ${sender()}")
+    case StreamResyncRequest(key) => StreamResync { ctx =>
+      ctx + ('stream -> key, 'ref -> sender())
       closeStreamFor(sender(), key)
       initiateStreamFor(sender(), key)
+    }
   }
-
 
 
   onActorTerminated { ref =>
@@ -160,7 +165,14 @@ abstract class ServiceCell(id: String)
     if (!activeAgents.contains(address))
       StartingRemoveAgent { ctx =>
         ctx +('address -> address, 'host -> address.host)
-        val newAgent = context.watch(context.actorOf(NodeLocalServiceStreamEndpoint.remoteStreamAgentProps(serviceKey, self).withDeploy(Deploy(scope = RemoteScope(address)))))
+
+        val id = shortUUID
+
+        val newAgent = context.watch(
+          context.actorOf(NodeLocalServiceStreamEndpoint.remoteStreamAgentProps(serviceKey, self, id).withDeploy(Deploy(scope = RemoteScope(address))), s"agt-$serviceKey-$id" )
+        )
+
+        ctx +('remotePath -> newAgent.path)
 
         val newActiveLocation = new AgentView(newAgent)
         activeAgents += address -> newActiveLocation
@@ -198,14 +210,6 @@ abstract class ServiceCell(id: String)
         ctx +('stream -> streamKey, 'location -> requestor.path.address, 'existing -> existingStream, 'streamsAtLocation -> total)
       }
     }
-
-  private def publishStreamMapping(agent: ActorRef, subject: Subject, mapping: Option[StreamId]) =
-    acknowledgedDelivery(
-      (agent, subject),
-      StreamMapping(subject, mapping),
-      SpecificDestination(agent),
-      Some(_ => true)
-    )
 
   private def addEndpointAddress(address: Address, endpoint: ActorRef): Unit = RemoteEndpointRegistered { ctx =>
     ctx +('location -> address, 'ref -> endpoint)

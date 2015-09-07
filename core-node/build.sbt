@@ -1,4 +1,4 @@
 ProjectBuild.coreSettings("core-node")
 
-libraryDependencies ++= Dependencies.eventStreamsCore
+libraryDependencies ++= Dependencies.core
 

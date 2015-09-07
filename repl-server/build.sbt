@@ -1,4 +1,4 @@
 ProjectBuild.coreSettings("repl-server")
 
-libraryDependencies ++= Dependencies.eventStreamsCore
+libraryDependencies ++= Dependencies.core
 

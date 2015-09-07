@@ -159,7 +159,7 @@ object Dependencies {
     trove
   )
 
-  val eventStreamsCommon = essentials ++: Seq(
+  val commons = essentials ++: Seq(
     netty,
     akkaActor,
     akkaAgent,
@@ -179,52 +179,14 @@ object Dependencies {
 
   )
 
-  val eventStreamsCore = eventStreamsCommon ++: Seq(
+  val core = commons ++: Seq(
     Test.akkaTestKit,
     commonsCodec,
-    metricsScala,
-    slick,
-    h2
+    metricsScala
   )
 
-  val eventStreamsWebsocket = eventStreamsCommon ++: Seq(
-    sprayWebsocket
-  )
 
-  val eventStreamsEngines = eventStreamsCommon ++: Seq(
-    commonsCodec,
-    metricsScala,
-    elastic4s,
-    Test.akkaTestKit
-  )
-  
-  val eventStreamsPluginInstructionsEssentials = eventStreamsCommon ++: Seq(
-    Test.akkaTestKit,
-    groovy
-  )
-  val eventStreamsPluginInfluxDB = eventStreamsCommon ++: Seq(
-    asyncHttpClient
-  )
-
-  val eventStreamsPluginElasticsearch = eventStreamsCommon ++: Seq(
-    commonsCodec,
-    metricsScala,
-    elastic4s,
-    asyncHttpClient
-  )
-
-  val eventStreamsPluginDSEssentials = eventStreamsCommon ++: Seq(
-  )
-
-  val eventStreamsPluginDSJMX = eventStreamsCommon ++: Seq(
-    janalyseJmx
-  )
-
-  val eventStreamsAgent = eventStreamsCommon ++: Seq(
-    Test.akkaTestKit
-  )
-
-  val eventStreamsHQ = eventStreamsCommon ++: Seq(
+  val web = commons ++: Seq(
     Test.akkaTestKit,
     webjarsBootstrap,
     webjarsJquery,
@@ -237,7 +199,7 @@ object Dependencies {
     webjarsJsSignals
   )
 
-  val eventStreamsMultinodeTests = eventStreamsCommon ++: Seq(
+  val multinodeTests = commons ++: Seq(
     Test.akkaTestKit,
     Test.akkaMNTestkit
   )

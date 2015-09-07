@@ -3,7 +3,7 @@ package rs.service.auth
 import play.api.libs.json.Json
 import rs.core.SubjectKeys.UserToken
 import rs.core.actors.{ActorWithTicks, BaseActorSysevents}
-import rs.core.services.{StreamId, ServiceCell}
+import rs.core.services.{ServiceCell, StreamId}
 import rs.core.stream.SetStreamState.SetSpecs
 import rs.core.stream.{SetStreamPublisher, StringStreamPublisher}
 import rs.core.tools.Tools.configHelper
@@ -24,12 +24,12 @@ trait UserAuthenticationSysevents extends BaseActorSysevents {
   val SessionCreated = "SessionCreated".info
   val UserSessionExpired = "UserSessionExpired".info
   val AuthRequest = "AuthRequest".info
-  val SuccessfulCredentialsLoginRequest = "SuccessfulCredentialsLoginRequest".info
-  val SuccessfulTokenLoginRequest = "SuccessfulTokenLoginRequest".info
-  val FailedCredentialsLoginRequest = "FailedCredentialsLoginRequest".info
-  val FailedTokenLoginRequest = "FailedTokenLoginRequest".info
+  val SuccessfulCredentialsAuth = "SuccessfulCredentialsAuth".info
+  val SuccessfulTokenAuth = "SuccessfulTokenAuth".info
+  val FailedCredentialsAuth = "FailedCredentialsAuth".info
+  val FailedTokenAuth = "FailedTokenAuth".info
 
-  override def componentId: String = "Auth"
+  override def componentId: String = "Service.Auth"
 
 }
 
@@ -64,7 +64,7 @@ abstract class UserAuthenticationActor(id: String)
       AuthRequest { ctx =>
         ctx + ('token -> ut)
         authenticateWithCredentials(v, ut) orElse authenticateWithToken(v, ut) orElse {
-          FailedCredentialsLoginRequest('login -> (Json.parse(v) ~> 'l))
+          FailedCredentialsAuth('login -> (Json.parse(v) ~> 'l))
           Some(SignalOk(Some(false)))
         }
       }
@@ -74,7 +74,7 @@ abstract class UserAuthenticationActor(id: String)
   }
 
   onSubjectSubscription {
-    case Subject(_, TopicKey("token"), UserToken(ut)) => Some(tokenStream(ut))
+    case s@Subject(_, TopicKey("token"), UserToken(ut)) => Some(tokenStream(ut))
     case Subject(_, TopicKey("permissions"), UserToken(ut)) => Some(permissionsStream(ut))
     case Subject(_, TopicKey("info"), UserToken(ut)) => Some(infoStream(ut))
   }
@@ -85,7 +85,9 @@ abstract class UserAuthenticationActor(id: String)
     case StreamId(PermissionsPrefix, Some(ut: String)) => publishPermissions(ut)
   }
 
-  onTick { invalidateSessions() }
+  onTick {
+    invalidateSessions()
+  }
 
 
   def tokenStream(ut: String) = StreamId(TokenPrefix, Some(ut))
@@ -193,7 +195,7 @@ abstract class UserAuthenticationActor(id: String)
     ) yield {
       val sess = createSession(ut, u)
       publishAllForUserToken(ut)
-      SuccessfulCredentialsLoginRequest('token -> ut, 'authkey -> v, 'userid -> sess.userId)
+      SuccessfulCredentialsAuth('token -> ut, 'authkey -> v, 'userid -> sess.userId)
       SignalOk(Some(true))
     }
 
@@ -205,7 +207,7 @@ abstract class UserAuthenticationActor(id: String)
     ) yield {
       addUserToken(sess, ut)
       publishAllForUserToken(ut)
-      SuccessfulTokenLoginRequest('token -> ut, 'authkey -> v, 'userid -> sess.userId)
+      SuccessfulTokenAuth('token -> ut, 'authkey -> v, 'userid -> sess.userId)
       SignalOk(Some(true))
     }
 

@@ -143,7 +143,7 @@ object BinaryCodec {
       val bottom = b add Flow[BinaryDialectOutboundMessage].map[ByteString] { x =>
         val b = ByteString.newBuilder; codec.encode(x, b)
         val encoded = b.result()
-        println(s"!>>> $x encoded -> $encoded")
+        // TODO debug events here
         encoded
       }
       BidiShape(top, bottom)

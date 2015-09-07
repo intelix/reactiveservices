@@ -13,30 +13,6 @@ import scala.language.implicitConversions
 
 object ListStreamState {
 
-  sealed trait EvictionStrategy
-
-  case object RejectAdd extends EvictionStrategy {
-    def instance = RejectAdd
-  }
-
-  case object FromHead extends EvictionStrategy {
-    def instance = FromHead
-  }
-
-  case object FromTail extends EvictionStrategy {
-    def instance = FromTail
-  }
-
-  sealed trait Op
-
-  case class Add(pos: Int, v: String) extends Op
-
-  case class Replace(pos: Int, v: String) extends Op
-
-  case class Remove(pos: Int) extends Op
-
-  case class ListSpecs(max: Int, evictionStrategy: EvictionStrategy)
-
   def applyOpForSpecs(list: List[String], sp: ListSpecs, op: Op): Option[List[String]] = sp.max match {
     case m if m > list.size => applyOp(list, op)
     case m => sp.evictionStrategy match {
@@ -66,6 +42,30 @@ object ListStreamState {
     case Replace(i, v) if i > 0 && list.size > i =>
       Some((list.take(i) :+ v) ++ list.drop(i + 1))
     case _ => None
+  }
+
+  sealed trait EvictionStrategy
+
+  sealed trait Op
+
+  case class Add(pos: Int, v: String) extends Op
+
+  case class Replace(pos: Int, v: String) extends Op
+
+  case class Remove(pos: Int) extends Op
+
+  case class ListSpecs(max: Int, evictionStrategy: EvictionStrategy)
+
+  case object RejectAdd extends EvictionStrategy {
+    def instance = RejectAdd
+  }
+
+  case object FromHead extends EvictionStrategy {
+    def instance = FromHead
+  }
+
+  case object FromTail extends EvictionStrategy {
+    def instance = FromTail
   }
 
 
@@ -112,20 +112,19 @@ trait JListStreamPublisher extends ListStreamPublisher {
 
   def listEvictionReject = RejectAdd
 
-  def streamListSnapshot(s: StreamId, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit = {
-    implicit val specs = ListSpecs(maxEntries, evictionStrategy)
-    s !:! l.toArray.toList.asInstanceOf[List[String]]
-  }
-
-  def streamListSnapshot(s: String, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
-    streamListSnapshot(StreamId(s), l, maxEntries, evictionStrategy)
-
   def streamListSnapshot(s: StreamId, l: util.List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
     streamListSnapshot(s, l.toArray.toList.asInstanceOf[List[String]], maxEntries, evictionStrategy)
 
   def streamListSnapshot(s: String, l: util.List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
     streamListSnapshot(s, l.toArray.toList.asInstanceOf[List[String]], maxEntries, evictionStrategy)
 
+  def streamListSnapshot(s: String, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
+    streamListSnapshot(StreamId(s), l, maxEntries, evictionStrategy)
+
+  def streamListSnapshot(s: StreamId, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit = {
+    implicit val specs = ListSpecs(maxEntries, evictionStrategy)
+    s !:! l.toArray.toList.asInstanceOf[List[String]]
+  }
 
   def streamListAdd(s: String, pos: Int, v: String): Unit = s !:+(pos, v)
 
@@ -154,56 +153,50 @@ trait ListStreamPublisher {
 
   case class ListPublisher(s: StreamId) {
 
-    private def locateValue(v: String, t: ListStreamState): Option[Int] =
-      t.list.zipWithIndex.find(_._1 == v).map(_._2)
+    def streamListSnapshot(l: => List[String])(implicit specs: ListSpecs): Unit = !:!(l)
 
     def !:!(l: => List[String])(implicit specs: ListSpecs): Unit = ?:(s) match {
       case Some(x) => performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
       case None => performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
     }
 
-
-    def streamListSnapshot(l: => List[String])(implicit specs: ListSpecs): Unit = !:!(l)
-
+    def streamListAdd(pos: Int, v: => String): Unit = !:+(pos, v)
 
     def !:+(pos: Int, v: => String): Unit = ?:(s) match {
       case Some(x) => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Add(pos, v))))
-      case None => logger.error("!>>>> OH!")
+      case None =>
     }
 
-    def streamListAdd(pos: Int, v: => String): Unit = !:+(pos, v)
-
+    def streamListRemove(pos: Int): Unit = !:-(pos)
 
     def !:-(pos: Int): Unit = ?:(s) match {
       case Some(x) => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(pos))))
       case None =>
     }
 
-    def streamListRemove(pos: Int): Unit = !:-(pos)
-
+    def streamListRemoveValue(pos: Int, v: => String): Unit = !:-?(v)
 
     def !:-?(v: => String): Unit = ?:(s) match {
       case Some(x) => locateValue(v, x) foreach { pos => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(pos)))) }
       case None =>
     }
 
-    def streamListRemoveValue(pos: Int, v: => String): Unit = !:-?(v)
-
+    def streamListReplace(pos: Int, v: => String): Unit = !:*(pos, v)
 
     def !:*(pos: Int, v: => String): Unit = ?:(s) match {
       case Some(x) => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Replace(pos, v))))
       case None =>
     }
 
-    def streamListReplace(pos: Int, v: => String): Unit = !:*(pos, v)
-
+    def streamListReplaceValue(v: => String, newV: => String): Unit = !:*?(v, newV)
 
     def !:*?(v: => String, newV: => String): Unit = ?:(s) match {
       case Some(x) => locateValue(v, x) foreach { pos => performStateTransition(s, ListStreamStateTransitionPartial(x.seed, x.seq, x.seq + 1, List(Replace(pos, newV)))) }
       case None =>
     }
 
-    def streamListReplaceValue(v: => String, newV: => String): Unit = !:*?(v, newV)
+    private def locateValue(v: String, t: ListStreamState): Option[Int] =
+      t.list.zipWithIndex.find(_._1 == v).map(_._2)
 
 
   }
@@ -218,12 +211,11 @@ trait ListStreamConsumer extends StreamConsumer {
   onStreamUpdate {
     case (s, x: ListStreamState) => composedFunction(s, x.list)
   }
-
-  final def onListRecord(f: ListStreamConsumer) =
-    composedFunction = f orElse composedFunction
-
   private var composedFunction: ListStreamConsumer = {
     case _ =>
   }
+
+  final def onListRecord(f: ListStreamConsumer) =
+    composedFunction = f orElse composedFunction
 
 }

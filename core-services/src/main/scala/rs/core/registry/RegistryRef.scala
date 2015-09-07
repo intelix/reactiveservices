@@ -4,13 +4,20 @@ import akka.actor.ActorRef
 import rs.core.ServiceKey
 import rs.core.actors.ActorWithComposableBehavior
 import rs.core.registry.Messages._
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 
-trait RegistryRef extends ActorWithComposableBehavior {
+trait RegistryRefSysevents extends ComponentWithBaseSysevents {
+  val ServiceRegistered = "ServiceRegistered".trace
+  val ServiceUnregistered = "ServiceUnregistered".trace
+  val ServiceLocationUpdate = "ServiceLocationUpdate".trace
+}
+
+trait RegistryRef extends ActorWithComposableBehavior with RegistryRefSysevents {
 
   type LocationHandler = PartialFunction[(ServiceKey, Option[ActorRef]), Unit]
   // with healthy config, when registry is deployed on every node, this should be extremely fast lookup, so blocking wait should never be an issue
@@ -34,12 +41,12 @@ trait RegistryRef extends ActorWithComposableBehavior {
   final def registerService(s: ServiceKey) = registerServiceAt(s, self)
 
   final def registerServiceAt(s: ServiceKey, loc: ActorRef) = {
-    logger.info(s"!>>>> Registering $s at $loc")
     ref ! Register(s, loc)
+    ServiceRegistered('service -> s, 'ref -> loc, 'registry -> ref)
   }
   final def unregisterServiceAt(s: ServiceKey, loc: ActorRef) = {
-    logger.info(s"!>>>> Registering $s at $loc")
     ref ! Unregister(s, loc)
+    ServiceUnregistered('service -> s, 'ref -> loc, 'registry -> ref)
   }
 
   final def registerServiceLocationInterest(s: ServiceKey) =
@@ -58,11 +65,14 @@ trait RegistryRef extends ActorWithComposableBehavior {
 
   onMessage {
     case LocationUpdate(name, maybeLocation) =>
-      logger.info(s"!>>>>> LocalServiceLocation($name, $maybeLocation)")
-      val was = localLocation.get(name).flatten
-      if (was != maybeLocation) {
-        localLocation += name -> maybeLocation
-        localLocationHandlerFunc(name, maybeLocation)
+      ServiceLocationUpdate { ctx =>
+        ctx +('service -> name, 'location -> maybeLocation)
+        val was = localLocation.get(name).flatten
+        if (was != maybeLocation) {
+          ctx + ('new -> true)
+          localLocation += name -> maybeLocation
+          localLocationHandlerFunc(name, maybeLocation)
+        } else ctx + ('new -> false)
       }
   }
 

@@ -1,4 +1,4 @@
 ProjectBuild.serviceSettings("auth-js")
 
-libraryDependencies ++= Dependencies.eventStreamsHQ
+libraryDependencies ++= Dependencies.web
 
