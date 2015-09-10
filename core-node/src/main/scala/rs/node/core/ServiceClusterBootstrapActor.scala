@@ -21,6 +21,7 @@ import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
 import net.ceedubs.ficus.Ficus._
 import rs.core.actors.{ActorUtils, BaseActorSysevents}
+import rs.core.config.ConfigOps.wrap
 import rs.core.registry.ServiceRegistryActor
 import rs.core.sysevents.SyseventOps.stringToSyseventOps
 import rs.core.sysevents.WithSyseventPublisher
@@ -49,7 +50,7 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
   with WithSyseventPublisher {
 
 //  private val blockingWaitTimeout = cfg[FiniteDuration]("node.cluster.termination-wait-timeout", 10 seconds)
-  private val clusterSystemId = configAsString("node.cluster.system-id", context.system.name)
+  private val clusterSystemId =  cfg.asString("node.cluster.system-id", context.system.name)
 
   private var clusterSystem: Option[ActorSystem] = None
 

@@ -24,11 +24,11 @@ import scala.language.postfixOps
 
 object PingInjector {
 
-  def buildStage(interval: FiniteDuration = 30 seconds): BidiFlow[BinaryDialectInboundMessage, BinaryDialectInboundMessage, BinaryDialectOutboundMessage, BinaryDialectOutboundMessage, Unit] =
+  def buildStage(interval: FiniteDuration = 30 seconds): BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit] =
     BidiFlow.wrap(FlowGraph.partial() { implicit b =>
       import FlowGraph.Implicits._
 
-      val top = b.add(Flow[BinaryDialectInboundMessage].filter {
+      val top = b.add(Flow[BinaryDialectInbound].filter {
         case BinaryDialectPong(ts) =>
           val now = System.currentTimeMillis() % Int.MaxValue
           val latency = (now - ts) / 2
@@ -37,7 +37,7 @@ object PingInjector {
         case t => true
       })
 
-      val merge = b.add(MergePreferred[BinaryDialectOutboundMessage](1))
+      val merge = b.add(MergePreferred[BinaryDialectOutbound](1))
       val pingSource = Source(interval, interval, None).map(_ => BinaryDialectPing((System.currentTimeMillis() % Int.MaxValue).toInt))
 
       pingSource ~> merge.preferred

@@ -22,45 +22,45 @@ import rs.core.{ServiceKey, Subject}
 
 object BinaryProtocolMessages {
 
-  sealed trait BinaryDialectMessage
+  sealed trait BinaryDialect
 
-  sealed trait BinaryDialectInboundMessage extends BinaryDialectMessage with InboundMessage
+  sealed trait BinaryDialectInbound extends BinaryDialect with InboundMessage
 
-  sealed trait BinaryDialectOutboundMessage extends BinaryDialectMessage with OutboundMessage
-
-
-
-  case class BinaryDialectAlias(id: Int, subj: Subject) extends BinaryDialectInboundMessage
-
-  case class BinaryDialectPing(id: Int) extends BinaryDialectOutboundMessage
-
-  case class BinaryDialectPong(id: Int) extends BinaryDialectInboundMessage
+  sealed trait BinaryDialectOutbound extends BinaryDialect with OutboundMessage
 
 
-  case class BinaryDialectServiceNotAvailable(serviceKey: ServiceKey) extends BinaryDialectOutboundMessage
 
-  case class BinaryDialectInvalidRequest(subjAlias: Int) extends BinaryDialectOutboundMessage
+  case class BinaryDialectAlias(id: Int, subj: Subject) extends BinaryDialectInbound
 
+  case class BinaryDialectPing(id: Int) extends BinaryDialectOutbound
 
-  case class BinaryDialectOpenSubscription(subjAlias: Int, priorityKey: Option[String] = None, aggregationIntervalMs: Int = 0) extends BinaryDialectInboundMessage
-
-  case class BinaryDialectCloseSubscription(subjAlias: Int) extends BinaryDialectInboundMessage
-
-  case class BinaryDialectSubscriptionClosed(subjAlias: Int) extends BinaryDialectOutboundMessage
-
-  case class BinaryDialectResetSubscription(subjAlias: Int) extends BinaryDialectInboundMessage
+  case class BinaryDialectPong(id: Int) extends BinaryDialectInbound
 
 
-  case class BinaryDialectStreamStateUpdate(subjAlias: Int, topicState: StreamState) extends BinaryDialectOutboundMessage
+  case class BinaryDialectServiceNotAvailable(serviceKey: ServiceKey) extends BinaryDialectOutbound
 
-  case class BinaryDialectStreamStateTransitionUpdate(subjAlias: Int, topicStateTransition: StreamStateTransition) extends BinaryDialectOutboundMessage
+  case class BinaryDialectInvalidRequest(subjAlias: Int) extends BinaryDialectOutbound
 
 
-  case class BinaryDialectSignal(subjAlias: Int, payload: Any, expireAt: Long, orderingGroup: Option[Any], correlationId: Option[Any]) extends Expirable with BinaryDialectInboundMessage
+  case class BinaryDialectOpenSubscription(subjAlias: Int, priorityKey: Option[String] = None, aggregationIntervalMs: Int = 0) extends BinaryDialectInbound
 
-  case class BinaryDialectSignalAckOk(subjAlias: Int, correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutboundMessage
+  case class BinaryDialectCloseSubscription(subjAlias: Int) extends BinaryDialectInbound
 
-  case class BinaryDialectSignalAckFailed(subjAlias: Int, correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutboundMessage
+  case class BinaryDialectSubscriptionClosed(subjAlias: Int) extends BinaryDialectOutbound
+
+  case class BinaryDialectResetSubscription(subjAlias: Int) extends BinaryDialectInbound
+
+
+  case class BinaryDialectStreamStateUpdate(subjAlias: Int, topicState: StreamState) extends BinaryDialectOutbound
+
+  case class BinaryDialectStreamStateTransitionUpdate(subjAlias: Int, topicStateTransition: StreamStateTransition) extends BinaryDialectOutbound
+
+
+  case class BinaryDialectSignal(subjAlias: Int, payload: Any, expireAt: Long, orderingGroup: Option[Any], correlationId: Option[Any]) extends Expirable with BinaryDialectInbound
+
+  case class BinaryDialectSignalAckOk(subjAlias: Int, correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutbound
+
+  case class BinaryDialectSignalAckFailed(subjAlias: Int, correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutbound
 
 
 }

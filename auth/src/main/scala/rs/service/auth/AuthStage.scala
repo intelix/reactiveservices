@@ -17,12 +17,14 @@ package rs.service.auth
 
 import akka.stream.scaladsl._
 import akka.stream.{BidiShape, FlowShape}
-import rs.core.{ServiceKey, Subject}
 import rs.core.SubjectKeys.{KeyOps, UserId, UserToken}
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.{ConfigOps, GlobalConfig, ServiceConfig}
 import rs.core.services.Messages._
 import rs.core.stream.StringStreamState
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.{ServiceKey, Subject, TopicKey}
 
 trait AuthStageSysevents extends ComponentWithBaseSysevents {
 
@@ -39,8 +41,13 @@ class AuthStageSyseventsAt(parentComponentId: String) extends AuthStageSysevents
 
 object AuthStage {
 
+  private object SecretToken extends KeyOps {
+    override val token: String = "secret"
+  }
 
-  def buildStage(userToken: String, componentId: String)(implicit pub: WithSyseventPublisher): BidiFlow[ServiceInboundMessage, ServiceInboundMessage, ServiceOutboundMessage, ServiceOutboundMessage, Unit] =
+
+  def buildStage(userToken: String, componentId: String)
+                (implicit gCfg: GlobalConfig, sCfg: ServiceConfig, pub: WithSyseventPublisher): BidiFlow[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound, Unit] =
     BidiFlow.wrap(FlowGraph.partial() { implicit b =>
       import FlowGraph.Implicits._
 
@@ -48,31 +55,34 @@ object AuthStage {
 
       val PrivateKey = userToken + "_private"
 
-      val AuthService: ServiceKey = "auth"
+      val AuthService: ServiceKey = sCfg.asString("auth-client.service-key", "auth")
+
+      val TokenTopic: TopicKey = sCfg.asString("auth-client.topic-token", "token")
+      val PermissionsTopic: TopicKey = sCfg.asString("auth-client.topic-permissions", "permissions")
+      val InfoTopic: TopicKey = sCfg.asString("auth-client.topic-info", "info")
+
+      val closeOnServiceDown = sCfg.asBoolean("auth-stage.close-when-auth-unavailable", defaultValue = true)
+
+      val AuthSubSubject = Subject(AuthService, TokenTopic, UserToken(userToken) + SecretToken(PrivateKey))
+      val PermissionsSubSubject = Subject(AuthService, PermissionsTopic, UserToken(userToken) + SecretToken(PrivateKey))
+      val InfoSubSubject = Subject(AuthService, InfoTopic, UserToken(userToken) + SecretToken(PrivateKey))
+
 
       @volatile var userId: Option[String] = None
 
-      object SecretToken extends KeyOps {
-        override val token: String = "secret"
-      }
-
-      val in = b.add(Flow[ServiceInboundMessage].map {
+      val in = b.add(Flow[ServiceInbound].map {
         case s: OpenSubscription =>
-          s.copy(subj = s.subj.withKeys(UserToken(userToken)).withKeys(userId.map(UserId(_))))
+          s.copy(subj = s.subj + UserToken(userToken) + userId.map(UserId(_)))
         case s: CloseSubscription =>
-          s.copy(subj = s.subj.withKeys(UserToken(userToken)).withKeys(userId.map(UserId(_))))
+          s.copy(subj = s.subj + UserToken(userToken) + userId.map(UserId(_)))
         case s: Signal =>
-          s.copy(subj = s.subj.withKeys(UserToken(userToken)).withKeys(userId.map(UserId(_))))
+          s.copy(subj = s.subj + UserToken(userToken) + userId.map(UserId(_)))
       })
 
-      val AuthSubSubject = Subject(AuthService, "token", UserToken(userToken) + SecretToken(PrivateKey))
-      val PermissionsSubSubject = Subject(AuthService, "permissions", UserToken(userToken) + SecretToken(PrivateKey))
-      val InfoSubSubject = Subject(AuthService, "info", UserToken(userToken) + SecretToken(PrivateKey))
-
-      val out = b.add(Flow[ServiceOutboundMessage].filter {
+      val out = b.add(Flow[ServiceOutbound].filter {
         case ServiceNotAvailable(AuthService) =>
-          Events.AuthServiceDown('service -> AuthService)
-          userId = None
+          Events.AuthServiceDown('service -> AuthService, 'clientAccessReset -> closeOnServiceDown)
+          if (closeOnServiceDown) userId = None
           true
         case StreamStateUpdate(InfoSubSubject, StringStreamState(id)) =>
           id match {
@@ -88,11 +98,11 @@ object AuthStage {
           false
         case _ => true
       }.map {
-        case s: SubscriptionClosed => s.copy(subj = s.subj.copy(keys = ""))
-        case s: InvalidRequest => s.copy(subj = s.subj.copy(keys = ""))
-        case s: StreamStateUpdate => s.copy(subject = s.subject.copy(keys = ""))
-        case s: SignalAckOk => s.copy(subj = s.subj.copy(keys = ""))
-        case s: SignalAckFailed => s.copy(subj = s.subj.copy(keys = ""))
+        case s: SubscriptionClosed => s.copy(subj = s.subj.removeKeys())
+        case s: InvalidRequest => s.copy(subj = s.subj.removeKeys())
+        case s: StreamStateUpdate => s.copy(subject = s.subject.removeKeys())
+        case s: SignalAckOk => s.copy(subj = s.subj.removeKeys())
+        case s: SignalAckFailed => s.copy(subj = s.subj.removeKeys())
         case s: ServiceNotAvailable => s
       })
 
@@ -103,7 +113,7 @@ object AuthStage {
           OpenSubscription(PermissionsSubSubject),
           OpenSubscription(InfoSubSubject))
       })
-      val concat = b.add(Concat[ServiceInboundMessage])
+      val concat = b.add(Concat[ServiceInbound])
 
       s ~> concat
       in ~> concat

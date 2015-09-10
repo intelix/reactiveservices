@@ -62,22 +62,13 @@ lazy val repl_server = Project(
 
 
 
-lazy val auth_api = Project(
-  id = "auth-api",
-  base = file("auth-api"),
-  dependencies = Seq(
-    core % "compile;test->test"
-  )
-)
-
 lazy val auth = Project(
   id = "auth",
   base = file("auth"),
   dependencies = Seq(
     sysevents % "compile;test->test",
     core % "compile;test->test",
-    node % "compile;test->test",
-    auth_api % "compile;test->test"
+    node % "compile;test->test"
   )
 )
 
@@ -111,7 +102,6 @@ lazy val examples_counter_statics = Project(
     core % "compile;test->test",
     node % "compile;test->test",
     js, auth_js
-    //    rfx_node_api % "compile;test->test"
   )
 ).enablePlugins(PlayScala, SbtWeb)
 

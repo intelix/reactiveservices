@@ -24,16 +24,16 @@ import scala.collection.mutable
 
 object PartialUpdatesProducer {
 
-  def buildStage(): BidiFlow[BinaryDialectInboundMessage, BinaryDialectInboundMessage, BinaryDialectOutboundMessage, BinaryDialectOutboundMessage, Unit] = BidiFlow.wrap(FlowGraph.partial() { implicit b =>
+  def buildStage(): BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit] = BidiFlow.wrap(FlowGraph.partial() { implicit b =>
     import FlowGraph.Implicits._
 
-    class InboundRouter extends FlexiRoute[BinaryDialectInboundMessage, FanOutShape2[BinaryDialectInboundMessage, BinaryDialectInboundMessage, BinaryDialectResetSubscription]](
+    class InboundRouter extends FlexiRoute[BinaryDialectInbound, FanOutShape2[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectResetSubscription]](
       new FanOutShape2("resetRouter"), Attributes.name("resetRouter")) {
 
       import FlexiRoute._
 
-      override def createRouteLogic(s: PortT): RouteLogic[BinaryDialectInboundMessage] =
-        new RouteLogic[BinaryDialectInboundMessage] {
+      override def createRouteLogic(s: PortT): RouteLogic[BinaryDialectInbound] =
+        new RouteLogic[BinaryDialectInbound] {
 
           override def initialState: State[Unit] = State(DemandFromAll(s.out0, s.out1)) { (ctx, _, el) =>
             el match {
@@ -47,16 +47,16 @@ object PartialUpdatesProducer {
         }
     }
 
-    class OutboundMerger extends FlexiMerge[BinaryDialectOutboundMessage, FanInShape2[Any, Any, BinaryDialectOutboundMessage]](
+    class OutboundMerger extends FlexiMerge[BinaryDialectOutbound, FanInShape2[Any, Any, BinaryDialectOutbound]](
       new FanInShape2("fanIn"), Attributes.name("fanIn")) {
 
       import akka.stream.scaladsl.FlexiMerge._
 
-      override def createMergeLogic(s: PortT): MergeLogic[BinaryDialectOutboundMessage] = new MergeLogic[BinaryDialectOutboundMessage] {
+      override def createMergeLogic(s: PortT): MergeLogic[BinaryDialectOutbound] = new MergeLogic[BinaryDialectOutbound] {
 
         private val lastUpdates: mutable.Map[Int, StreamState] = mutable.HashMap()
 
-        def toPartial(x: BinaryDialectStreamStateUpdate): BinaryDialectOutboundMessage = {
+        def toPartial(x: BinaryDialectStreamStateUpdate): BinaryDialectOutbound = {
 
           val previous = synchronized {
             val value = lastUpdates get x.subjAlias
@@ -81,7 +81,7 @@ object PartialUpdatesProducer {
               ctx.emit(m)
             case x: BinaryDialectStreamStateUpdate =>
               ctx.emit(toPartial(x))
-            case x: BinaryDialectOutboundMessage => ctx.emit(x)
+            case x: BinaryDialectOutbound => ctx.emit(x)
             case _ =>
           }
           SameState

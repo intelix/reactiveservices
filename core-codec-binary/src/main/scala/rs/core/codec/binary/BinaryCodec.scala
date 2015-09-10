@@ -42,9 +42,9 @@ object BinaryCodec {
 
   trait IdCodec extends Codec[Int, Int]
 
-  trait ServerBinaryCodec extends Codec[BinaryDialectInboundMessage, BinaryDialectOutboundMessage]
+  trait ServerBinaryCodec extends Codec[BinaryDialectInbound, BinaryDialectOutbound]
 
-  trait ClientBinaryCodec extends Codec[BinaryDialectOutboundMessage, BinaryDialectInboundMessage]
+  trait ClientBinaryCodec extends Codec[BinaryDialectOutbound, BinaryDialectInbound]
 
   trait CommonDataBinaryCodec extends Codec[Any, Any]
 
@@ -59,16 +59,16 @@ object BinaryCodec {
 
   object Streams {
 
-    def buildServerSideTranslator(): BidiFlow[BinaryDialectInboundMessage, ServiceInboundMessage, ServiceOutboundMessage, BinaryDialectOutboundMessage, Unit] = BidiFlow.wrap(FlowGraph.partial() { implicit b =>
+    def buildServerSideTranslator(): BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit] = BidiFlow.wrap(FlowGraph.partial() { implicit b =>
       import FlowGraph.Implicits._
 
-      class InboundRouter extends FlexiRoute[BinaryDialectInboundMessage, FanOutShape2[BinaryDialectInboundMessage, ServiceInboundMessage, BinaryDialectAlias]](
+      class InboundRouter extends FlexiRoute[BinaryDialectInbound, FanOutShape2[BinaryDialectInbound, ServiceInbound, BinaryDialectAlias]](
         new FanOutShape2("binaryMessageRouter"), Attributes.name("binaryMessageRouter")) {
 
         import FlexiRoute._
 
-        override def createRouteLogic(s: PortT): RouteLogic[BinaryDialectInboundMessage] =
-          new RouteLogic[BinaryDialectInboundMessage] {
+        override def createRouteLogic(s: PortT): RouteLogic[BinaryDialectInbound] =
+          new RouteLogic[BinaryDialectInbound] {
 
             var subjects: Map[Int, Subject] = Map()
 
@@ -91,14 +91,14 @@ object BinaryCodec {
           }
       }
 
-      class OutboundMerger extends FlexiMerge[BinaryDialectOutboundMessage, FanInShape2[Any, Any, BinaryDialectOutboundMessage]](
+      class OutboundMerger extends FlexiMerge[BinaryDialectOutbound, FanInShape2[Any, Any, BinaryDialectOutbound]](
         new FanInShape2("outboundServiceToBinaryTranslator"), Attributes.name("outboundServiceToBinaryTranslator")) {
 
         import akka.stream.scaladsl.FlexiMerge._
 
         var aliases: Map[Subject, Int] = Map()
 
-        override def createMergeLogic(s: PortT): MergeLogic[BinaryDialectOutboundMessage] = new MergeLogic[BinaryDialectOutboundMessage] {
+        override def createMergeLogic(s: PortT): MergeLogic[BinaryDialectOutbound] = new MergeLogic[BinaryDialectOutbound] {
           override def initialState: State[_] = State(ReadPreferred(s.in0, s.in1)) { (ctx, input, element) =>
             element match {
               case BinaryDialectAlias(id, subj) => aliases += subj -> id
@@ -128,11 +128,11 @@ object BinaryCodec {
       BidiShape(FlowShape(inboundRouter.in, inboundRouter.out0), FlowShape(outboundMerger.in1, outboundMerger.out))
     })
 
-    def buildServerSideSerializer()(implicit codec: ServerBinaryCodec): BidiFlow[ByteString, BinaryDialectInboundMessage, BinaryDialectOutboundMessage, ByteString, Unit] = BidiFlow() { b =>
+    def buildServerSideSerializer()(implicit codec: ServerBinaryCodec): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
-      val top = b add Flow[ByteString].mapConcat[BinaryDialectInboundMessage] { x =>
+      val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
 
-       @tailrec def dec(l: List[BinaryDialectInboundMessage], i: ByteIterator): List[BinaryDialectInboundMessage] = {
+       @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = {
         if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
        }
 
@@ -140,7 +140,7 @@ object BinaryCodec {
        val decoded = dec(List.empty, i)
        decoded
       }
-      val bottom = b add Flow[BinaryDialectOutboundMessage].map[ByteString] { x =>
+      val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
         val b = ByteString.newBuilder; codec.encode(x, b)
         val encoded = b.result()
         // TODO debug events here
@@ -149,11 +149,11 @@ object BinaryCodec {
       BidiShape(top, bottom)
     }
 
-    def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutboundMessage, BinaryDialectInboundMessage, ByteString, Unit] = BidiFlow() { b =>
+    def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutbound, BinaryDialectInbound, ByteString, Unit] = BidiFlow() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
-      val top = b add Flow[ByteString].mapConcat[BinaryDialectOutboundMessage] { x =>
+      val top = b add Flow[ByteString].mapConcat[BinaryDialectOutbound] { x =>
 
-       @tailrec def dec(l: List[BinaryDialectOutboundMessage], i: ByteIterator): List[BinaryDialectOutboundMessage] = {
+       @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = {
         if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
        }
 
@@ -161,7 +161,7 @@ object BinaryCodec {
        val decoded = dec(List.empty, i)
        decoded
       }
-      val bottom = b add Flow[BinaryDialectInboundMessage].map[ByteString] { x =>
+      val bottom = b add Flow[BinaryDialectInbound].map[ByteString] { x =>
         val b = ByteString.newBuilder; codec.encode(x, b)
         val encoded = b.result()
         encoded
@@ -441,7 +441,7 @@ object BinaryCodec {
 
 
     class DefaultClientBinaryCodec(implicit commonCodec: CommonDataBinaryCodec, idCodec: IdCodec, byteOrder: ByteOrder) extends ClientBinaryCodec {
-      override def decode(bytes: ByteIterator): BinaryDialectOutboundMessage = {
+      override def decode(bytes: ByteIterator): BinaryDialectOutbound = {
         val id = idCodec.decode(bytes)
         id match {
           case TypeServiceNotAvailable => BinaryDialectServiceNotAvailable(ServiceKeyCodecLogic.decode(bytes))
@@ -455,7 +455,7 @@ object BinaryCodec {
         }
       }
 
-      override def encode(value: BinaryDialectInboundMessage, builder: ByteStringBuilder): Unit = {
+      override def encode(value: BinaryDialectInbound, builder: ByteStringBuilder): Unit = {
         def putId(id: Short) = idCodec.encode(id, builder)
         value match {
           case x: BinaryDialectOpenSubscription => putId(TypeOpenSubscription)
@@ -485,7 +485,7 @@ object BinaryCodec {
     }
 
     class DefaultServerBinaryCodec(implicit commonCodec: CommonDataBinaryCodec, idCodec: IdCodec, byteOrder: ByteOrder) extends ServerBinaryCodec {
-      override def decode(bytes: ByteIterator): BinaryDialectInboundMessage = {
+      override def decode(bytes: ByteIterator): BinaryDialectInbound = {
         val id = idCodec.decode(bytes)
         id match {
           case TypeOpenSubscription =>
@@ -503,7 +503,7 @@ object BinaryCodec {
         }
       }
 
-      override def encode(value: BinaryDialectOutboundMessage, builder: ByteStringBuilder): Unit = {
+      override def encode(value: BinaryDialectOutbound, builder: ByteStringBuilder): Unit = {
         def putId(id: Short) = idCodec.encode(id, builder)
         value match {
           case x: BinaryDialectServiceNotAvailable => putId(TypeServiceNotAvailable); ServiceKeyCodecLogic.encode(x.serviceKey, builder)

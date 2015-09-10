@@ -1,3 +1,18 @@
+/*
+ * Copyright 2014-15 Intelix Pty Ltd
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package rs.core.services.endpoint.akkastreams
 
 import akka.actor.ActorRefFactory
@@ -28,7 +43,7 @@ trait ServicePortSysevents extends ComponentWithBaseSysevents {
 object ServicePort extends ServicePortSysevents {
 
 
-  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: WithSyseventPublisher) = Flow.wrap[ServiceInboundMessage, ServiceOutboundMessage, Any](FlowGraph.partial() { implicit b =>
+  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: WithSyseventPublisher) = Flow.wrap[ServiceInbound, ServiceOutbound, Any](FlowGraph.partial() { implicit b =>
 
     import FlowGraph.Implicits._
 
@@ -63,8 +78,8 @@ object ServicePort extends ServicePortSysevents {
     val aggregator = context.actorOf(StreamAggregatorActor.props(tokenId), s"aggregator-$tokenId")
     val signalPort = context.actorOf(SignalPort.props, s"signal-port-$tokenId")
 
-    val lifecycleMonitor = new PushStage[ServiceInboundMessage, ServiceInboundMessage] {
-      override def onPush(elem: ServiceInboundMessage, ctx: Context[ServiceInboundMessage]): SyncDirective = {
+    val lifecycleMonitor = new PushStage[ServiceInbound, ServiceInbound] {
+      override def onPush(elem: ServiceInbound, ctx: Context[ServiceInbound]): SyncDirective = {
         ctx.push(elem)
       }
 
@@ -89,7 +104,7 @@ object ServicePort extends ServicePortSysevents {
 
     val requestSink = b.add(Sink.actorSubscriber(ServicePortSubscriptionRequestSinkSubscriber.props(aggregator, tokenId)))
 
-    val signalExecStage = b.add(Flow[ServiceInboundMessage].mapAsyncUnordered[ServiceOutboundMessage](100) {
+    val signalExecStage = b.add(Flow[ServiceInbound].mapAsyncUnordered[ServiceOutbound](100) {
       case m: Signal =>
         val start = System.nanoTime()
         val expiredIn = m.expireAt - System.currentTimeMillis()
@@ -124,13 +139,13 @@ object ServicePort extends ServicePortSysevents {
     })
 
 
-    val merge = b.add(MergePreferred[ServiceOutboundMessage](1))
+    val merge = b.add(MergePreferred[ServiceOutbound](1))
 
     val publisherSource = b.add(publisher)
 
-    val router = b.add(new MessageRouter[ServiceInboundMessage])
+    val router = b.add(new MessageRouter[ServiceInbound])
 
-    val monitor = b.add(Flow[ServiceInboundMessage].transform(() => lifecycleMonitor))
+    val monitor = b.add(Flow[ServiceInbound].transform(() => lifecycleMonitor))
 
     monitor ~>  router.in
                 router.out(0)   ~> requestSink // stream subscriptions
