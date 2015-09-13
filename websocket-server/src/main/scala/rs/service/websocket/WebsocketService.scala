@@ -15,26 +15,26 @@
  */
 package rs.service.websocket
 
-import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.http.javadsl.model.HttpMethods
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{Message, UpgradeToWebsocket}
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
-import akka.stream.scaladsl.Flow
+import akka.stream.scaladsl.BidiFlow
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
-import org.jboss.netty.handler.codec.socks.SocksMessage.AuthStatus
-import rs.core.ServiceKey
+import akka.util.ByteString
 import rs.core.actors.BaseActorSysevents
-import rs.core.codec.binary.{ByteStringAggregator, BinaryCodec, PartialUpdatesProducer, PingInjector}
+import rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound}
+import rs.core.codec.binary._
+import rs.core.config.ConfigOps.wrap
+import rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
 import rs.core.services.ServiceCell
 import rs.core.services.endpoint.akkastreams._
-import rs.service.auth.AuthStage
 
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.{Failure, Success}
 
 trait WebsocketServiceSysevents extends BaseActorSysevents {
   val ServerOpen = "ServerOpen".info
@@ -48,70 +48,91 @@ trait WebsocketServiceSysevents extends BaseActorSysevents {
 class WebsocketService(id: String) extends ServiceCell(id) with WebsocketServiceSysevents {
 
   object WSRequest {
-
-    def unapply(req: HttpRequest): Option[HttpRequest] = {
+    def unapply(req: HttpRequest): Option[(UpgradeToWebsocket, HttpRequest)] = {
       if (req.header[UpgradeToWebsocket].isDefined) {
         req.header[UpgradeToWebsocket] match {
-          case Some(upgrade) => Some(req)
+          case Some(upgrade) => Some(upgrade, req)
           case None => None
         }
       } else None
     }
-
   }
 
   implicit val system = context.system
+
+  val port = serviceCfg.asInt("endpoint-port", 8080)
+  val host = serviceCfg.asString("endpoint-host", "localhost")
+  val bindingTimeout = serviceCfg.asFiniteDuration("start-timeout", 3 seconds)
+
+  val bytesStagesList = serviceCfg.asClassesList("stage-bytes")
+  val protocolDialectStagesList = serviceCfg.asClassesList("stage-protocol-dialect")
+  val serviceDialectStagesList = serviceCfg.asClassesList("stage-service-dialect")
+
+
   val decider: Supervision.Decider = {
     case x =>
-      FlowFailure()
+      FlowFailure('error -> x)
       Supervision.Stop
   }
 
   import rs.core.codec.binary.BinaryCodec.DefaultCodecs._
-  implicit val mat = ActorMaterializer(ActorMaterializerSettings(context.system).withDebugLogging(true).withSupervisionStrategy(decider))
 
-  def handleWebsocket(req: HttpRequest, flow: Flow[Message, Message, Unit], id: String) = NewConnection { ctx =>
+  implicit val mat = ActorMaterializer(
+    ActorMaterializerSettings(context.system)
+      .withDebugLogging(serviceCfg.asBoolean("log.flow-debug", defaultValue = false))
+      .withSupervisionStrategy(decider))
+
+  implicit val executor = context.dispatcher
+
+  def handleWebsocket(upgrade: UpgradeToWebsocket, id: String) = NewConnection { ctx =>
     ctx + ('token -> id)
-    req.header[UpgradeToWebsocket].get.handleMessages(flow)
+    upgrade.handleMessages(buildFlow(id))
   }
 
-  def echoFlow: Flow[Message, Message, Unit] = Flow[Message]
+  def buildFlow(id: String) = {
 
-  def mainFlow(id: String) = {
-    WebsocketBinaryFrameFolder.buildStage() atop
-      ByteStringAggregator.buildStage(maxMessages = 100, within = 100 millis) atop
-      BinaryCodec.Streams.buildServerSideSerializer() atop
-      PingInjector.buildStage(30 seconds) atop
-      PartialUpdatesProducer.buildStage() atop
-      BinaryCodec.Streams.buildServerSideTranslator() atop
-      AuthStage.buildStage(id, componentId) join
-      ServicePort.buildFlow(id)
+    println(s"!>>> $serviceDialectStagesList")
+
+    val bytesStage = bytesStagesList.foldLeft[BidiFlow[Message, ByteString, ByteString, Message, Unit]](WebsocketBinaryFrameFolder.buildStage(id, componentId)) {
+      case (flow, builder) => flow atop builder.asInstanceOf[BytesStageBuilder].buildStage(id, componentId)
+    }
+    val protocolDialectStage = protocolDialectStagesList.foldLeft[BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit]](BinaryCodec.Streams.buildServerSideSerializer(id, componentId)) {
+      case (flow, builder) => flow atop builder.asInstanceOf[BinaryDialectStageBuilder].buildStage(id, componentId)
+    }
+    val serviceDialectStage = serviceDialectStagesList.foldLeft[BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit]](BinaryCodec.Streams.buildServerSideTranslator(id, componentId)) {
+      case (flow, builder) => flow atop builder.asInstanceOf[ServiceDialectStageBuilder].buildStage(id, componentId)
+    }
+
+    bytesStage atop protocolDialectStage atop serviceDialectStage join ServicePort.buildFlow(id)
   }
 
-  val port = 8080
-  val interface = "localhost"
-  val timeout = 2 seconds
 
   var connectionCounter = new AtomicInteger(0)
 
-  val binding = Http().bindAndHandleSync(handler = {
-    case WSRequest(req@HttpRequest(HttpMethods.GET, Uri.Path("/"), _, _, _)) =>
+  Http().bindAndHandleSync(handler = {
+    case WSRequest(upgrade, HttpRequest(HttpMethods.GET, Uri.Path("/"), _, _, _)) =>
       val count = connectionCounter.incrementAndGet()
       val id = count + "_" + shortUUID
-      handleWebsocket(req, mainFlow(id), id)
+      handleWebsocket(upgrade, id)
 
     case r: HttpRequest =>
       Invalid('uri -> r.uri.path.toString(), 'method -> r.method.name)
       HttpResponse(400, entity = "Invalid websocket request")
-  }, interface = interface, port = port)
-
-  try {
-    Await.result(binding, timeout)
-    ServerOpen('host -> interface, 'port -> port)
-  } catch {
-    case exc: TimeoutException =>
-      UnableToBind('timeoutMs -> timeout.toMillis)
+  }, interface = host, port = port) onComplete {
+    case Success(binding) => self ! SuccessfulBinding(binding)
+    case Failure(x) => self ! BindingFailed(x)
   }
 
+  onMessage {
+    case SuccessfulBinding(binding) =>
+      ServerOpen('host -> host, 'port -> port, 'address -> binding.localAddress)
+    case BindingFailed(x) =>
+      UnableToBind('timeoutMs -> bindingTimeout.toMillis, 'error -> x)
+      context.stop(self)
+  }
+
+  private case class SuccessfulBinding(binding: Http.ServerBinding)
+
+  private case class BindingFailed(x: Throwable)
 
 }

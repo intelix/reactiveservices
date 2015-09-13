@@ -19,18 +19,20 @@ import akka.http.scaladsl.model.ws.{BinaryMessage, Message}
 import akka.stream.BidiShape
 import akka.stream.scaladsl.{BidiFlow, Flow, Sink}
 import akka.util.ByteString
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.ServiceConfig
 
 import scala.concurrent.Future
 
 
 private[websocket] object WebsocketBinaryFrameFolder {
 
-  def buildStage()(implicit mat: akka.stream.Materializer): BidiFlow[Message, ByteString, ByteString, Message, Unit] = BidiFlow() { b =>
+  def buildStage(sessionId: String, componentId: String)(implicit mat: akka.stream.Materializer, sCfg: ServiceConfig): BidiFlow[Message, ByteString, ByteString, Message, Unit] = BidiFlow() { b =>
     val top = Flow[Message]
       .filter {
         case t: BinaryMessage => true
         case t => false
-      }.mapAsync[ByteString](50) {
+      }.mapAsync[ByteString](sCfg.asInt("packet-folding-parallelism", 2)) {
         case BinaryMessage.Strict(bs) => Future.successful(bs)
         case t: BinaryMessage =>
           val sink = Sink.fold[ByteString, ByteString](ByteString.empty) {

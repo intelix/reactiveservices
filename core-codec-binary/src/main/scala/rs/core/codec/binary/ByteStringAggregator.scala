@@ -18,22 +18,28 @@ package rs.core.codec.binary
 import akka.stream.BidiShape
 import akka.stream.scaladsl.{BidiFlow, Flow}
 import akka.util.ByteString
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.{GlobalConfig, ServiceConfig}
+import rs.core.services.endpoint.akkastreams.BytesStageBuilder
+import rs.core.sysevents.WithSyseventPublisher
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object ByteStringAggregator {
+class ByteStringAggregator extends BytesStageBuilder {
 
-  def buildStage(maxMessages: Int = 100, within: FiniteDuration = 200 millis): BidiFlow[ByteString, ByteString, ByteString, ByteString, Unit] = BidiFlow() { b =>
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher): BidiFlow[ByteString, ByteString, ByteString, ByteString, Unit] =
+    BidiFlow() { b =>
 
-    val in = b.add(Flow[ByteString])
-    val out = b.add(Flow[ByteString].groupedWithin(maxMessages, within).map {
-      case Nil => ByteString.empty
-      case bs :: Nil => bs
-      case s => s.foldLeft(ByteString.empty)(_ ++ _)
-    })
+      val maxMessages = serviceCfg.asInt("aggregator.max-messages", 100)
+      val within = serviceCfg.asFiniteDuration("aggregator.time-window", 100 millis)
 
-    BidiShape(in, out)
-  }
-
+      val in = b.add(Flow[ByteString])
+      val out = b.add(Flow[ByteString].groupedWithin(maxMessages, within).map {
+        case Nil => ByteString.empty
+        case bs :: Nil => bs
+        case s => s.foldLeft(ByteString.empty)(_ ++ _)
+      })
+      BidiShape(in, out)
+    }
 }

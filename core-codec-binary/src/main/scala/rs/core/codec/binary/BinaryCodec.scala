@@ -22,6 +22,7 @@ import akka.stream.scaladsl._
 import akka.util.{ByteIterator, ByteString, ByteStringBuilder}
 import rs.core.codec.binary.BinaryCodec.Codecs._
 import rs.core.codec.binary.BinaryProtocolMessages._
+import rs.core.config.ServiceConfig
 import rs.core.services.Messages._
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
@@ -59,7 +60,7 @@ object BinaryCodec {
 
   object Streams {
 
-    def buildServerSideTranslator(): BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit] = BidiFlow.wrap(FlowGraph.partial() { implicit b =>
+    def buildServerSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig): BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit] = BidiFlow.wrap(FlowGraph.partial() { implicit b =>
       import FlowGraph.Implicits._
 
       class InboundRouter extends FlexiRoute[BinaryDialectInbound, FanOutShape2[BinaryDialectInbound, ServiceInbound, BinaryDialectAlias]](
@@ -128,7 +129,7 @@ object BinaryCodec {
       BidiShape(FlowShape(inboundRouter.in, inboundRouter.out0), FlowShape(outboundMerger.in1, outboundMerger.out))
     })
 
-    def buildServerSideSerializer()(implicit codec: ServerBinaryCodec): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
+    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
       val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
 

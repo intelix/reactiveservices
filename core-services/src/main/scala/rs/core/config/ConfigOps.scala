@@ -3,6 +3,7 @@ package rs.core.config
 import com.typesafe.config.{ConfigFactory, Config}
 import net.ceedubs.ficus.Ficus._
 
+import scala.concurrent.duration.FiniteDuration
 import scala.language.implicitConversions
 import scalaz.Scalaz._
 
@@ -41,13 +42,21 @@ class ConfigOps(cfg: Config) {
 
   def asString(key: String, defaultValue: String) = cfg.as[Option[String]](fieldFor(key)) | defaultValue
 
+  def asInt(key: String, defaultValue: Int) = asOptInt(key) | defaultValue
+
+  def asLong(key: String, defaultValue: Long) = asOptLong(key) | defaultValue
+
   def asBoolean(key: String, defaultValue: Boolean) = cfg.as[Option[Boolean]](fieldFor(key)) | defaultValue
+
+  def asFiniteDuration(key: String, defaultValue: FiniteDuration) = cfg.as[Option[FiniteDuration]](fieldFor(key)) | defaultValue
 
   def asOptLong(key: String) = cfg.as[Option[Long]](fieldFor(key))
 
   def asOptInt(key: String) = cfg.as[Option[Int]](fieldFor(key))
 
   def asStringList(key: String) = cfg.as[Option[List[String]]](fieldFor(key)) | List.empty
+
+  def asClassesList(key: String) = asStringList(key).map(Class.forName)
 
   def asOptClass(key: String) = cfg.as[Option[String]](fieldFor(key)).map(Class.forName)
 

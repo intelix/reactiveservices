@@ -18,15 +18,20 @@ package rs.core.codec.binary
 import akka.stream.scaladsl._
 import akka.stream.{BidiShape, FlowShape}
 import rs.core.codec.binary.BinaryProtocolMessages._
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.{GlobalConfig, ServiceConfig}
+import rs.core.sysevents.WithSyseventPublisher
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object PingInjector {
+class PingInjector extends BinaryDialectStageBuilder {
 
-  def buildStage(interval: FiniteDuration = 30 seconds): BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit] =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher): BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit] =
     BidiFlow.wrap(FlowGraph.partial() { implicit b =>
       import FlowGraph.Implicits._
+
+      val interval = serviceCfg.asFiniteDuration("ping.interval", 30 seconds)
 
       val top = b.add(Flow[BinaryDialectInbound].filter {
         case BinaryDialectPong(ts) =>
