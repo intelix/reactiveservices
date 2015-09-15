@@ -47,27 +47,20 @@ trait WebsocketServiceSysevents extends BaseActorSysevents {
 
 class WebsocketService(id: String) extends ServiceCell(id) with WebsocketServiceSysevents {
 
-  object WSRequest {
-    def unapply(req: HttpRequest): Option[(UpgradeToWebsocket, HttpRequest)] = {
-      if (req.header[UpgradeToWebsocket].isDefined) {
-        req.header[UpgradeToWebsocket] match {
-          case Some(upgrade) => Some(upgrade, req)
-          case None => None
-        }
-      } else None
-    }
-  }
+  private case class SuccessfulBinding(binding: Http.ServerBinding)
+
+  private case class BindingFailed(x: Throwable)
+
 
   implicit val system = context.system
+  implicit val executor = context.dispatcher
 
   val port = serviceCfg.asInt("endpoint-port", 8080)
   val host = serviceCfg.asString("endpoint-host", "localhost")
-  val bindingTimeout = serviceCfg.asFiniteDuration("start-timeout", 3 seconds)
-
+  val bindingTimeout = serviceCfg.asFiniteDuration("port-bind-timeout", 3 seconds)
   val bytesStagesList = serviceCfg.asClassesList("stage-bytes")
   val protocolDialectStagesList = serviceCfg.asClassesList("stage-protocol-dialect")
   val serviceDialectStagesList = serviceCfg.asClassesList("stage-service-dialect")
-
 
   val decider: Supervision.Decider = {
     case x =>
@@ -75,14 +68,14 @@ class WebsocketService(id: String) extends ServiceCell(id) with WebsocketService
       Supervision.Stop
   }
 
-  import rs.core.codec.binary.BinaryCodec.DefaultCodecs._
-
   implicit val mat = ActorMaterializer(
     ActorMaterializerSettings(context.system)
       .withDebugLogging(serviceCfg.asBoolean("log.flow-debug", defaultValue = false))
       .withSupervisionStrategy(decider))
 
-  implicit val executor = context.dispatcher
+  import rs.core.codec.binary.BinaryCodec.DefaultCodecs._
+
+  var connectionCounter = new AtomicInteger(0)
 
   def handleWebsocket(upgrade: UpgradeToWebsocket, id: String) = NewConnection { ctx =>
     ctx + ('token -> id)
@@ -91,23 +84,31 @@ class WebsocketService(id: String) extends ServiceCell(id) with WebsocketService
 
   def buildFlow(id: String) = {
 
-    println(s"!>>> $serviceDialectStagesList")
-
     val bytesStage = bytesStagesList.foldLeft[BidiFlow[Message, ByteString, ByteString, Message, Unit]](WebsocketBinaryFrameFolder.buildStage(id, componentId)) {
-      case (flow, builder) => flow atop builder.asInstanceOf[BytesStageBuilder].buildStage(id, componentId)
+      case (flow, builder) =>
+        builder.newInstance().asInstanceOf[BytesStageBuilder].buildStage(id, componentId) match {
+          case Some(stage) => flow atop stage
+          case None => flow
+        }
     }
     val protocolDialectStage = protocolDialectStagesList.foldLeft[BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit]](BinaryCodec.Streams.buildServerSideSerializer(id, componentId)) {
-      case (flow, builder) => flow atop builder.asInstanceOf[BinaryDialectStageBuilder].buildStage(id, componentId)
+      case (flow, builder) =>
+        builder.newInstance().asInstanceOf[BinaryDialectStageBuilder].buildStage(id, componentId) match {
+          case Some(stage) => flow atop stage
+          case None => flow
+        }
     }
     val serviceDialectStage = serviceDialectStagesList.foldLeft[BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit]](BinaryCodec.Streams.buildServerSideTranslator(id, componentId)) {
-      case (flow, builder) => flow atop builder.asInstanceOf[ServiceDialectStageBuilder].buildStage(id, componentId)
+      case (flow, builder) =>
+        builder.newInstance().asInstanceOf[ServiceDialectStageBuilder].buildStage(id, componentId) match {
+          case Some(stage) => flow atop stage
+          case None => flow
+        }
     }
 
     bytesStage atop protocolDialectStage atop serviceDialectStage join ServicePort.buildFlow(id)
   }
 
-
-  var connectionCounter = new AtomicInteger(0)
 
   Http().bindAndHandleSync(handler = {
     case WSRequest(upgrade, HttpRequest(HttpMethods.GET, Uri.Path("/"), _, _, _)) =>
@@ -131,8 +132,15 @@ class WebsocketService(id: String) extends ServiceCell(id) with WebsocketService
       context.stop(self)
   }
 
-  private case class SuccessfulBinding(binding: Http.ServerBinding)
-
-  private case class BindingFailed(x: Throwable)
+  object WSRequest {
+    def unapply(req: HttpRequest): Option[(UpgradeToWebsocket, HttpRequest)] = {
+      if (req.header[UpgradeToWebsocket].isDefined) {
+        req.header[UpgradeToWebsocket] match {
+          case Some(upgrade) => Some(upgrade, req)
+          case None => None
+        }
+      } else None
+    }
+  }
 
 }

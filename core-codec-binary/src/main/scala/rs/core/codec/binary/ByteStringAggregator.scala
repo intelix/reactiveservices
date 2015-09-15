@@ -28,18 +28,20 @@ import scala.language.postfixOps
 
 class ByteStringAggregator extends BytesStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher): BidiFlow[ByteString, ByteString, ByteString, ByteString, Unit] =
-    BidiFlow() { b =>
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher) =
+    if (serviceCfg.asBoolean("aggregator.enabled", defaultValue = true))
+      Some(BidiFlow() { b =>
 
-      val maxMessages = serviceCfg.asInt("aggregator.max-messages", 100)
-      val within = serviceCfg.asFiniteDuration("aggregator.time-window", 100 millis)
+        val maxMessages = serviceCfg.asInt("aggregator.max-messages", 100)
+        val within = serviceCfg.asFiniteDuration("aggregator.time-window", 100 millis)
 
-      val in = b.add(Flow[ByteString])
-      val out = b.add(Flow[ByteString].groupedWithin(maxMessages, within).map {
-        case Nil => ByteString.empty
-        case bs :: Nil => bs
-        case s => s.foldLeft(ByteString.empty)(_ ++ _)
+        val in = b.add(Flow[ByteString])
+        val out = b.add(Flow[ByteString].groupedWithin(maxMessages, within).map {
+          case Nil => ByteString.empty
+          case bs :: Nil => bs
+          case s => s.foldLeft(ByteString.empty)(_ ++ _)
+        })
+        BidiShape(in, out)
       })
-      BidiShape(in, out)
-    }
+    else None
 }

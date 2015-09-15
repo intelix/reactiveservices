@@ -27,27 +27,29 @@ import scala.language.postfixOps
 
 class PingInjector extends BinaryDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher): BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit] =
-    BidiFlow.wrap(FlowGraph.partial() { implicit b =>
-      import FlowGraph.Implicits._
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher) =
+    if (serviceCfg.asBoolean("ping.enabled", defaultValue = true))
+      Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
+        import FlowGraph.Implicits._
 
-      val interval = serviceCfg.asFiniteDuration("ping.interval", 30 seconds)
+        val interval = serviceCfg.asFiniteDuration("ping.interval", 30 seconds)
 
-      val top = b.add(Flow[BinaryDialectInbound].filter {
-        case BinaryDialectPong(ts) =>
-          val now = System.currentTimeMillis() % Int.MaxValue
-          val latency = (now - ts) / 2
-          // TODO handle latency
-          false
-        case t => true
-      })
+        val top = b.add(Flow[BinaryDialectInbound].filter {
+          case BinaryDialectPong(ts) =>
+            val now = System.currentTimeMillis() % Int.MaxValue
+            val latency = (now - ts) / 2
+            // TODO handle latency
+            false
+          case t => true
+        })
 
-      val merge = b.add(MergePreferred[BinaryDialectOutbound](1))
-      val pingSource = Source(interval, interval, None).map(_ => BinaryDialectPing((System.currentTimeMillis() % Int.MaxValue).toInt))
+        val merge = b.add(MergePreferred[BinaryDialectOutbound](1))
+        val pingSource = Source(interval, interval, None).map(_ => BinaryDialectPing((System.currentTimeMillis() % Int.MaxValue).toInt))
 
-      pingSource ~> merge.preferred
+        pingSource ~> merge.preferred
 
-      BidiShape(top, FlowShape(merge.in(0), merge.out))
-    })
+        BidiShape(top, FlowShape(merge.in(0), merge.out))
+      }))
+    else None
 
 }

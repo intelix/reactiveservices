@@ -17,20 +17,22 @@ package rs.node
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-import rs.core.sysevents.{LoggerSyseventPublisher, SEvtSystem, SyseventPublisherRef, SyseventSystemRef}
+import rs.core.config.ConfigOps.wrap
+import rs.core.sysevents._
 import rs.node.core.ServiceClusterGuardianActor
 
 object Launcher extends App {
 
-
   private val configName: String = java.lang.System.getProperty("config", "node.conf")
-  private val localSystemConfigName: String = java.lang.System.getProperty("config", "node-local.conf")
+  private val localSystemConfigName: String = java.lang.System.getProperty("local-config", "node-local.conf")
+  private val localSystemName: String = java.lang.System.getProperty("local-system", "local")
   val config = ConfigFactory.load(configName)
 
-  SyseventPublisherRef.ref = LoggerSyseventPublisher
-  SyseventSystemRef.ref = SEvtSystem("EventStreams.Engine")
+  SyseventPublisherRef.ref = config.asClass("node.events-publisher", classOf[Log4JSyseventsPublisher]).newInstance().asInstanceOf[SyseventPublisher]
 
-  implicit val system = ActorSystem("local", ConfigFactory.load("node-local.conf"))
+  SyseventSystemRef.ref = SyseventSystem(config.asString("node.id", "Node"))
+
+  implicit val system = ActorSystem(localSystemName, ConfigFactory.load(localSystemConfigName))
 
   ServiceClusterGuardianActor.start(config)
 

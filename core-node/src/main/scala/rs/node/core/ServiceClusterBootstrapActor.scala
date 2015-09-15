@@ -19,18 +19,13 @@ package rs.node.core
 import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
-import net.ceedubs.ficus.Ficus._
 import rs.core.actors.{ActorUtils, BaseActorSysevents}
 import rs.core.config.ConfigOps.wrap
-import rs.core.registry.ServiceRegistryActor
-import rs.core.sysevents.SyseventOps.stringToSyseventOps
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceNodeActor.Start
 
-import scala.concurrent.duration._
 import scala.language.postfixOps
-import scalaz.Scalaz._
 
 trait ServiceClusterBootstrapSysevents extends ComponentWithBaseSysevents with BaseActorSysevents {
 
@@ -49,8 +44,8 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
   with ServiceClusterBootstrapSysevents
   with WithSyseventPublisher {
 
-//  private val blockingWaitTimeout = cfg[FiniteDuration]("node.cluster.termination-wait-timeout", 10 seconds)
-  private val clusterSystemId =  cfg.asString("node.cluster.system-id", context.system.name)
+  //  private val blockingWaitTimeout = cfg[FiniteDuration]("node.cluster.termination-wait-timeout", 10 seconds)
+  private val clusterSystemId = cfg.asString("node.cluster.system-id", context.system.name)
 
   private var clusterSystem: Option[ActorSystem] = None
 
@@ -75,7 +70,6 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
   private def stopCluster(block: Boolean) =
     clusterSystem.foreach { sys =>
       implicit val ec = context.dispatcher
-      //Await.result(sys.terminate(), blockingWaitTimeout)
       sys.shutdown()
       sys.awaitTermination()
     }
@@ -85,7 +79,6 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
     StartingCluster { ctx =>
       clusterSystem = Some(ActorSystem(clusterSystemId, cfg))
       clusterSystem foreach { sys =>
-        ServiceRegistryActor.start(sys)
         context.watch(sys.actorOf(Props[ServiceNodeActor], "node")) ! Start
       }
     }

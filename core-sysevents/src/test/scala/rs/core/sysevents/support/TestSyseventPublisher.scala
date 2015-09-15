@@ -41,15 +41,16 @@ class TestSyseventPublisher extends SyseventPublisher with LoggerSyseventPublish
   }
 
 
-  override def publish(system: SyseventSystem, event: Sysevent, values: => Seq[FieldAndValue]): Unit = {
+  override def publish(ctx: SyseventPublisherContext): Unit = {
     events.synchronized {
-      eventsInOrder = eventsInOrder :+ RaisedEvent(System.currentTimeMillis(), event, values)
-      events += (event -> (events.getOrElse(event, List()) :+ values.map {
+      val cwf = ctx.asInstanceOf[ContextWithFields]
+      eventsInOrder = eventsInOrder :+ RaisedEvent(System.currentTimeMillis(), cwf.event, cwf.fields)
+      events += (cwf.event -> (events.getOrElse(cwf.event, List()) :+ cwf.fields.map {
         case (f, v) => f -> transformValue(v)
       }))
     }
-    super.publish(system, event, values)
   }
+
 
 }
 

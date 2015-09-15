@@ -17,11 +17,13 @@ package rs.core.registry
 
 import akka.actor._
 import rs.core.ServiceKey
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.{BaseActorSysevents, ActorWithComposableBehavior}
+import rs.core.config.ConfigOps.wrap
 import rs.core.registry.Messages._
+import rs.core.registry.ServiceRegistryActor.{RegistryLocation, RegistryLocationRequest}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
-trait ServiceRegistrySysevents extends ComponentWithBaseSysevents {
+trait ServiceRegistrySysevents extends BaseActorSysevents {
 
   val ServiceRegistered = "ServiceRegistered".info
   val ServiceUnregistered = "ServiceUnregistered".info
@@ -29,20 +31,36 @@ trait ServiceRegistrySysevents extends ComponentWithBaseSysevents {
   override def componentId: String = "ServiceRegistry"
 }
 
+object ServiceRegistrySysevents extends ServiceRegistrySysevents
+
 
 object ServiceRegistryActor {
 
-  def start(implicit f: ActorSystem) = f.actorOf(Props[ServiceRegistryActor], "local-registry")
+  case class RegistryLocation(ref: ActorRef)
+
+  case class RegistryLocationRequest()
 
 }
 
-
-class ServiceRegistryActor
+class ServiceRegistryActor(id: String)
   extends ActorWithComposableBehavior
   with ServiceRegistrySysevents {
 
   private var services: Map[ServiceKey, ActorRef] = Map.empty
   private var interests: Map[ServiceKey, Set[ActorRef]] = Map.empty
+
+  context.system.eventStream.subscribe(self, classOf[RegistryLocationRequest])
+
+  val nodeId = config.asString("node.id", "n/a")
+  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> id, 'nodeid -> nodeId)
+
+  @throws[Exception](classOf[Exception]) override
+  def preStart(): Unit = {
+    super.preStart()
+    publishOurLocation()
+  }
+
+  private def publishOurLocation() = context.system.eventStream.publish(RegistryLocation(self))
 
 
   private def updateStream(serviceKey: ServiceKey, location: Option[ActorRef]): Unit = {
@@ -90,6 +108,7 @@ class ServiceRegistryActor
     case StreamingLookup(serviceKey) => addInterest(sender(), serviceKey)
     case CancelStreamingLookup(serviceKey) => removeInterest(sender(), serviceKey)
     case CancelAllStreamingLookups => removeAllInterests(sender())
+    case RegistryLocationRequest() => publishOurLocation()
   }
 
   private def removeService(serviceKey: ServiceKey, ref: ActorRef): Unit = ServiceUnregistered { ctx =>

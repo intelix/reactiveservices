@@ -47,6 +47,9 @@ sealed trait Sysevent {
   }
   private def run(ff: => Seq[FieldAndValue])(implicit ctx: WithSyseventPublisher): Unit = {
     val eCtx = ctx.evtPublisher.contextFor(ctx.evtSystem, this, ff)
+    if (!eCtx.isMute) {
+      if (ctx.commonFields.nonEmpty) eCtx ++ ctx.commonFields
+    }
     ctx.evtPublisher.publish(eCtx)
   }
 

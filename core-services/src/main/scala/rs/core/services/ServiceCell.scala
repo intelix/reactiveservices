@@ -116,7 +116,8 @@ abstract class ServiceCell(id: String)
 
   final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
+  val nodeId = globalCfg.asString("node.id", "n/a")
+  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey, 'nodeid -> nodeId)
 
   override def onClusterMemberUp(address: Address, roles: Set[String]): Unit = {
     if (nodeRoles.isEmpty || roles.exists(nodeRoles.contains)) {

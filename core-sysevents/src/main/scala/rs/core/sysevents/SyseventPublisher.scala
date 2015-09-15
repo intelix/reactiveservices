@@ -71,7 +71,7 @@ trait SyseventPublisher {
 }
 
 object LoggerSyseventPublisherHelper {
-  val logFormat = "%25s - %-25s : %s"
+  val logFormat = "[%s] %35s - %-30s : %s"
 
   def log(event: Sysevent, system: SyseventSystem, values: Seq[FieldAndValue], f: String => Unit) = {
 
@@ -81,14 +81,14 @@ object LoggerSyseventPublisherHelper {
       (aggr, next) => aggr + formatNextField(next) + "  "
     }
 
-    val string = logFormat.format(event.componentId, event.id, fields)
+    val string = logFormat.format(system.id, event.componentId, event.id, fields)
 
     f(string)
   }
 }
 
 object LoggerSyseventPublisherWithDateHelper {
-  val logFormat = "%23s : %25s - %-25s : %s"
+  val logFormat = "%23s : [%s] %35s - %-30s : %s"
   val date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
 
   def log(timestamp: Long, event: Sysevent, system: SyseventSystem, values: Seq[FieldAndValue], f: String => Unit) = {
@@ -101,7 +101,7 @@ object LoggerSyseventPublisherWithDateHelper {
     
     val d = date.format(new Date(timestamp))
     
-    val string = logFormat.format(d, event.componentId, event.id, fields)
+    val string = logFormat.format(d, system.id, event.componentId, event.id, fields)
 
     f(string)
   }
@@ -168,10 +168,10 @@ trait LoggerSyseventPublisher extends SyseventPublisher {
 }
 
 object SyseventPublisherRef {
-  implicit var ref: SyseventPublisher = LoggerSyseventPublisher
+  implicit var ref: SyseventPublisher = new Log4JSyseventsPublisher
 }
 
-object LoggerSyseventPublisher extends SyseventPublisher with LoggerSyseventPublisher {
+class Log4JSyseventsPublisher extends SyseventPublisher with LoggerSyseventPublisher {
 
 
 }

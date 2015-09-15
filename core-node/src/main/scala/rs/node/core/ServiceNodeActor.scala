@@ -40,6 +40,7 @@ trait ServiceNodeSysevents extends ComponentWithBaseSysevents with BaseActorSyse
   val ClusterMergeTrigger = "ClusterMergeTrigger".info
   val FormingClusterWithSelf = "FormingClusterWithSelf".info
   val JoiningCluster = "JoiningCluster".info
+  val NewLeaderElected = "NewLeaderElected".info
 
   override def componentId: String = "Cluster.Node"
 }
@@ -123,8 +124,6 @@ object ServiceNodeActor {
       }
 
     def isBelongToMyCluster(activeMembers: Set[Address]) = activeMembers.exists(members.contains)
-
-    //activeMembers.exists { next => isMyMember(next.toString) }
 
     def hasMembers = members.nonEmpty
 
@@ -245,7 +244,12 @@ class ServiceNodeActor
   startWith(Initial, Data(selfAddress = selfAddress.toString, clusterNodes = clusterNodes))
 
   when(Initial) {
-    case Event(Start, t) => transitionTo(DetachedWaitingForAllSeeds) using t.copy(clusterGuardian = Some(sender()))
+    case Event(Start, t) =>
+      self ! CheckState
+
+      // !>>>> TODO MAKE IT CONFIGURABLE!!!!
+      //      transitionTo(DetachedWaitingForAllSeeds) using t.copy(clusterGuardian = Some(sender()))
+      transitionTo(DetachedWaitingForFirstSeed) using t.copy(clusterGuardian = Some(sender()))
   }
 
   when(DetachedWaitingForAllSeeds) {
@@ -314,6 +318,7 @@ class ServiceNodeActor
         transitionTo(AwaitingJoin) using t.copy(seeds = List(selfAddress), perspectives = Map.empty)
       } else stay()
     case Event(LeaderChanged(leader), t) =>
+      NewLeaderElected('leader -> leader)
       self ! CheckState
       stay using t.copy(leader = leader)
     case Event(MemberExited(member), t) =>
@@ -343,8 +348,8 @@ class ServiceNodeActor
       setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
       setTimer("checkState", CheckState, 3 seconds, repeat = true)
     case _ -> DetachedWaitingForFirstSeed =>
-      setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
-      setTimer("checkState", CheckState, 3 seconds, repeat = true)
+      setTimer("handshake", PerformHandshake, 1 seconds, repeat = true)
+      setTimer("checkState", CheckState, 1 seconds, repeat = true)
     case _ -> AwaitingJoin =>
       setTimer("timeout", JoinTimeout, 20 seconds, repeat = false)
       cancelTimer("handshake")
@@ -355,7 +360,7 @@ class ServiceNodeActor
       cancelTimer("timeout")
       startProviders()
       setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
-      setTimer("checkState", CheckState, 3 seconds, repeat = true)
+      setTimer("checkState", CheckState, 1 seconds, repeat = true)
     case _ -> PartiallyBuilt =>
       setTimer("handshake", PerformHandshake, 4 seconds, repeat = true)
       setTimer("checkState", CheckState, 3 seconds, repeat = true)

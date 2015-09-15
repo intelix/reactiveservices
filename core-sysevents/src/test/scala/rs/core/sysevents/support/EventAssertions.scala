@@ -28,7 +28,7 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
   self: org.scalatest.Suite =>
 
   SyseventPublisherRef.ref = new TestSyseventPublisher()
-  SyseventSystemRef.ref = SEvtSystem("test")
+  SyseventSystemRef.ref = SyseventSystem("test")
 
   def clearEvents() =
     SyseventPublisherRef.ref.asInstanceOf[TestSyseventPublisher].clear()
@@ -48,8 +48,8 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
 
 
   override protected def afterEach(): Unit = {
-    clearEvents()
     super.afterEach()
+    clearEvents()
   }
 
   def events = SyseventPublisherRef.ref.asInstanceOf[TestSyseventPublisher].events
@@ -110,7 +110,8 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
       f
     } catch {
       case x: Throwable =>
-        SyseventPublisherRef.ref.publish(SyseventSystemRef.ref, ErrorSysevent("ExpectationFailed", "Test"), Seq())
+        val ctx = SyseventPublisherRef.ref.contextFor(SyseventSystemRef.ref, ErrorSysevent("ExpectationFailed", "Test"), Seq())
+        SyseventPublisherRef.ref.publish(ctx)
         report(x)
         throw x
     }
@@ -166,6 +167,8 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
   def expectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(5000, event, values: _*)
 
   def expectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(5000, count to count, event, values: _*)
+
+  def expectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(5000, 1 to 1, event, values: _*)
 
   def expectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(5000, count, event, values: _*)
 

@@ -19,25 +19,26 @@ import akka.actor.ActorRef
 import rs.core.ServiceKey
 import rs.core.actors.ActorWithComposableBehavior
 import rs.core.registry.Messages._
+import rs.core.registry.ServiceRegistryActor.RegistryLocation
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
-import scala.concurrent.Await
-import scala.concurrent.duration._
 import scala.language.postfixOps
 
 
 trait RegistryRefSysevents extends ComponentWithBaseSysevents {
-  val ServiceRegistered = "ServiceRegistered".trace
-  val ServiceUnregistered = "ServiceUnregistered".trace
+  val ServiceRegistrationPending = "ServiceRegistrationPending".trace
+  val ServiceUnregistrationPending = "ServiceUnregistrationPending".trace
   val ServiceLocationUpdate = "ServiceLocationUpdate".trace
 }
 
 trait RegistryRef extends ActorWithComposableBehavior with RegistryRefSysevents {
 
   type LocationHandler = PartialFunction[(ServiceKey, Option[ActorRef]), Unit]
-  // with healthy config, when registry is deployed on every node, this should be extremely fast lookup, so blocking wait should never be an issue
-  private lazy val ref = Await.result(path.resolveOne(5 seconds), 5 seconds)
-  private val path = context.actorSelection("/user/local-registry")
+
+  private var registryRef: Option[ActorRef] = None
+
+  private var pendingToRegistry: List[Any] = List.empty
+
   private var localLocation: Map[ServiceKey, Option[ActorRef]] = Map.empty
   private var localLocationHandlerFunc: LocationHandler = {
     case _ =>
@@ -45,40 +46,70 @@ trait RegistryRef extends ActorWithComposableBehavior with RegistryRefSysevents 
 
 
   @throws[Exception](classOf[Exception]) override
+  def preStart(): Unit = {
+    context.system.eventStream.subscribe(self, classOf[ServiceRegistryActor.RegistryLocation])
+    context.system.eventStream.publish(ServiceRegistryActor.RegistryLocationRequest())
+    super.preStart()
+  }
+
+  @throws[Exception](classOf[Exception]) override
   def postStop(): Unit = {
-    ref ! CancelAllStreamingLookups
+    unsubscribeFromRegistryLocation()
+    registryRef foreach (_ ! CancelAllStreamingLookups)
     super.postStop()
   }
+
+  private def unsubscribeFromRegistryLocation() = context.system.eventStream.unsubscribe(self, classOf[ServiceRegistryActor.RegistryLocation])
 
   final def lookupServiceLocation(s: ServiceKey): Option[ActorRef] = localLocation get s flatten
 
   final def unregisterService(s: ServiceKey) = unregisterServiceAt(s, self)
+
   final def registerService(s: ServiceKey) = registerServiceAt(s, self)
 
   final def registerServiceAt(s: ServiceKey, loc: ActorRef) = {
-    ref ! Register(s, loc)
-    ServiceRegistered('service -> s, 'ref -> loc, 'registry -> ref)
+    sendToRegistry(Register(s, loc))
+    ServiceRegistrationPending('service -> s, 'ref -> loc, 'registry -> registryRef)
   }
+
   final def unregisterServiceAt(s: ServiceKey, loc: ActorRef) = {
-    ref ! Unregister(s, loc)
-    ServiceUnregistered('service -> s, 'ref -> loc, 'registry -> ref)
+    sendToRegistry(Unregister(s, loc))
+    ServiceUnregistrationPending('service -> s, 'ref -> loc, 'registry -> registryRef)
   }
 
   final def registerServiceLocationInterest(s: ServiceKey) =
     if (!localLocation.contains(s.id)) {
-      ref ! StreamingLookup(s)
+      sendToRegistry(StreamingLookup(s))
       localLocation += s -> None
     }
 
   final def unregisterServiceLocationInterest(s: ServiceKey) =
     if (localLocation.contains(s)) {
-      ref ! CancelStreamingLookup(s)
+      sendToRegistry(CancelStreamingLookup(s))
       localLocation -= s.id
     }
 
   final def onServiceLocationChanged(handler: LocationHandler) = localLocationHandlerFunc = handler orElse localLocationHandlerFunc
 
+  private def sendToRegistry(msg: Any) = registryRef match {
+    case Some(r) =>
+      if (pendingToRegistry.nonEmpty) sendPending()
+      r ! msg
+    case None => pendingToRegistry = pendingToRegistry :+ msg
+  }
+
+  private def sendPending() = {
+    registryRef foreach { rr =>
+      pendingToRegistry foreach (rr ! _)
+      pendingToRegistry = List.empty
+    }
+  }
+
   onMessage {
+    case RegistryLocation(ref) =>
+      if (registryRef.isEmpty) registryRef = Some(ref)
+      sendPending()
+      unsubscribeFromRegistryLocation()
     case LocationUpdate(name, maybeLocation) =>
       ServiceLocationUpdate { ctx =>
         ctx +('service -> name, 'location -> maybeLocation)
