@@ -1,29 +1,9 @@
 package rs.core
 
 import org.scalatest.FlatSpec
-import rs.core.actors.{ClusterAwareness, ActorWithComposableBehavior, BaseActorSysevents}
 import rs.core.registry.ServiceRegistrySysevents
-import rs.core.services.ServiceCell
-import rs.core.sysevents.support.EventAssertions
-import rs.testing.{IsolatedActorSystems, ConfigReference, SharedActorSystem, UnmanagedNodeTestContext}
+import rs.testing.{IsolatedActorSystems, UnmanagedNodeTestContext}
 
-object BaseNodeContextTest {
-
-  trait TestActorEvents extends BaseActorSysevents {
-
-    val LeaderChanged = "LeaderChanged".info
-
-    override def componentId: String = "Test"
-  }
-
-  object TestActorEvents extends TestActorEvents
-
-  class TestActor(id: String) extends ServiceCell(id) with TestActorEvents with ClusterAwareness {
-
-    override def onLeaderChanged(): Unit = LeaderChanged('self -> cluster.selfAddress.toString)
-  }
-
-}
 
 class BaseNodeContextTest extends FlatSpec with UnmanagedNodeTestContext with IsolatedActorSystems {
 
@@ -34,38 +14,66 @@ class BaseNodeContextTest extends FlatSpec with UnmanagedNodeTestContext with Is
     onNode1ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
     onNode2ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
   }
-
-
-  "Cluster of three nodes" should "form when starting manually with blank nodes" in new WithNode1 with WithNode2 {
-
-    expectSomeEventsWithTimeout(15000, 1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node2")
-    expectExactlyNEvents(1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node1")
-
-    override def node1Services = super.node1Services ++ Map("test-service" -> classOf[BaseNodeContextTest.TestActor])
+  it should "start with three nodes" in new WithNode1 with WithNode2 with WithNode3 {
+    onNode1ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode2ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode3ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+  }
+  it should "start with four nodes" in new WithNode1 with WithNode2 with WithNode3 with WithNode4 {
+    onNode1ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode2ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode3ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode4ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+  }
+  it should "start with four nodes, consistently" in new WithNode1 with WithNode2 with WithNode3 with WithNode4 {
+    onNode1ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode2ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode3ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
+    onNode4ExpectExactlyNEvents(1, ServiceRegistrySysevents.PreStart)
   }
 
-  it should "1" in new WithNode1 with WithNode2 {
-
-    expectExactlyNEvents(1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node1")
-    expectExactlyNEvents(1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node2")
-
-    override def node1Services = super.node1Services ++ Map("test-service" -> classOf[BaseNodeContextTest.TestActor])
+  trait With4NodesAndTestOn1 extends With4Nodes {
+    override def node1Services = super.node1Services ++ Map("test-service" -> classOf[TestServiceActor])
   }
 
-  it should "2" in new WithNode1 with WithNode2 {
-
-    expectExactlyNEvents(1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node1")
-    expectExactlyNEvents(1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node2")
-
-    override def node1Services = super.node1Services ++ Map("test-service" -> classOf[BaseNodeContextTest.TestActor])
+  it should "start service on node as requested" in new With4NodesAndTestOn1 {
+    onNode1ExpectSomeEventsWithTimeout(10000, 1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode2ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode3ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode4ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
   }
 
-  it should "3" in new WithNode1 with WithNode2 {
+  it should "start service on node as requested, consistently" in new With4NodesAndTestOn1 {
+    onNode1ExpectSomeEventsWithTimeout(10000, 1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode2ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode3ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode4ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+  }
 
-    expectExactlyNEvents(1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node1")
-    expectExactlyNEvents(1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service", 'nodeid -> "Node2")
+  it should "start more than one service on the same node as requested" in new With4NodesAndTestOn1 {
+    override def node1Services = super.node1Services ++ Map("test-service2" -> classOf[TestServiceActor])
 
-    override def node1Services = super.node1Services ++ Map("test-service" -> classOf[BaseNodeContextTest.TestActor])
+    onNode1ExpectSomeEventsWithTimeout(10000, 1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode2ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode3ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode4ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode1ExpectSomeEventsWithTimeout(10000, 1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
+    onNode2ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
+    onNode3ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
+    onNode4ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
+  }
+
+  it should "start more than one service on the different nodes as requested" in new With4NodesAndTestOn1 {
+    override def node2Services = super.node2Services ++ Map("test-service2" -> classOf[TestServiceActor])
+
+    onNode1ExpectSomeEventsWithTimeout(10000, 1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode2ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode3ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode4ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service")
+    onNode1ExpectSomeEventsWithTimeout(10000, 1, ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
+    onNode2ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
+    onNode3ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
+    onNode4ExpectExactlyOneEvent(ServiceRegistrySysevents.ServiceRegistered, 'key -> "test-service2")
   }
 
 

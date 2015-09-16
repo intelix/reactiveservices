@@ -1,7 +1,9 @@
 package rs.core.bootstrap
 
 import akka.actor.Props
+import rs.core.ServiceKey
 import rs.core.actors.{ActorWithComposableBehavior, BaseActorSysevents}
+import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 
 import scala.collection.JavaConversions
 
@@ -14,6 +16,9 @@ trait ServicesBootstrapEvents extends BaseActorSysevents {
 
 object ServicesBootstrapEvents extends ServicesBootstrapEvents
 
+object ServicesBootstrapActor {
+  case class ForwardToService(id: String, m: Any)
+}
 class ServicesBootstrapActor extends ActorWithComposableBehavior with ServicesBootstrapEvents {
 
   case class ServiceMeta(id: String, cl: String)
@@ -32,5 +37,9 @@ class ServicesBootstrapActor extends ActorWithComposableBehavior with ServicesBo
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     services foreach startProvider
+  }
+
+  onMessage {
+    case ForwardToService(id, m) => context.actorSelection(id).forward(m)
   }
 }

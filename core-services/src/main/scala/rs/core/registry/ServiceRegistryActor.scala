@@ -17,16 +17,16 @@ package rs.core.registry
 
 import akka.actor._
 import rs.core.ServiceKey
-import rs.core.actors.{BaseActorSysevents, ActorWithComposableBehavior}
+import rs.core.actors.{ActorWithComposableBehavior, BaseActorSysevents}
 import rs.core.config.ConfigOps.wrap
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.{RegistryLocation, RegistryLocationRequest}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 trait ServiceRegistrySysevents extends BaseActorSysevents {
 
   val ServiceRegistered = "ServiceRegistered".info
   val ServiceUnregistered = "ServiceUnregistered".info
+  val PublishingNewServiceLocation = "PublishingNewServiceLocation".info
 
   override def componentId: String = "ServiceRegistry"
 }
@@ -46,12 +46,13 @@ class ServiceRegistryActor(id: String)
   extends ActorWithComposableBehavior
   with ServiceRegistrySysevents {
 
-  private var services: Map[ServiceKey, ActorRef] = Map.empty
+  private var services: Map[ServiceKey, List[ActorRef]] = Map.empty
   private var interests: Map[ServiceKey, Set[ActorRef]] = Map.empty
 
   context.system.eventStream.subscribe(self, classOf[RegistryLocationRequest])
 
   val nodeId = config.asString("node.id", "n/a")
+
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> id, 'nodeid -> nodeId)
 
   @throws[Exception](classOf[Exception]) override
@@ -66,17 +67,21 @@ class ServiceRegistryActor(id: String)
   private def updateStream(serviceKey: ServiceKey, location: Option[ActorRef]): Unit = {
     val update = LocationUpdate(serviceKey, location)
     interests get serviceKey foreach (_.foreach(_ ! update))
+    PublishingNewServiceLocation('key -> serviceKey, 'location -> location)
   }
 
   private def addService(serviceKey: ServiceKey, location: ActorRef): Unit =
     ServiceRegistered { ctx =>
       ctx +('key -> serviceKey, 'ref -> location)
       services get serviceKey match {
-        case Some(r) if r == location =>
+        case Some(list) if list contains location =>
           ctx + ('new -> false)
+        case Some(list) =>
+          ctx +('new -> true, 'locations -> (list.size + 1))
+          services += serviceKey -> (list :+ context.watch(location))
         case _ =>
-          ctx + ('new -> true)
-          services += serviceKey -> context.watch(location)
+          ctx +('new -> true, 'locations -> 1)
+          services += serviceKey -> List(context.watch(location))
           updateStream(serviceKey, Some(location))
       }
     }
@@ -84,7 +89,7 @@ class ServiceRegistryActor(id: String)
 
   private def addInterest(ref: ActorRef, serviceKey: ServiceKey): Unit = {
     interests += (serviceKey -> (interests.getOrElse(serviceKey, Set.empty) + context.watch(ref)))
-    ref ! LocationUpdate(serviceKey, services get serviceKey)
+    ref ! LocationUpdate(serviceKey, (services get serviceKey).flatMap(_.headOption))
   }
 
   private def removeInterest(ref: ActorRef, serviceKey: ServiceKey): Unit = {
@@ -113,20 +118,36 @@ class ServiceRegistryActor(id: String)
 
   private def removeService(serviceKey: ServiceKey, ref: ActorRef): Unit = ServiceUnregistered { ctx =>
     ctx +('key -> serviceKey, 'ref -> ref, 'reason -> "request")
-    if (services.get(serviceKey) contains ref) {
-      services -= serviceKey
-      updateStream(serviceKey, None)
+    services.get(serviceKey) match {
+      case Some(l) if l.contains(ref) =>
+        val currentHead = l.head
+        val newList = l filter (_ != ref)
+        if (!newList.headOption.contains(currentHead)) updateStream(serviceKey, newList.headOption)
+        if (newList.nonEmpty)
+          services += (serviceKey -> newList)
+        else
+          services -= serviceKey
+        ctx + ('remainingLocations -> newList.size)
+      case _ =>
     }
   }
 
   private def removeService(ref: ActorRef): Unit =
-    services = services filter {
+    services foreach {
       case (k, v) =>
-        if (v == ref) {
-          ServiceUnregistered('key -> k, 'ref -> ref, 'reason -> "termination")
-          updateStream(k, None)
-          false
-        } else true
+        if (v.contains(ref)) {
+          ServiceUnregistered { ctx =>
+            ctx +('key -> k, 'ref -> ref, 'reason -> "termination")
+            val currentHead = v.head
+            val newList = v filter (_ != ref)
+            if (!newList.headOption.contains(currentHead)) updateStream(k, newList.headOption)
+            if (newList.nonEmpty)
+              services += (k -> newList)
+            else
+              services -= k
+            ctx + ('remainingLocations -> newList.size)
+          }
+        }
     }
 
 
