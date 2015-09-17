@@ -20,7 +20,9 @@ import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
 import net.ceedubs.ficus.Ficus._
-import rs.core.actors.BaseActorSysevents
+import rs.core.actors.{ActorWithComposableBehavior, BaseActorSysevents, WithGlobalConfig}
+import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
+import rs.core.config.GlobalConfig
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceClusterGuardianActor.RestartRequestException
@@ -47,16 +49,19 @@ object ServiceClusterGuardianActor {
 }
 
 class ServiceClusterGuardianActor(config: Config)
-  extends Actor
+  extends ActorWithComposableBehavior
   with ServiceClusterGuardianSysevents
   with StrictLogging
-  with WithSyseventPublisher {
+  with WithSyseventPublisher
+  with WithGlobalConfig {
 
   private val maxRetries = config.as[Option[Int]]("node.cluster.max-retries") | -1
   private val maxRetriesTimewindow: Duration = config.as[Option[FiniteDuration]]("node.cluster.max-retries-window") match {
     case Some(d) => d
     case None => Duration.Inf
   }
+
+  override implicit val globalCfg: GlobalConfig = GlobalConfig(config)
 
   private var clusterSystem: Option[ActorSystem] = None
 
@@ -67,8 +72,8 @@ class ServiceClusterGuardianActor(config: Config)
       case _ => Escalate
     }
 
-  override def receive: Actor.Receive = {
-    case Terminated(_) => throw new Error("Unable to bootstrap the cluster system")
+  onActorTerminated{
+    case _ => throw new Error("Unable to bootstrap the cluster system")
   }
 
   @throws[Exception](classOf[Exception]) override
@@ -76,6 +81,10 @@ class ServiceClusterGuardianActor(config: Config)
     super.preStart()
     context.watch(context.actorOf(Props(classOf[ServiceClusterBootstrapActor], config), "bootstrap"))
     Launched('config -> config)
+  }
+
+  onMessage {
+    case m: ForwardToService => context.actorSelection("bootstrap").forward(m)
   }
 
 }

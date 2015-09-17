@@ -25,16 +25,5 @@ object Application extends Controller {
     Ok(views.html.index())
   }
 
-//  def socket = {
-//    println(s"!>>>  ok ...")
-//    WebSocket.acceptWithActor[String, String] {
-//      req => actor =>
-//        println(s"!>>>  About to start actor ...")
-//        val r = WebsocketActor.props(actor)
-//        println(s"!>>>  Started actor .. = " + r)
-//        r
-//    }
-//  }
-
 
 }

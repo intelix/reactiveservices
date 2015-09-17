@@ -19,8 +19,10 @@ package rs.node.core
 import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.actors.{ActorUtils, BaseActorSysevents}
+import rs.core.actors.{WithGlobalConfig, ActorWithComposableBehavior, ActorUtils, BaseActorSysevents}
+import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
+import rs.core.config.GlobalConfig
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceNodeActor.Start
@@ -35,14 +37,17 @@ trait ServiceClusterBootstrapSysevents extends ComponentWithBaseSysevents with B
   override def componentId: String = "Cluster.Bootstrap"
 }
 
+object ServiceClusterBootstrapSysevents extends ServiceClusterBootstrapSysevents
+
 object ServiceClusterBootstrapActor {
 }
 
 class ServiceClusterBootstrapActor(implicit val cfg: Config)
-  extends ActorUtils
+  extends ActorWithComposableBehavior
   with StrictLogging
   with ServiceClusterBootstrapSysevents
-  with WithSyseventPublisher {
+  with WithSyseventPublisher
+  with WithGlobalConfig {
 
   //  private val blockingWaitTimeout = cfg[FiniteDuration]("node.cluster.termination-wait-timeout", 10 seconds)
   private val clusterSystemId = cfg.asString("node.cluster.system-id", context.system.name)
@@ -50,9 +55,13 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
   private var clusterSystem: Option[ActorSystem] = None
 
 
-  override def receive: Actor.Receive = {
-    case Terminated(ref) => throw new Exception("Restarting cluster subsystem")
+
+
+  onActorTerminated {
+    case ref => throw new Exception("Restarting cluster subsystem")
   }
+
+  override implicit val globalCfg: GlobalConfig = GlobalConfig(cfg)
 
   @throws[Exception](classOf[Exception]) override
   def postStop(): Unit = {
@@ -82,6 +91,10 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
         context.watch(sys.actorOf(Props[ServiceNodeActor], "node")) ! Start
       }
     }
+  }
+
+  onMessage {
+    case ForwardToService(id, m) => clusterSystem.foreach(_.actorSelection("/user/node/" + id) ! m)
   }
 
 }

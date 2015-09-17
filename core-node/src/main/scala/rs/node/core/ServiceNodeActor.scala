@@ -19,7 +19,7 @@ import akka.actor.{ActorRef, Address, FSM, Props}
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 import net.ceedubs.ficus.Ficus._
-import rs.core.actors.{ActorUtils, BaseActorSysevents}
+import rs.core.actors.{WithGlobalConfig, ActorUtils, BaseActorSysevents}
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.UUIDTools
@@ -44,6 +44,8 @@ trait ServiceNodeSysevents extends ComponentWithBaseSysevents with BaseActorSyse
 
   override def componentId: String = "Cluster.Node"
 }
+
+object ServiceNodeSysevents extends ServiceNodeSysevents
 
 object ServiceNodeActor {
 
@@ -168,7 +170,8 @@ class ServiceNodeActor
   with WithSyseventPublisher
   with ActorUtils
   with ServiceNodeSysevents
-  with WithCHMetrics {
+  with WithCHMetrics
+  with WithGlobalConfig {
 
   implicit val cluster = Cluster(context.system)
   private val selfAddress = cluster.selfAddress
@@ -206,8 +209,8 @@ class ServiceNodeActor
 
   private def startProvider(sm: ServiceMeta) = StartingService { ctx =>
     servicesCounter += 1
-    val id = sm.id + "-" + servicesCounter
-    val actor = context.actorOf(Props(Class.forName(sm.cl), sm.id), id)
+//    val id = sm.id + "-" + servicesCounter
+    val actor = context.actorOf(Props(Class.forName(sm.cl), sm.id), sm.id)
     ctx +('service -> sm.id, 'class -> sm.cl, 'ref -> actor)
   }
 

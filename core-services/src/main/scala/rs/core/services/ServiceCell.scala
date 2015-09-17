@@ -17,9 +17,9 @@ package rs.core.services
 
 import akka.actor.{ActorRef, Address, Deploy}
 import akka.remote.RemoteScope
-import rs.core.actors.{ActorWithComposableBehavior, ClusterAwareness}
+import rs.core.actors.{ActorWithComposableBehavior, ClusterAwareness, WithGlobalConfig}
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{ServiceConfig, GlobalConfig}
+import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.ServiceCell._
 import rs.core.services.internal.InternalMessages.SignalPayload
@@ -73,14 +73,14 @@ abstract class ServiceCell(id: String)
   with StreamDemandBinding
   with RemoteStreamsBroadcaster
   with MessageAcknowledging
-  with ServiceCellSysevents {
+  with ServiceCellSysevents
+  with WithGlobalConfig {
 
 
   type SubjectToStreamKeyMapper = PartialFunction[Subject, Option[StreamId]]
   type StreamKeyToUnit = PartialFunction[StreamId, Unit]
   type SignalHandler = PartialFunction[(Subject, Any), Option[SignalResponse]]
 
-  implicit val globalCfg = GlobalConfig(config)
   implicit val serviceCfg = ServiceConfig(config.asConfig(id))
 
   val serviceKey: ServiceKey = id
@@ -116,8 +116,8 @@ abstract class ServiceCell(id: String)
 
   final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
 
-  val nodeId = globalCfg.asString("node.id", "n/a")
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey, 'nodeid -> nodeId)
+  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
+
 
   override def onClusterMemberUp(address: Address, roles: Set[String]): Unit = {
     if (nodeRoles.isEmpty || roles.exists(nodeRoles.contains)) {
@@ -159,7 +159,7 @@ abstract class ServiceCell(id: String)
     case OpenStreamFor(streamKey) => registerStreamInterest(streamKey, sender())
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
     case StreamResyncRequest(key) => StreamResync { ctx =>
-      ctx + ('stream -> key, 'ref -> sender())
+      ctx +('stream -> key, 'ref -> sender())
       closeStreamFor(sender(), key)
       initiateStreamFor(sender(), key)
     }
@@ -190,10 +190,10 @@ abstract class ServiceCell(id: String)
         val id = shortUUID
 
         val newAgent = context.watch(
-          context.actorOf(NodeLocalServiceStreamEndpoint.remoteStreamAgentProps(serviceKey, self, id).withDeploy(Deploy(scope = RemoteScope(address))), s"agt-$serviceKey-$id" )
+          context.actorOf(NodeLocalServiceStreamEndpoint.remoteStreamAgentProps(serviceKey, self, id).withDeploy(Deploy(scope = RemoteScope(address))), s"agt-$serviceKey-$id")
         )
 
-        ctx +('remotePath -> newAgent.path)
+        ctx + ('remotePath -> newAgent.path)
 
         val newActiveLocation = new AgentView(newAgent)
         activeAgents += address -> newActiveLocation

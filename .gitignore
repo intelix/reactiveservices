@@ -1,8 +1,5 @@
-.idea/*
-
 /auth/target
 /auth-js/target
-/auth-js/target/*
 /auth-api/target
 /core-codec-binary/target
 /core-js/target

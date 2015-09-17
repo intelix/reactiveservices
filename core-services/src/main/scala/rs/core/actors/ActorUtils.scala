@@ -27,7 +27,7 @@ trait ActorUtils extends Actor {
 
   def shortUUID: String = UUIDTools.generateShortUUID
 
-  val config = context.system.settings.config
+  lazy val config = context.system.settings.config
 
   def scheduleOnce(in: FiniteDuration, msg: Any, to: ActorRef = self, from: ActorRef = self) = context.system.scheduler.scheduleOnce(in, to, msg)(context.system.dispatcher, from)
 

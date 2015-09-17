@@ -119,8 +119,6 @@ class AuthStage extends ServiceDialectStageBuilder {
         s ~> concat
         in ~> concat
 
-        println(s"!>>> Auth Stage started")
-
         BidiShape(FlowShape(in.inlet, concat.out), out)
       }))
     else None

@@ -155,17 +155,22 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
 
   private def getSystem(instanceId: String, configs: ConfigReference*) = systems.get(instanceId) match {
     case None =>
-      val config = configs.foldLeft[Config](ConfigFactory.empty()) {
-        case (cfg, next) =>
-        logger.debug(s"Adding config: $next")
-        cfg.withFallback(next.toConfig.resolve())
-      }
+      val config: Config = buildConfig(configs:_*)
 
       val sys = Wrapper(config, ActorSystem(akkaSystemId, config), akkaSystemId, instanceId)
       ActorSystemCreated('instanceId -> instanceId, 'system -> akkaSystemId)
       systems = systems + (instanceId -> sys)
       sys
     case Some(x) => x
+  }
+
+  def buildConfig(configs: ConfigReference*): Config = {
+    val config = configs.foldLeft[Config](ConfigFactory.empty()) {
+        case (cfg, next) =>
+        logger.debug(s"Adding config: $next")
+        cfg.withFallback(next.toConfig.resolve())
+      }
+    config
   }
 
   def locateExistingSystem(instanceId: String) = systems.get(instanceId).get
