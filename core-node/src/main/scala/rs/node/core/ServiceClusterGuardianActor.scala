@@ -39,6 +39,8 @@ trait ServiceClusterGuardianSysevents extends ComponentWithBaseSysevents with Ba
 
 }
 
+object ServiceClusterGuardianSysevents extends ServiceClusterGuardianSysevents
+
 object ServiceClusterGuardianActor {
 
   class RestartRequestException extends Exception

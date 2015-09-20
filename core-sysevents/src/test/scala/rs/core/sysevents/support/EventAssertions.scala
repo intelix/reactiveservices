@@ -164,13 +164,13 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
         throw x
     }
 
-  def expectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(5000, event, values: _*)
+  def expectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(8000, event, values: _*)
 
-  def expectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(5000, count to count, event, values: _*)
+  def expectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(8000, count to count, event, values: _*)
 
-  def expectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(5000, 1 to 1, event, values: _*)
+  def expectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(8000, 1 to 1, event, values: _*)
 
-  def expectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(5000, count, event, values: _*)
+  def expectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(8000, count, event, values: _*)
 
   def expectSomeEventsWithTimeout(timeout: Int, event: Sysevent, values: FieldAndValue*): Unit = {
     waitWithTimeout(timeout) {

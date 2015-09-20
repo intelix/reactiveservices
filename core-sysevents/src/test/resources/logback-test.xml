@@ -33,12 +33,13 @@
     </logger>
 
 
-    <logger name="scala.slick" level="ERROR" />
+    <logger name="scala.slick" level="OFF" />
+    <logger name="akka" level="DEBUG" />
 
-    <logger name="akka.cluster.ClusterHeartbeatSender" level="ERROR" />
-    <logger name="akka.cluster.ClusterRemoteWatcher" level="ERROR" />
+    <logger name="akka.cluster.ClusterHeartbeatSender" level="OFF" />
+    <logger name="akka.cluster.ClusterRemoteWatcher" level="OFF" />
 
-    <root level="ERROR">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>
 

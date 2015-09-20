@@ -89,14 +89,14 @@ private class WatcherActor(id: String) extends ActorWithComposableBehavior with 
 }
 
 trait ConfigReference {
-  def toConfig: Config
+  def toConfig: String
 }
 
 case class ConfigFromFile(name: String) extends ConfigReference {
-  override def toConfig: Config = ConfigFactory.load(name)
+  override def toConfig: String = s"""include "$name"\n"""
 }
 case class ConfigFromContents(contents: String) extends ConfigReference {
-  override def toConfig: Config = ConfigFactory.parseString(contents)
+  override def toConfig: String = contents + "\n"
 }
 
 trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSystemTestContextSysevents with WithSyseventPublisher {
@@ -140,8 +140,10 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
     def stopActors() = {
       val startCheckpoint = System.nanoTime()
       clearComponentEvents(watcherComponentId)
-      watcher ! StopAll()
-      expectSomeEventsWithTimeout(30000, WatcherActor.AllWatchedActorsGone, 'InstanceId -> watcherComponentId)
+      if (!underlyingSystem.isTerminated) {
+        watcher ! StopAll()
+        expectSomeEventsWithTimeout(15000, WatcherActor.AllWatchedActorsGone, 'InstanceId -> watcherComponentId)
+      }
       clearComponentEvents(watcherComponentId)
       AllActorsTerminated('TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000, 'System -> configName)
     }
@@ -165,12 +167,12 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
   }
 
   def buildConfig(configs: ConfigReference*): Config = {
-    val config = configs.foldLeft[Config](ConfigFactory.empty()) {
+    val config = configs.foldLeft[String]("") {
         case (cfg, next) =>
         logger.debug(s"Adding config: $next")
-        cfg.withFallback(next.toConfig.resolve())
+        cfg + next.toConfig
       }
-    config
+    ConfigFactory.parseString(config).resolve()
   }
 
   def locateExistingSystem(instanceId: String) = systems.get(instanceId).get

@@ -16,6 +16,7 @@
 
 package rs.node.core
 
+import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
@@ -27,6 +28,7 @@ import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceNodeActor.Start
 
+import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
 trait ServiceClusterBootstrapSysevents extends ComponentWithBaseSysevents with BaseActorSysevents {
@@ -55,10 +57,15 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
   private var clusterSystem: Option[ActorSystem] = None
 
 
-
+  override def supervisorStrategy: SupervisorStrategy =
+    OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minutes) {
+      case _: Exception => Restart
+      case _ => Escalate
+    }
 
   onActorTerminated {
-    case ref => throw new Exception("Restarting cluster subsystem")
+    case ref =>
+      throw new Exception("Restarting cluster subsystem")
   }
 
   override implicit val globalCfg: GlobalConfig = GlobalConfig(cfg)

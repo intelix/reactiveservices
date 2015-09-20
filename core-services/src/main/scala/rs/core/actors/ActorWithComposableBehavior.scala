@@ -101,9 +101,9 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
       commonBehavior applyOrElse(x, NoHandler)
     } catch {
       case x: Throwable =>
-        Error('ctx -> "Error during message processing", 'msg -> x.getMessage, 'err -> x)
+        Error('msg -> x.getMessage, 'err -> x)
         FailureRateMeter.update(1)
-
+        throw x;
     }
 
 }

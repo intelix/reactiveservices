@@ -17,7 +17,7 @@ package rs.core.services
 
 import akka.actor.{ActorRef, Address, Deploy}
 import akka.remote.RemoteScope
-import rs.core.actors.{ActorWithComposableBehavior, ClusterAwareness, WithGlobalConfig}
+import rs.core.actors.{BaseActorSysevents, ActorWithComposableBehavior, ClusterAwareness, WithGlobalConfig}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
@@ -50,7 +50,7 @@ object ServiceCell {
 
 }
 
-trait ServiceCellSysevents extends ComponentWithBaseSysevents {
+trait ServiceCellSysevents extends BaseActorSysevents {
   val NodeAvailable = "NodeAvailable".info
   val StartingRemoveAgent = "StartingRemoveAgent".info
   val RemoveAgentTerminated = "RemoveAgentTerminated".info
