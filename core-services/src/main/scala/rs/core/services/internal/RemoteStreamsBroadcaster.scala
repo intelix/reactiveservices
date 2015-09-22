@@ -63,7 +63,10 @@ trait RemoteStreamsBroadcaster extends RemoteStreamsBroadcasterSysevents {
   final def initiateStreamFor(ref: ActorRef, key: StreamId) = InitiatingStreamForDestination { ctx =>
     ctx +('stream -> key, 'ref -> ref)
     val target = targets getOrElse(ref, newTarget(ref))
-    val stream = streams getOrElse(key, newStreamBroadcaster(key))
+    val stream = streams getOrElse(key, {
+      ctx +('broadcaster -> "new")
+      newStreamBroadcaster(key)
+    })
 
     val sink = target locateExistingSinkFor key match {
       case None =>

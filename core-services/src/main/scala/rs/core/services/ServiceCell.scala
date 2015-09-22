@@ -50,7 +50,8 @@ object ServiceCell {
 
 }
 
-trait ServiceCellSysevents extends BaseActorSysevents {
+trait ServiceCellSysevents extends BaseActorSysevents with RemoteStreamsBroadcasterSysevents {
+  val ServiceRunning = "ServiceRunning".info
   val NodeAvailable = "NodeAvailable".info
   val StartingRemoveAgent = "StartingRemoveAgent".info
   val RemoveAgentTerminated = "RemoveAgentTerminated".info
@@ -119,14 +120,12 @@ abstract class ServiceCell(id: String)
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
 
 
-  override def onClusterMemberUp(address: Address, roles: Set[String]): Unit = {
-    if (nodeRoles.isEmpty || roles.exists(nodeRoles.contains)) {
+
+  onClusterMemberUp {
+    case (address, roles) if nodeRoles.isEmpty || roles.exists(nodeRoles.contains) =>
       NodeAvailable('address -> address, 'host -> address.host, 'roles -> roles)
       ensureAgentIsRunningAt(address)
-    }
-    super.onClusterMemberUp(address, roles)
   }
-
 
   onMessage {
     case m: SignalPayload => SignalProcessed { ctx =>
@@ -178,6 +177,12 @@ abstract class ServiceCell(id: String)
         scheduleOnce(1 seconds, OpenAgentAt(ref.path.address))
       }
     }
+  }
+
+  @throws[Exception](classOf[Exception])
+  override  def preStart(): Unit = {
+    super.preStart()
+    ServiceRunning()
   }
 
   override def componentId: String = "Service." + id

@@ -54,8 +54,8 @@ trait NodeLocalServiceStreamEndpointSysevents extends ComponentWithBaseSysevents
   val AcknowledgeableForwarded = "AcknowledgeableForwarded".trace
 
   override def componentId: String = "ServiceProxy"
-
 }
+
 
 object NodeLocalServiceStreamEndpoint {
 
@@ -72,7 +72,7 @@ object NodeLocalServiceStreamEndpoint {
 }
 
 
-class NodeLocalServiceStreamEndpoint(serviceKey: ServiceKey, serviceRef: ActorRef)
+class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, serviceRef: ActorRef)
   extends ActorWithComposableBehavior
   with StreamDemandBinding
   with DemandProducerContract
@@ -85,11 +85,12 @@ class NodeLocalServiceStreamEndpoint(serviceKey: ServiceKey, serviceRef: ActorRe
   private var mappings: Map[Subject, Option[StreamId]] = Map.empty
   private var interests: Map[ActorRef, Set[Subject]] = Map.empty
 
-  override def componentId: String = super.componentId + "." + serviceKey.id
-
   onTick {
     checkPendingMappings()
   }
+
+
+  override def componentId: String = super.componentId + "." + serviceKey.id
 
   override def onIdleStream(key: StreamId): Unit = {
     acknowledgedDelivery(key, CloseStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
@@ -135,6 +136,7 @@ class NodeLocalServiceStreamEndpoint(serviceKey: ServiceKey, serviceRef: ActorRe
         publishNotAvailable(subscriber, subj)
         ctx + ('info -> "Stream not available")
       case None =>
+        initiateConsumer(subscriber)
         requestMapping(subj)
         ctx + ('info -> "Requested mapping")
     }
@@ -188,6 +190,7 @@ class NodeLocalServiceStreamEndpoint(serviceKey: ServiceKey, serviceRef: ActorRe
 
   private def publishNotAvailable(subj: Subject): Unit = interests foreach {
     case (ref, set) if set.contains(subj) => publishNotAvailable(ref, subj)
+    case _ =>
   }
 
   private def onReceivedStreamMapping(subj: Subject, maybeKey: Option[StreamId]): Unit = SubjectMappingReceived { ctx =>
@@ -265,7 +268,7 @@ private class LocalSubjectStreamSink(val streamKey: StreamId, subj: Subject, can
 }
 
 
-private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef) extends ConsumerDemandTracker with WithSyseventPublisher with NodeLocalServiceStreamEndpointSysevents {
+private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String) extends ConsumerDemandTracker with WithSyseventPublisher with NodeLocalServiceStreamEndpointSysevents {
   private val subjectToSink: mutable.Map[Subject, LocalSubjectStreamSink] = mutable.HashMap()
   private val streams: util.ArrayList[LocalSubjectStreamSink] = new util.ArrayList[LocalSubjectStreamSink]()
   private val canUpdate = () => hasDemand
@@ -313,6 +316,8 @@ private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef) extends Consum
       cnt += 1
     }
   }
+
+  override def componentId: String = super.componentId + "." + serviceId
 }
 
 
@@ -359,7 +364,9 @@ trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWith
   private val targets: mutable.Map[ActorRef, LocalTargetWithSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, LocalStreamBroadcaster] = mutable.HashMap()
 
-  def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = targets get consumer foreach (_.addDemand(demand))
+  def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = {
+    targets get consumer foreach (_.addDemand(demand))
+  }
 
   final def onStateUpdate(subj: StreamId, state: StreamState) = {
     streams get subj foreach (_.onNewState(state))
@@ -368,6 +375,8 @@ trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWith
   final def onStateTransition(subj: StreamId, state: StreamStateTransition) = {
     streams get subj forall (_.onStateTransition(state))
   }
+
+  def initiateConsumer(ref: ActorRef): Unit = targets getOrElse(ref, newTarget(ref))
 
   def initiateStreamFor(ref: ActorRef, key: StreamId, subj: Subject) = {
     closeStreamFor(ref, subj)
@@ -424,10 +433,12 @@ trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWith
   }
 
   private def newTarget(ref: ActorRef) = {
-    val target = new LocalTargetWithSinks(ref, self)
+    val target = new LocalTargetWithSinks(ref, self, serviceKey.id)
     targets += ref -> target
     target
   }
+
+  val serviceKey: ServiceKey
 
 }
 
@@ -451,7 +462,7 @@ class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: Strin
   with SimpleInMemoryAcknowledgedDelivery
   with NodeLocalServiceAgentSysevents {
 
-  val actor = context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId")
+  var actor: Option[ActorRef] = None
 
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey, 'ref -> serviceRef)
@@ -459,16 +470,19 @@ class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: Strin
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()
-    val cluster = Cluster.get(context.system)
-    acknowledgedDelivery(serviceRef, ServiceEndpoint(actor, cluster.selfAddress), SpecificDestination(serviceRef))
-    AgentStarted('proxy -> actor)
+    if (!context.system.isTerminated) {
+      actor = Some(context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId"))
+      val cluster = Cluster.get(context.system)
+      acknowledgedDelivery(serviceRef, ServiceEndpoint(actor.get, cluster.selfAddress), SpecificDestination(serviceRef))
+      AgentStarted('proxy -> actor)
+    }
   }
 
   @throws[Exception](classOf[Exception]) override
   def postStop(): Unit = {
     super.postStop()
     AgentStopped()
-    context.system.stop(actor)
+    actor.foreach(context.system.stop)
   }
 
 }

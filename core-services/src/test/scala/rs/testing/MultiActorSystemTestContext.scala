@@ -158,7 +158,6 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
   private def getSystem(instanceId: String, configs: ConfigReference*) = systems.get(instanceId) match {
     case None =>
       val config: Config = buildConfig(configs:_*)
-
       val sys = Wrapper(config, ActorSystem(akkaSystemId, config), akkaSystemId, instanceId)
       ActorSystemCreated('instanceId -> instanceId, 'system -> akkaSystemId)
       systems = systems + (instanceId -> sys)

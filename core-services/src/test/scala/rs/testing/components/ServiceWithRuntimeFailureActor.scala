@@ -1,8 +1,6 @@
-package rs.core
+package rs.testing.components
 
-import rs.core.actors.{BaseActorSysevents, ClusterAwareness}
-import rs.core.services.{StreamId, ServiceCellSysevents, ServiceCell}
-import rs.core.stream.StringStreamPublisher
+import rs.core.services.{ServiceCell, ServiceCellSysevents}
 
 trait ServiceWithRuntimeFailureEvents extends ServiceCellSysevents {
   override def componentId: String = "ServiceWithRuntimeFailure"

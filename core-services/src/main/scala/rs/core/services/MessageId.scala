@@ -33,7 +33,7 @@ trait MessageId {
 
 class SequentialMessageIdGenerator {
 
-  var seed = System.nanoTime()
+  var seed = UUIDTools.generateShortUUID
   var counter = 0L
 
   def next() = {
@@ -55,7 +55,7 @@ case class RandomStringMessageId(id: String = UUIDTools.generateShortUUID) exten
   override def toString: String = id
 }
 
-case class SequentialMessageId(seed: Long, sequence: Long) extends MessageId {
+case class SequentialMessageId(seed: String, sequence: Long) extends MessageId {
   override def compareWith(m: MessageId): MessageIdOrder = m match {
     case SequentialMessageId(otherSeed, otherSeq) if otherSeed == seed && otherSeq == sequence => Same
     case SequentialMessageId(otherSeed, otherSeq) if otherSeed == seed && otherSeq > sequence => Older

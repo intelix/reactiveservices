@@ -60,7 +60,7 @@ trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with Act
 
   def startDemandProducerFor(ref: ActorRef, withAcknowledgedDelivery: Boolean) = {
     if (!pending.contains(ref)) {
-      StartedDemandProducer('target -> ref)
+      StartedDemandProducer('target -> ref, 'seed -> idGenerator.seed)
       val contract = new LocalDemand(ref, withAcknowledgedDelivery)
       pending += ref -> contract
       pendingList add contract

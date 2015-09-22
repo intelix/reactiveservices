@@ -1,9 +1,9 @@
 package rs.testing
 
 import org.scalatest.FlatSpec
-import rs.core._
 import rs.core.registry.ServiceRegistrySysevents
 import rs.node.core.{ServiceClusterBootstrapSysevents, ServiceClusterGuardianSysevents, ServiceNodeSysevents}
+import rs.testing.components._
 
 class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with IsolatedActorSystems {
 
@@ -165,7 +165,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
 
   trait With4NodesAndTestOn1 extends With4Nodes {
-    onNode1ExpectSomeEventsWithTimeout(10000, 4, TestServiceActorEvents.NodeAvailable)
+    onNode1ExpectSomeEventsWithTimeout(10000, 4, TestServiceActor.Evt.NodeAvailable)
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor])
 
@@ -240,7 +240,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
       ConfigFromContents("node.cluster.discovery-timeout=1 seconds")
   }
 
-  it should "merge with other cluster when discovered" in new WithGremlin with WithNode2 {
+  it should "merge with other cluster when discovered" in new WithGremlin with WithGremlinOnNode2 {
     // creating cluster island on node 2
     onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
 
@@ -248,7 +248,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode2BlockNode(1)
 
     // creating island cluster on node 1
-    new WithGremlin with WithNode1 {
+    new WithGremlin with WithGremlinOnNode1 {
       onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
 
       // unblocking
@@ -264,7 +264,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   }
 
-  it should "always merge in the same direction - from less priority address to higher priority address" in new WithGremlin with WithNode1 {
+  it should "always merge in the same direction - from less priority address to higher priority address" in new WithGremlin with WithGremlinOnNode1 {
     // creating cluster island on node 1
     onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
 
@@ -272,7 +272,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode1BlockNode(2)
 
     // creating island cluster on node 2
-    new WithGremlin with WithNode2 {
+    new WithGremlin with WithGremlinOnNode2 {
       onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
 
       // unblocking
@@ -288,7 +288,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   }
 
-  it should "detect quarantine after network split (1,2/3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with With4Nodes {
+  it should "detect quarantine after network split (1,2/3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
 
     expectFullyBuilt()
     clearEvents()
@@ -326,7 +326,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
   }
 
-  it should "detect quarantine after network split (1/2,3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with With4Nodes {
+  it should "detect quarantine after network split (1/2,3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
 
     expectFullyBuilt()
     clearEvents()
@@ -363,7 +363,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
   }
 
-  it should "detect quarantine after network split (1,2,3/4) when running with auto-down enabled, and recover from it" in new WithGremlin with With4Nodes {
+  it should "detect quarantine after network split (1,2,3/4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
 
     expectFullyBuilt()
     clearEvents()
@@ -404,7 +404,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
 
-  it should "not cause quarantine after network split (1,2/3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with With4Nodes {
+  it should "not cause quarantine after network split (1,2/3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with WithGremlinOn4Nodes {
 
     expectFullyBuilt()
     clearEvents()
@@ -442,7 +442,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
 
-  it should "not cause quarantine after network split (1/2,3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with With4Nodes {
+  it should "not cause quarantine after network split (1/2,3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with WithGremlinOn4Nodes {
 
     expectFullyBuilt()
     clearEvents()

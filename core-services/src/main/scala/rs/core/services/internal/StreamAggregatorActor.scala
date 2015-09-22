@@ -196,11 +196,13 @@ final class StreamAggregatorActor(consumerId: String)
     initialiseBucket(bucket)
   }
 
-  private def send(msg: Any) = fulfillDownstreamDemandWith {
-    lastDemandRequestor foreach {
-      ref =>
-        ref ! msg
-        SentDownstream('ref -> ref, 'payload -> msg)
+  private def send(msg: Any) = {
+    fulfillDownstreamDemandWith {
+      lastDemandRequestor foreach {
+        ref =>
+          ref ! msg
+          SentDownstream('ref -> ref, 'payload -> msg)
+      }
     }
   }
 
@@ -214,9 +216,9 @@ final class StreamAggregatorActor(consumerId: String)
   private def openLocation(service: ServiceKey) =
     serviceLocations.get(service).flatten match {
       case Some(loc) =>
+        loc ! OpenLocalStreamsForAll(activeSubjects.filter(_.service == service).toList)
         startDemandProducerFor(loc, withAcknowledgedDelivery = false)
         serviceAvailable(service)
-        loc ! OpenLocalStreamsForAll(activeSubjects.filter(_.service == service).toList)
       case None =>
         serviceUnavailable(service)
     }

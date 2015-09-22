@@ -28,6 +28,7 @@ trait ClusterAwareness extends ActorWithComposableBehavior {
   var leader: Option[Address] = None
 
   def isClusterLeader = leader.contains(cluster.selfAddress)
+
   def isAddressReachable(address: Address) = reachableMembers contains address
 
   @throws[Exception](classOf[Exception]) override
@@ -42,50 +43,55 @@ trait ClusterAwareness extends ActorWithComposableBehavior {
     super.postStop()
   }
 
-  def onClusterStateSnapshot(): Unit = {}
+  private var clusterStateSnapshotChain = List[() => Unit]()
+  private var clusterMemberUpChain = List[PartialFunction[(Address, Set[String]), Unit]]()
+  private var clusterMemberUnreachableChain = List[PartialFunction[(Address, Set[String]), Unit]]()
+  private var clusterMemberRemovedChain = List[PartialFunction[(Address, Set[String]), Unit]]()
+  private var clusterLeaderHandoverChain = List[() => Unit]()
+  private var clusterLeaderTakeoverChain = List[() => Unit]()
+  private var clusterLeaderChangedChain = List[PartialFunction[Option[Address], Unit]]()
 
-  def onClusterMemberUp(address: Address, roles: Set[String]): Unit = {}
+  final def onClusterStateSnapshot(f: => Unit): Unit = clusterStateSnapshotChain :+= (() => f)
 
-  def onClusterMemberUnreachable(address: Address, roles: Set[String]): Unit = {}
+  final def onClusterMemberUp(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberUpChain :+= f
 
-  def onClusterMemberRemoved(address: Address, roles: Set[String]): Unit = {}
+  final def onClusterMemberUnreachable(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberUnreachableChain :+= f
 
-  def onLeaderHandover(): Unit = {}
+  final def onClusterMemberRemoved(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberRemovedChain :+= f
 
-  def onLeaderTakeover(): Unit = {}
+  final def onLeaderHandover(f: => Unit): Unit = clusterLeaderHandoverChain :+= (() => f)
 
-  def onLeaderChanged(): Unit = {}
+  final def onLeaderTakeover(f: => Unit): Unit = clusterLeaderTakeoverChain :+= (() => f)
+
+  final def onLeaderChanged(f: PartialFunction[Option[Address], Unit]): Unit = clusterLeaderChangedChain :+= f
 
   private def processLeaderChange(l: Option[Address]) =
     if (l != leader) {
       val wasLeader = isClusterLeader
       leader = l
-      if (wasLeader && !isClusterLeader) onLeaderHandover()
-      if (!wasLeader && isClusterLeader) onLeaderTakeover()
-      onLeaderChanged()
+      if (wasLeader && !isClusterLeader) clusterLeaderHandoverChain.foreach(_.apply())
+      if (!wasLeader && isClusterLeader) clusterLeaderTakeoverChain.foreach(_.apply())
+      clusterLeaderChangedChain.foreach(_.applyOrElse(l, (_: Any) => ()))
     }
-
 
 
   onMessage {
     case CurrentClusterState(m, u, _, l, _) =>
-      m.foreach { member =>
-        onClusterMemberUp(member.address, member.roles)
-      }
+      m.foreach { member => clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ())) }
       processLeaderChange(l)
-      onClusterStateSnapshot()
+      clusterStateSnapshotChain.foreach(_.apply())
     case MemberUp(member) =>
       reachableMembers = reachableMembers + member.address
-      onClusterMemberUp(member.address, member.roles)
+      clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case UnreachableMember(member) =>
       reachableMembers = reachableMembers - member.address
-      onClusterMemberUnreachable(member.address, member.roles)
+      clusterMemberUnreachableChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case ReachableMember(member) =>
       reachableMembers = reachableMembers + member.address
-      onClusterMemberUp(member.address, member.roles)
+      clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case MemberRemoved(member, previousStatus) =>
       reachableMembers = reachableMembers - member.address
-      onClusterMemberRemoved(member.address, member.roles)
+      clusterMemberRemovedChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case LeaderChanged(l) => processLeaderChange(l)
   }
 

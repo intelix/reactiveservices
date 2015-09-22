@@ -2,7 +2,7 @@ package rs.core.bootstrap
 
 import akka.actor.Props
 import rs.core.ServiceKey
-import rs.core.actors.{ActorWithComposableBehavior, BaseActorSysevents}
+import rs.core.actors.{WithGlobalConfig, ActorWithComposableBehavior, BaseActorSysevents}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 
 import scala.collection.JavaConversions
@@ -19,7 +19,7 @@ object ServicesBootstrapEvents extends ServicesBootstrapEvents
 object ServicesBootstrapActor {
   case class ForwardToService(id: String, m: Any)
 }
-class ServicesBootstrapActor extends ActorWithComposableBehavior with ServicesBootstrapEvents {
+class ServicesBootstrapActor extends ActorWithComposableBehavior with ServicesBootstrapEvents with WithGlobalConfig {
 
   case class ServiceMeta(id: String, cl: String)
 

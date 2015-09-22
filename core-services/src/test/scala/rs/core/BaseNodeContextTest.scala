@@ -2,6 +2,7 @@ package rs.core
 
 import org.scalatest.FlatSpec
 import rs.core.registry.ServiceRegistrySysevents
+import rs.testing.components.TestServiceActor
 import rs.testing.{IsolatedActorSystems, UnmanagedNodeTestContext}
 
 
