@@ -28,14 +28,15 @@ import scala.language.implicitConversions
 
 object ListStreamState {
 
-  def applyOpForSpecs(list: List[String], sp: ListSpecs, op: Op): Option[List[String]] = sp.max match {
-    case m if m > list.size => applyOp(list, op)
-    case m => sp.evictionStrategy match {
-      case RejectAdd => Some(list)
-      case FromHead => applyOp(list, op).map(_.tail)
-      case FromTail => applyOp(list, op).map(_.take(m))
+  def applyOpForSpecs(list: List[String], sp: ListSpecs, op: Op): Option[List[String]] =
+    applyOp(list, op) map {
+      case l if l.size <= sp.max => l
+      case l => sp.evictionStrategy match {
+        case RejectAdd => list
+        case FromHead => l.tail
+        case FromTail => l.take(sp.max)
+      }
     }
-  }
 
   private def applyOp(list: List[String], op: Op): Option[List[String]] = op match {
     case Add(0, v) => Some(v +: list)

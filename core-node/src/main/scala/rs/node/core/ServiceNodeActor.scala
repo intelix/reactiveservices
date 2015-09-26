@@ -6,6 +6,7 @@ import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
+import rs.core.services.ServiceCell.StopRequest
 import rs.node.core.ServiceNodeActor._
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.{JoinStrategy, RolePriorityStrategy, UdpClusterManagerActor}
@@ -26,6 +27,7 @@ object ServiceNodeActor {
     val UnableToJoinCluster = "UnableToJoinCluster".error
     val ClusterMergeTrigger = "ClusterMergeTrigger".warn
     val StartingService = "StartingService".trace
+    val StoppingService = "StoppingService".trace
 
 
     override def componentId: String = "ServiceNode"
@@ -175,6 +177,15 @@ class ServiceNodeActor extends ActorWithData[ServiceNodeData] with Evt {
     case Event(Terminated(ref), _) if runningServices.contains(ref) =>
       stop(FSM.Failure("Service terminated " + ref))
 
+    case Event(StopRequest, _) if runningServices.contains(sender()) =>
+      StoppingService { ctx =>
+        val actor = sender()
+        context.unwatch(actor)
+        ctx +('ref -> actor)
+        runningServices -= actor
+        context.stop(actor)
+        stay()
+      }
   }
 
 

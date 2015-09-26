@@ -19,7 +19,7 @@ import java.util
 
 import akka.actor.{ActorRef, Props}
 import akka.cluster.Cluster
-import rs.core.actors.{BasicActor, ActorWithTicks}
+import rs.core.actors.{ClusterAwareness, BasicActor, ActorWithTicks}
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages.{InvalidRequest, StreamStateUpdate}
 import rs.core.services.ServiceCell._
@@ -88,7 +88,6 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   onTick {
     checkPendingMappings()
   }
-
 
   override def componentId: String = super.componentId + "." + serviceKey.id
 

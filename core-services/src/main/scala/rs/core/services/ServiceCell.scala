@@ -24,7 +24,7 @@ import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.ServiceCell._
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
-import rs.core.stream.{StreamState, StreamStateTransition}
+import rs.core.stream.{StreamPublishers, StreamState, StreamStateTransition}
 import rs.core.tools.metrics.WithCHMetrics
 import rs.core.{ServiceKey, Subject}
 
@@ -32,6 +32,8 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 object ServiceCell {
+
+  case object StopRequest
 
   case class CloseStreamFor(streamKey: StreamId)
 
@@ -73,6 +75,7 @@ abstract class ServiceCell(id: String)
   with StreamDemandBinding
   with RemoteStreamsBroadcaster
   with MessageAcknowledging
+  with StreamPublishers
   with ServiceCellSysevents
   with WithGlobalConfig {
 
@@ -123,6 +126,7 @@ abstract class ServiceCell(id: String)
     case (address, roles) if nodeRoles.isEmpty || roles.exists(nodeRoles.contains) =>
       NodeAvailable('address -> address, 'host -> address.host, 'roles -> roles)
       ensureAgentIsRunningAt(address)
+      reinitialiseStreams(address)
   }
 
   onMessage {
@@ -158,11 +162,15 @@ abstract class ServiceCell(id: String)
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
     case StreamResyncRequest(key) => StreamResync { ctx =>
       ctx +('stream -> key, 'ref -> sender())
-      closeStreamFor(sender(), key)
-      initiateStreamFor(sender(), key)
+      reopenStream(sender(), key)
     }
   }
 
+
+  private def reopenStream(endpointRef: ActorRef, key: StreamId) = {
+    closeStreamFor(endpointRef, key)
+    initiateStreamFor(endpointRef, key)
+  }
 
   onActorTerminated { ref =>
     activeAgents get ref.path.address foreach { loc =>
@@ -202,6 +210,13 @@ abstract class ServiceCell(id: String)
         val newActiveLocation = new AgentView(newAgent)
         activeAgents += address -> newActiveLocation
       }
+
+  private def reinitialiseStreams(address: Address) =
+    for (
+      agent <- activeAgents.get(address);
+      endpoint <- agent.endpoint
+    ) agent.currentStreams.foreach { streamId => reopenStream(endpoint, streamId) }
+
 
   private def closeStreamAt(endpoint: ActorRef, streamKey: StreamId) = {
     agentWithEndpointAt(endpoint) foreach { loc =>

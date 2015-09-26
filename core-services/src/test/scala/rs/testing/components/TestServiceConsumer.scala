@@ -2,10 +2,11 @@ package rs.testing.components
 
 import rs.core.Subject
 import rs.core.actors.WithGlobalConfig
-import rs.core.services.Messages.{SignalAckFailed, Signal, SignalAckOk}
+import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
+import rs.core.services.ServiceCell.StopRequest
 import rs.core.services.ServiceCellSysevents
 import rs.core.services.endpoint.Terminal
-import rs.testing.components.TestServiceConsumer.{SendSignal, Close, Evt, Open}
+import rs.testing.components.TestServiceConsumer.{Close, Evt, Open, SendSignal}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -15,6 +16,9 @@ object TestServiceConsumer {
 
   trait Evt extends ServiceCellSysevents {
     val StringUpdate = "StringUpdate".info
+    val SetUpdate = "SetUpdate".info
+    val MapUpdate = "MapUpdate".info
+    val ListUpdate = "ListUpdate".info
     val SubscribingTo = "SubscribingTo".info
 
     val SignalResponseReceivedAckOk = "SignalResponseReceivedAckOk".info
@@ -49,17 +53,25 @@ class TestServiceConsumer(id: String) extends WithGlobalConfig with Terminal wit
       case Failure(e) => SignalTimeout('value -> e.getMessage)
       case _ =>
     }
+    case StopRequest => context.parent ! StopRequest
   }
 
 
 
   onStringRecord {
-    case (s, str) =>
-      StringUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> str)
+    case (s, str) => StringUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> str)
+  }
+
+  onSetRecord {
+    case (s, set) => SetUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> set.toList.sorted.mkString(","))
+  }
+
+  onDictMapRecord {
+    case (s, map) => MapUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> map.asMap)
   }
 
   onListRecord {
-    case (s, list) =>
+    case (s, list) => ListUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> list.mkString(","))
   }
 
   onMessage {

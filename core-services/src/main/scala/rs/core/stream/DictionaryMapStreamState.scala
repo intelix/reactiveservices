@@ -110,6 +110,10 @@ case class DictionaryMapStreamTransitionPartial(seed: Int, seq: Int, seq2: Int, 
     case Some(DictionaryMapStreamState(otherSeed, otherSeq, a, _)) if otherSeed == seed && otherSeq == seq && a.length == diffs.length => true
     case _ => false
   }
+
+  override lazy val toString: String = s"""DictionaryMapStreamTransitionPartial($seed,$seq,$seq2,${diffs.mkString("[",",","]")})"""
+
+
 }
 
 
@@ -123,6 +127,9 @@ class DictionaryMap(dict: Dictionary, values: Array[Any]) {
     case -1 => defaultValue
     case i => values(i).asInstanceOf[T]
   }
+  lazy val asMap = dict.fields.zipWithIndex.map {
+    case (v,k) => v -> values(k)
+  }.toMap
 }
 
 trait DictionaryMapStreamConsumer extends StreamConsumer {
@@ -206,7 +213,7 @@ trait DictionaryMapStreamPublisher {
       while (idx < dict.fields.length) {
         val nextField = dict.fields(idx)
         map.get(nextField) match {
-          case None => NoChange
+          case None => arr(idx) = NoChange
           case Some(value) => arr(idx) = value
         }
         idx += 1
