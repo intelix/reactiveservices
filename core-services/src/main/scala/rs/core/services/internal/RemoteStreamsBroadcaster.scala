@@ -18,7 +18,7 @@ package rs.core.services.internal
 import java.util
 
 import akka.actor.ActorRef
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.BasicActor
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.stream.{StreamState, StreamStateTransition}
@@ -35,7 +35,7 @@ trait RemoteStreamsBroadcasterSysevents extends ComponentWithBaseSysevents {
 }
 
 trait RemoteStreamsBroadcaster extends RemoteStreamsBroadcasterSysevents {
-  this: ActorWithComposableBehavior =>
+  this: BasicActor =>
 
   private val targets: mutable.Map[ActorRef, ConsumerWithStreamSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, StreamBroadcaster] = mutable.HashMap()

@@ -16,12 +16,12 @@
 package rs.core.services.endpoint
 
 import akka.actor.ActorRef
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.BasicActor
 import rs.core.stream._
 import rs.core.services.internal.{StreamAggregatorActor, DemandProducerContract}
 
 trait Terminal
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with StreamConsumer
   with StringStreamConsumer
   with CustomStreamConsumer

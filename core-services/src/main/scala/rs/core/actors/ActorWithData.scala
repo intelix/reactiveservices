@@ -16,7 +16,7 @@
 
 package rs.core.actors
 
-import akka.actor.{ActorRef, Terminated}
+import akka.actor.{ActorRef, FSM, Terminated}
 import com.typesafe.scalalogging.StrictLogging
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
@@ -29,16 +29,28 @@ trait BaseActorSysevents extends ComponentWithBaseSysevents {
   val PreStart = "Lifecycle.PreStart".info
   val PreRestart = "Lifecycle.PreRestart".info
   val PostRestart = "Lifecycle.PostRestart".info
+  val StateTransition = "Lifecycle.StateTransition".info
+  val StateChange = "StateChange".info
 }
 
 
-trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHooks with StrictLogging with BaseActorSysevents with WithSyseventPublisher with NowProvider {
+trait ActorState
+
+
+trait ActorWithData[T]
+  extends FSM[ActorState, T]
+  with ActorUtils
+  with WithInstrumentationHooks
+  with StrictLogging
+  with BaseActorSysevents
+  with WithSyseventPublisher
+  with NowProvider
+  with WithGlobalConfig {
+
 
   private lazy val MessageProcessingTimer = timerSensor(ActorMetricGroup, Metrics.ProcessingTime)
   private lazy val ArrivalRateMeter = meterSensor(ActorMetricGroup, Metrics.ArrivalRate)
   private lazy val FailureRateMeter = meterSensor(ActorMetricGroup, Metrics.FailureRate)
-
-  private val NoHandler: Any => Unit = _ => {}
 
   private var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
 
@@ -46,12 +58,14 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
 
 
   private val pathAsString = self.path.toStringWithoutAddress
+
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('path -> pathAsString)
 
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
     PreRestart('reason -> reason.getMessage, 'msg -> message, 'path -> self.path.toStringWithoutAddress)
     super.preRestart(reason, message)
+    initialize()
   }
 
 
@@ -61,49 +75,41 @@ trait ActorWithComposableBehavior extends ActorUtils with WithInstrumentationHoo
     PostRestart('reason -> reason.getMessage, 'path -> self.path.toStringWithoutAddress)
   }
 
+
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
     PreStart('path -> self.path.toStringWithoutAddress)
     super.preStart()
+    initialize()
   }
 
   @throws[Exception](classOf[Exception])
   override def postStop(): Unit = {
     super.postStop()
-    PostStop('path -> self.path.toStringWithoutAddress)
+    PostStop('path -> self.path.toStringWithoutAddress, 'state -> stateName)
   }
 
-  private var commonBehavior: Receive = {
-    case Terminated(ref) => terminatedFuncChain.foreach(_ (ref))
+  def transitionTo(state: ActorState) = {
+    if (stateName != state) StateChange('to -> state, 'from -> stateName)
+    goto(state)
   }
 
-  def beforeMessage() = {}
-
-  def afterMessage() = {}
-
-  final def onMessage(f: Receive) = commonBehavior = f orElse commonBehavior
-
-  final override def receive: Receive = {
-    case x =>
-      val startStamp = System.nanoTime()
-
-      beforeMessage()
-
-      processMessage(x)
-
-      afterMessage()
-
+  private var chainedUnhandled: StateFunction = {
+    case Event(Terminated(ref), _) =>
+      terminatedFuncChain.foreach(_ (ref))
+      stay()
   }
 
+  final def whenUnhandledChained(f: StateFunction) = {
+    chainedUnhandled = f orElse chainedUnhandled
+    whenUnhandled(chainedUnhandled)
+  }
 
-  protected def processMessage(x: Any) =
-    try {
-      commonBehavior applyOrElse(x, NoHandler)
-    } catch {
-      case x: Throwable =>
-        Error('msg -> x.getMessage, 'err -> x)
-        FailureRateMeter.update(1)
-        throw x;
-    }
+  final def onMessage(f: Receive) = whenUnhandledChained {
+    case Event(x, _) if f.isDefinedAt(x) =>
+      f(x)
+      stay()
+  }
+
 
 }

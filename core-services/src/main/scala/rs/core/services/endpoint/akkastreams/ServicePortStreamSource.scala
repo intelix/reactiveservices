@@ -18,7 +18,7 @@ package rs.core.services.endpoint.akkastreams
 import akka.actor.{ActorRef, PoisonPill, Props}
 import akka.stream.actor.ActorPublisher
 import akka.stream.actor.ActorPublisherMessage.{Cancel, Request}
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.BasicActor
 import rs.core.services.Messages.ServiceOutbound
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
@@ -40,7 +40,7 @@ object ServicePortStreamSource {
 }
 
 class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with ActorPublisher[Any]
   with ServicePortStreamSourceSysevents {
 

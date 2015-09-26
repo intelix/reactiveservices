@@ -16,7 +16,7 @@
 package rs.core.services.internal
 
 import akka.actor.ActorRef
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.BasicActor
 import rs.core.services.internal.acks.{Acknowledgeable, Acknowledgement}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
@@ -24,7 +24,7 @@ trait MessageAcknowledgingSysevents extends ComponentWithBaseSysevents {
   val AutoAcknowledged = "AutoAcknowledged".trace
 }
 
-trait MessageAcknowledging extends ActorWithComposableBehavior with MessageAcknowledgingSysevents {
+trait MessageAcknowledging extends BasicActor with MessageAcknowledgingSysevents {
 
   private def acknowledge(m: Acknowledgeable) = AutoAcknowledged { ctx =>
     val ackTo = m.acknowledgeTo getOrElse sender()
@@ -36,7 +36,7 @@ trait MessageAcknowledging extends ActorWithComposableBehavior with MessageAckno
 
   onMessage {
     case m: Acknowledgeable if shouldProcessAcknowledgeable(sender(), m) =>
-      processMessage(m.payload)
+      receive.applyOrElse(m.payload, (_: Any) => {})
       acknowledge(m)
   }
 

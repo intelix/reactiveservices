@@ -23,6 +23,9 @@ import scala.Option;
 import java.util.HashSet;
 import java.util.LinkedList;
 
+public class JCounterService {}
+
+/*
 public class JCounterService extends JServiceCell {
 
     public JCounterService(String id) {
@@ -77,3 +80,6 @@ public class JCounterService extends JServiceCell {
         scheduleOnceToSelf(1000, "tick");
     }
 }
+
+*/
+

@@ -55,7 +55,8 @@ class TestServiceActor(id: String) extends ServiceCell(id) with Evt with Cluster
   }
 
   onMessage {
-    case PublishString(sId, v) => sId !~ v
+    case PublishString(sId, v) =>
+      sId !~ v
   }
 
   onSignal {

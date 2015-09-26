@@ -16,14 +16,14 @@
 package rs.core.actors
 
 import akka.actor.Address
-import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
+import akka.cluster.Member
 
-trait ClusterAwareness extends ActorWithComposableBehavior {
+trait ClusterAwareness extends ClusterMembershipEventSubscription {
 
-  implicit val cluster = Cluster(context.system)
+  _: ActorWithData[_] =>
 
-  var reachableMembers: Set[Address] = Set.empty
+  var reachableMembers: Map[Address, Member] = Map.empty
 
   var leader: Option[Address] = None
 
@@ -31,19 +31,11 @@ trait ClusterAwareness extends ActorWithComposableBehavior {
 
   def isAddressReachable(address: Address) = reachableMembers contains address
 
-  @throws[Exception](classOf[Exception]) override
-  def preStart(): Unit = {
-    super.preStart()
-    cluster.subscribe(self, initialStateMode = InitialStateAsSnapshot,
-      classOf[MemberEvent], classOf[UnreachableMember], classOf[ReachableMember], classOf[LeaderChanged])
+  def membersWithRole(role: String) = reachableMembers.collect {
+    case (a, m) if m.roles.contains(role) => a
   }
 
-  override def postStop(): Unit = {
-    cluster.unsubscribe(self)
-    super.postStop()
-  }
-
-  private var clusterStateSnapshotChain = List[() => Unit]()
+//  private var clusterStateSnapshotChain = List[() => Unit]()
   private var clusterMemberUpChain = List[PartialFunction[(Address, Set[String]), Unit]]()
   private var clusterMemberUnreachableChain = List[PartialFunction[(Address, Set[String]), Unit]]()
   private var clusterMemberRemovedChain = List[PartialFunction[(Address, Set[String]), Unit]]()
@@ -51,7 +43,7 @@ trait ClusterAwareness extends ActorWithComposableBehavior {
   private var clusterLeaderTakeoverChain = List[() => Unit]()
   private var clusterLeaderChangedChain = List[PartialFunction[Option[Address], Unit]]()
 
-  final def onClusterStateSnapshot(f: => Unit): Unit = clusterStateSnapshotChain :+= (() => f)
+//  final def onClusterStateSnapshot(f: => Unit): Unit = clusterStateSnapshotChain :+= (() => f)
 
   final def onClusterMemberUp(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberUpChain :+= f
 
@@ -76,20 +68,23 @@ trait ClusterAwareness extends ActorWithComposableBehavior {
 
 
   onMessage {
-    case CurrentClusterState(m, u, _, l, _) =>
-      m.foreach { member => clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ())) }
-      processLeaderChange(l)
-      clusterStateSnapshotChain.foreach(_.apply())
+//    case CurrentClusterState(m, u, _, l, _) =>
+//      m.foreach { member => clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ())) }
+//      processLeaderChange(l)
+//      clusterStateSnapshotChain.foreach(_.apply())
     case MemberUp(member) =>
-      reachableMembers = reachableMembers + member.address
+      reachableMembers = reachableMembers + (member.address -> member)
       clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case UnreachableMember(member) =>
       reachableMembers = reachableMembers - member.address
       clusterMemberUnreachableChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case ReachableMember(member) =>
-      reachableMembers = reachableMembers + member.address
+      reachableMembers = reachableMembers + (member.address -> member)
       clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case MemberRemoved(member, previousStatus) =>
+      reachableMembers = reachableMembers - member.address
+      clusterMemberRemovedChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
+    case MemberExited(member) =>
       reachableMembers = reachableMembers - member.address
       clusterMemberRemovedChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
     case LeaderChanged(l) => processLeaderChange(l)

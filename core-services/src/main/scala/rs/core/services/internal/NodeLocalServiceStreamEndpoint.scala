@@ -19,7 +19,7 @@ import java.util
 
 import akka.actor.{ActorRef, Props}
 import akka.cluster.Cluster
-import rs.core.actors.{ActorWithComposableBehavior, ActorWithTicks}
+import rs.core.actors.{BasicActor, ActorWithTicks}
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages.{InvalidRequest, StreamStateUpdate}
 import rs.core.services.ServiceCell._
@@ -73,7 +73,7 @@ object NodeLocalServiceStreamEndpoint {
 
 
 class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, serviceRef: ActorRef)
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with StreamDemandBinding
   with DemandProducerContract
   with LocalStreamsBroadcaster
@@ -359,7 +359,7 @@ private class LocalStreamBroadcaster {
 }
 
 
-trait LocalStreamsBroadcaster extends ActorWithComposableBehavior with ActorWithTicks {
+trait LocalStreamsBroadcaster extends BasicActor with ActorWithTicks {
 
   private val targets: mutable.Map[ActorRef, LocalTargetWithSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, LocalStreamBroadcaster] = mutable.HashMap()
@@ -457,7 +457,7 @@ object AgentActor {
 }
 
 class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String)
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with MessageAcknowledging
   with SimpleInMemoryAcknowledgedDelivery
   with NodeLocalServiceAgentSysevents {

@@ -4,7 +4,7 @@ import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import com.typesafe.config._
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import org.slf4j.LoggerFactory
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.BasicActor
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.sysevents.support.EventAssertions
@@ -55,7 +55,7 @@ private object WatcherActor extends WatcherSysevents {
   def props(componentId: String) = Props(new WatcherActor(componentId))
 }
 
-private class WatcherActor(id: String) extends ActorWithComposableBehavior with WatcherSysevents with WithSyseventPublisher {
+private class WatcherActor(id: String) extends BasicActor with WatcherSysevents with WithSyseventPublisher {
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('InstanceId -> id)
 
   var watched = Set[ActorRef]()
@@ -126,12 +126,12 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
     def stop() = {
       TerminatingActorSystem('Name -> configName)
       val startCheckpoint = System.nanoTime()
-      try {
-        stopActors()
-      } catch {
-        case x: Throwable => x.printStackTrace()
-      }
-      underlyingSystem.stop(watcher)
+//      try {
+//        stopActors()
+//      } catch {
+//        case x: Throwable => x.printStackTrace()
+//      }
+//      underlyingSystem.stop(watcher)
       underlyingSystem.shutdown()
       underlyingSystem.awaitTermination(60.seconds)
       ActorSystemTerminated('Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)

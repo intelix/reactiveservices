@@ -2,7 +2,9 @@ package rs.testing
 
 import org.scalatest.FlatSpec
 import rs.core.registry.ServiceRegistrySysevents
-import rs.node.core.{ServiceClusterBootstrapSysevents, ServiceClusterGuardianSysevents, ServiceNodeSysevents}
+import rs.node.core.ServiceNodeActor.Evt
+import rs.node.core.discovery.UdpClusterManagerActor
+import rs.node.core.{ServiceClusterBootstrapSysevents, ServiceClusterGuardianSysevents, ServiceNodeActor}
 import rs.testing.components._
 
 class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with IsolatedActorSystems {
@@ -10,7 +12,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   "Cluster guardian" should "start a node" in new WithNode1 {
     onNode1ExpectExactlyOneEvent(ServiceClusterBootstrapSysevents.StartingCluster)
-    onNode1ExpectOneOrMoreEvents(ServiceNodeSysevents.StateChange)
+    onNode1ExpectOneOrMoreEvents(ServiceNodeActor.Evt.StateChange)
   }
 
 
@@ -23,7 +25,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
         """
           |node.cluster.max-retries=4
           |node.cluster.system-id = []
-          |node.cluster.discovery-timeout=0 seconds
+          |node.cluster.discovery.timeout=0 seconds
         """.stripMargin)
   }
 
@@ -35,8 +37,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
       ConfigFromContents(
         """
           |node.cluster.max-retries=4
-          |node.cluster.core-nodes='intentionally invalid config'
-          |node.cluster.discovery-timeout=0 seconds
+          |node.cluster.service-max-retries ='intentionally invalid config'
+          |node.cluster.discovery.timeout=0 seconds
         """.stripMargin)
   }
 
@@ -51,7 +53,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
         """
           |node.cluster.max-retries=1
           |node.cluster.service-max-retries=3
-          |node.cluster.discovery-timeout=0 seconds
+          |node.cluster.discovery.timeout=0 seconds
           |        """.stripMargin)
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
@@ -68,7 +70,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
         """
           |node.cluster.max-retries=1
           |node.cluster.service-max-retries=3
-          |node.cluster.discovery-timeout=0 seconds
+          |node.cluster.discovery.timeout=0 seconds
           |        """.stripMargin)
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithRuntimeFailureActor])
@@ -86,7 +88,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
         """
           |node.cluster.max-retries=1
           |node.cluster.service-max-retries=6
-          |node.cluster.discovery-timeout=0 seconds
+          |node.cluster.discovery.timeout=0 seconds
           |        """.stripMargin)
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
@@ -104,7 +106,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
         """
           |node.cluster.max-retries=2
           |node.cluster.service-max-retries=2
-          |node.cluster.discovery-timeout=0 seconds
+          |node.cluster.discovery.timeout=0 seconds
           |        """.stripMargin)
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
@@ -132,40 +134,43 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
 
   it should "join self when no other active cluster discovered" in new WithNode1 {
-    onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.FormingClusterWithSelf)
+
+    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeActor.Evt.JoiningCluster, 'seeds -> node1Address.r)
+
+    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("node.cluster.discovery.timeout=2s")
   }
   it should "not join self if not core node" in new WithNode3 {
 
     duringPeriodInMillis(5000) {
-      onNode3ExpectNoEvents(ServiceNodeSysevents.FormingClusterWithSelf)
+      onNode3ExpectNoEvents(ServiceNodeActor.Evt.JoiningCluster)
     }
   }
 
   it should "timeout from discovery if enabled and no core node to join" in new WithNode3 {
 
     duringPeriodInMillis(5000) {
-      onNode3ExpectNoEvents(ServiceNodeSysevents.FormingClusterWithSelf)
+      onNode3ExpectNoEvents(ServiceNodeActor.Evt.JoiningCluster)
     }
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.DiscoveryTimeout)
+    onNode3ExpectExactlyOneEvent(ServiceNodeActor.Evt.StateChange, 'to -> "ClusterFormationPending")
 
     override def node3Configs: Seq[ConfigReference] = super.node3Configs :+
-      ConfigFromContents("node.cluster.discovery-timeout=2 seconds")
+      ConfigFromContents("node.cluster.discovery.timeout=2 seconds")
   }
 
   it should "result in joining some node after timeout discovery if not all cores are present" in new WithNode3 with WithNode2 {
-    onNode3ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.DiscoveryTimeout)
-    onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.DiscoveryTimeout)
+    onNode3ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "ClusterFormationPending")
+    onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "ClusterFormationPending")
 
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.FormingClusterWithSelf)
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.JoiningCluster, 'seeds -> s"List($node2Address)")
+    onNode2ExpectExactlyOneEvent(ServiceNodeActor.Evt.JoiningCluster, 'seeds -> node2Address.r)
+    onNode3ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.JoiningCluster, 'seeds -> s"Set($node2Address)")
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+
-      ConfigFromContents("node.cluster.discovery-timeout=2 seconds")
+      ConfigFromContents("node.cluster.discovery.timeout=2 seconds")
   }
 
 
   trait With4NodesAndTestOn1 extends With4Nodes {
-    onNode1ExpectSomeEventsWithTimeout(10000, 4, TestServiceActor.Evt.NodeAvailable)
+    onNode1ExpectSomeEventsWithTimeout(20000, 4, TestServiceActor.Evt.NodeAvailable)
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor])
 
@@ -173,91 +178,60 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
   it should "discover other nodes" in new With4NodesAndTestOn1 {
-    onNode1ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "AwaitingJoin", 'from -> "NodeSelection")
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "AwaitingJoin", 'from -> "NodeSelection")
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "AwaitingJoin", 'from -> "NodeSelection")
-    onNode4ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "AwaitingJoin", 'from -> "NodeSelection")
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.JoiningCluster, 'seeds -> s"List($node1Address)")
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.JoiningCluster, 'seeds -> s"List($node1Address)")
-    onNode4ExpectExactlyOneEvent(ServiceNodeSysevents.JoiningCluster, 'seeds -> s"List($node1Address)")
+    onNode1ExpectExactlyOneEvent(ServiceNodeActor.Evt.StateChange, 'to -> "Joined", 'from -> "Joining")
+    onNode2ExpectExactlyOneEvent(ServiceNodeActor.Evt.StateChange, 'to -> "Joined", 'from -> "Joining")
+    onNode3ExpectExactlyOneEvent(ServiceNodeActor.Evt.StateChange, 'to -> "Joined", 'from -> "Joining")
+    onNode4ExpectExactlyOneEvent(ServiceNodeActor.Evt.StateChange, 'to -> "Joined", 'from -> "Joining")
+    onNode2ExpectExactlyOneEvent(ServiceNodeActor.Evt.JoiningCluster, 'seeds -> s"Set($node1Address)")
+    onNode3ExpectExactlyOneEvent(ServiceNodeActor.Evt.JoiningCluster, 'seeds -> s"Set($node1Address)")
+    onNode4ExpectExactlyOneEvent(ServiceNodeActor.Evt.JoiningCluster, 'seeds -> s"Set($node1Address)")
   }
 
   it should "join formed cluster if discovered" in new WithNode2 {
-    onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
+    onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
 
     new WithNode1 {
-      onNode1ExpectExactlyOneEvent(ServiceNodeSysevents.JoiningCluster, 'seeds -> s"List($node2Address)")
+      onNode1ExpectExactlyOneEvent(ServiceNodeActor.Evt.JoiningCluster, 'seeds -> s"Set($node2Address)")
     }
 
 
     override def node2Configs: Seq[ConfigReference] = super.node2Configs :+
-      ConfigFromContents("node.cluster.discovery-timeout=1 seconds")
+      ConfigFromContents("node.cluster.discovery.timeout=1 seconds")
   }
 
-  it should "indicate a partially built state if core node is missing" in new WithNode2 {
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
 
-    override def node2Configs: Seq[ConfigReference] = super.node2Configs :+
-      ConfigFromContents("node.cluster.discovery-timeout=1 seconds")
-  }
-
-  it should "transition from partially built to fully built when missing node arrives" in new WithNode2 {
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
-    new WithNode1 {
-      onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "FullyBuilt")
-    }
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "FullyBuilt")
-
-    override def node2Configs: Seq[ConfigReference] = super.node2Configs :+
-      ConfigFromContents("node.cluster.discovery-timeout=1 seconds")
-  }
-
-  it should "transition from fully built to partially built when one node disappears" in new With4NodesAndTestOn1 {
-    onNode1ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "FullyBuilt")
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "FullyBuilt")
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "FullyBuilt")
-    onNode4ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "FullyBuilt")
-
-    clearEvents()
-    stopNode2()
-
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
-    onNode3ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
-    onNode4ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
-
-    printRaisedEvents()
-
-  }
 
   it should "join formed cluster even if some cores are missing" in new WithNode2 {
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
+    onNode2ExpectExactlyOneEvent(ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
     new WithNode3 {
-      onNode3ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
+      onNode3ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
     }
-    onNode2ExpectNoEvents(ServiceNodeSysevents.StateChange, 'to -> "FullyBuilt")
+//    onNode2ExpectNoEvents(ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
+    printRaisedEvents()
 
     override def node2Configs: Seq[ConfigReference] = super.node2Configs :+
-      ConfigFromContents("node.cluster.discovery-timeout=1 seconds")
+      ConfigFromContents("node.cluster.discovery.timeout=1 seconds")
   }
 
   it should "merge with other cluster when discovered" in new WithGremlin with WithGremlinOnNode2 {
     // creating cluster island on node 2
-    onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
+    onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
 
     // blocking traffic between node 1 and 2 so node 1 doesn't merge on startup
+
     atNode2BlockNode(1)
 
     // creating island cluster on node 1
     new WithGremlin with WithGremlinOnNode1 {
-      onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
+      onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
 
       // unblocking
       atNode2UnblockNode(1)
 
-      onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.ClusterMergeTrigger)
-      onNode1ExpectNoEvents(ServiceNodeSysevents.ClusterMergeTrigger)
+      onNode2ExpectExactlyOneEvent(ServiceNodeActor.Evt.ClusterMergeTrigger)
+      onNode1ExpectNoEvents(ServiceNodeActor.Evt.ClusterMergeTrigger)
 
-      onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.JoiningCluster, 'seeds -> s"List($node1Address)")
+      onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.JoiningCluster, 'seeds -> s"Set($node1Address)")
     }
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
@@ -266,22 +240,24 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "always merge in the same direction - from less priority address to higher priority address" in new WithGremlin with WithGremlinOnNode1 {
     // creating cluster island on node 1
-    onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
+    onNode1ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
 
     // blocking traffic between node 1 and 2 so node 1 doesn't merge on startup
     atNode1BlockNode(2)
 
+
     // creating island cluster on node 2
     new WithGremlin with WithGremlinOnNode2 {
-      onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.StateChange, 'to -> "PartiallyBuilt")
+      onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
 
       // unblocking
       atNode1UnblockNode(2)
 
-      onNode2ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.ClusterMergeTrigger)
-      onNode1ExpectNoEvents(ServiceNodeSysevents.ClusterMergeTrigger)
 
-      onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeSysevents.JoiningCluster, 'seeds -> s"List($node1Address)")
+      onNode2ExpectSomeEventsWithTimeout(15000, ServiceNodeActor.Evt.ClusterMergeTrigger)
+      onNode1ExpectNoEvents(ServiceNodeActor.Evt.ClusterMergeTrigger)
+
+      onNode2ExpectSomeEventsWithTimeout(10000, ServiceNodeActor.Evt.JoiningCluster, 'seeds -> s"Set($node1Address)")
     }
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
@@ -299,29 +275,30 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode3BlockNode(1, 2)
     atNode4BlockNode(1, 2)
 
-    onNode1ExpectSomeEventsWithTimeout(15000, 2, ServiceNodeSysevents.NodeRemoved)
-    onNode2ExpectExactlyNEvents(2, ServiceNodeSysevents.NodeRemoved)
-
-    onNode3ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeQuarantined)
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-    onNode4ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeQuarantined)
-    onNode4ExpectExactlyOneEvent(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-
-    onNode1ExpectNoEvents(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-    onNode2ExpectNoEvents(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-
+    onNode1ExpectSomeEventsWithTimeout(15000, 2, UdpClusterManagerActor.Evt.NodeRemoved)
+    onNode2ExpectExactlyNEvents(2, UdpClusterManagerActor.Evt.NodeRemoved)
+    onNode3ExpectSomeEventsWithTimeout(15000, 2, UdpClusterManagerActor.Evt.NodeRemoved)
+    onNode4ExpectExactlyNEvents(2, UdpClusterManagerActor.Evt.NodeRemoved)
 
     atNode1UnblockNode(3, 4)
     atNode2UnblockNode(3, 4)
+    atNode3UnblockNode(1, 2)
+    atNode4UnblockNode(1, 2)
+
+    onNode3ExpectSomeEventsWithTimeout(15000, Evt.ClusterMergeTrigger)
+    onNode4ExpectSomeEventsWithTimeout(15000, Evt.ClusterMergeTrigger)
+
+    onNode1ExpectNoEvents(Evt.ClusterMergeTrigger)
 
 
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+    onNode2ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
+    onNode2ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+    onNode4ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
+    onNode4ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node1Address)
 
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node3Address)
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node4Address)
-    onNode2ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node3Address)
-    onNode2ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node4Address)
-    onNode4ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node3Address)
-    onNode4ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node1Address)
+    printRaisedEvents()
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
   }
@@ -336,29 +313,29 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode3BlockNode(1)
     atNode4BlockNode(1)
 
-    onNode1ExpectSomeEventsWithTimeout(15000, 3, ServiceNodeSysevents.NodeRemoved)
-    onNode2ExpectSomeEventsWithTimeout(15000, 1, ServiceNodeSysevents.NodeRemoved)
+    onNode1ExpectSomeEventsWithTimeout(15000, 3, UdpClusterManagerActor.Evt.NodeRemoved)
+    onNode2ExpectSomeEventsWithTimeout(15000, 1, UdpClusterManagerActor.Evt.NodeRemoved)
 
-
-    onNode2ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeQuarantined)
-    onNode2ExpectExactlyOneEvent(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-    onNode3ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeQuarantined)
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-    onNode4ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeQuarantined)
-    onNode4ExpectExactlyOneEvent(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-
-    onNode1ExpectNoEvents(ServiceNodeSysevents.QuarantineRecoveryTrigger)
 
     atNode1UnblockNode(2, 3, 4)
+    atNode2UnblockNode(1)
+    atNode3UnblockNode(1)
+    atNode4UnblockNode(1)
+
+    onNode2ExpectSomeEventsWithTimeout(15000, Evt.ClusterMergeTrigger)
+    onNode3ExpectSomeEventsWithTimeout(15000, Evt.ClusterMergeTrigger)
+    onNode4ExpectSomeEventsWithTimeout(15000, Evt.ClusterMergeTrigger)
+
+    onNode1ExpectNoEvents(Evt.ClusterMergeTrigger)
 
 
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node2Address)
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node3Address)
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node4Address)
-    onNode2ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node1Address)
-    onNode2ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node4Address)
-    onNode4ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node3Address)
-    onNode4ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node1Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node2Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+    onNode2ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node1Address)
+    onNode2ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+    onNode4ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
+    onNode4ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
   }
@@ -373,30 +350,30 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode3BlockNode(4)
     atNode4BlockNode(1, 2, 3)
 
-    onNode1ExpectSomeEventsWithTimeout(15000, 1, ServiceNodeSysevents.NodeRemoved)
-    onNode2ExpectSomeEventsWithTimeout(15000, 1, ServiceNodeSysevents.NodeRemoved)
-
-
-    onNode4ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeQuarantined)
-    onNode4ExpectExactlyOneEvent(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-
-    duringPeriodInMillis(5000) {
-      onNode1ExpectNoEvents(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-      onNode2ExpectNoEvents(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-      onNode3ExpectNoEvents(ServiceNodeSysevents.QuarantineRecoveryTrigger)
-    }
+    onNode1ExpectSomeEventsWithTimeout(15000, 1, UdpClusterManagerActor.Evt.NodeRemoved)
+    onNode2ExpectSomeEventsWithTimeout(15000, 1, UdpClusterManagerActor.Evt.NodeRemoved)
 
 
     atNode1UnblockNode(4)
     atNode2UnblockNode(4)
-
     atNode3UnblockNode(4)
+    atNode4UnblockNode(1, 2, 3)
+
+    onNode4ExpectSomeEventsWithTimeout(15000, Evt.ClusterMergeTrigger)
 
 
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node4Address)
-    onNode2ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node4Address)
-    onNode3ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeUp, 'addr -> node4Address)
-    onNode4ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeUp, 'addr -> node1Address)
+    duringPeriodInMillis(5000) {
+      onNode1ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode2ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode3ExpectNoEvents(Evt.ClusterMergeTrigger)
+    }
+
+
+
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+    onNode2ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+    onNode3ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+    onNode4ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node1Address)
 
     printRaisedEvents()
 
@@ -416,12 +393,10 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode4BlockNode(1, 2)
 
     duringPeriodInMillis(10000) {
-      onNode1ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode2ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode3ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode4ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode3ExpectNoEvents(ServiceNodeSysevents.NodeQuarantined)
-      onNode4ExpectNoEvents(ServiceNodeSysevents.NodeQuarantined)
+      onNode1ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
+      onNode2ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
+      onNode3ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
+      onNode4ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
     }
 
     atNode1UnblockNode(3, 4)
@@ -429,14 +404,20 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode3UnblockNode(1, 2)
     atNode4UnblockNode(1, 2)
 
+    duringPeriodInMillis(10000) {
+      onNode1ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode2ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode3ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode4ExpectNoEvents(Evt.ClusterMergeTrigger)
+    }
 
 
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeReachable, 'addr -> node3Address)
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeReachable, 'addr -> node4Address)
-    onNode2ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeReachable, 'addr -> node3Address)
-    onNode2ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeReachable, 'addr -> node4Address)
-    onNode4ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeReachable, 'addr -> node2Address)
-    onNode4ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeReachable, 'addr -> node1Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node3Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node4Address)
+    onNode2ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node3Address)
+    onNode2ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node4Address)
+    onNode4ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node2Address)
+    onNode4ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
   }
@@ -454,12 +435,10 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode4BlockNode(1)
 
     duringPeriodInMillis(10000) {
-      onNode1ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode2ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode3ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode4ExpectNoEvents(ServiceNodeSysevents.NodeRemoved)
-      onNode3ExpectNoEvents(ServiceNodeSysevents.NodeQuarantined)
-      onNode4ExpectNoEvents(ServiceNodeSysevents.NodeQuarantined)
+      onNode1ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
+      onNode2ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
+      onNode3ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
+      onNode4ExpectNoEvents(UdpClusterManagerActor.Evt.NodeRemoved)
     }
 
     atNode1UnblockNode(2, 3, 4)
@@ -468,18 +447,24 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode4UnblockNode(1)
 
 
+    duringPeriodInMillis(10000) {
+      onNode1ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode2ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode3ExpectNoEvents(Evt.ClusterMergeTrigger)
+      onNode4ExpectNoEvents(Evt.ClusterMergeTrigger)
+    }
 
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeReachable, 'addr -> node3Address)
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeReachable, 'addr -> node4Address)
-    onNode1ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.NodeReachable, 'addr -> node2Address)
-    onNode2ExpectOneOrMoreEvents(ServiceNodeSysevents.NodeReachable, 'addr -> node1Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node3Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node4Address)
+    onNode1ExpectSomeEventsWithTimeout(15000, UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node2Address)
+    onNode2ExpectOneOrMoreEvents(UdpClusterManagerActor.Evt.NodeReachable, 'addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
   }
 
 
   it should "start services before cluster formation if requested" in new WithNode3 {
-    onNode3ExpectExactlyOneEvent(ServiceNodeSysevents.StartingService, 'service -> "test")
+    onNode3ExpectExactlyOneEvent(ServiceNodeActor.Evt.StartingService, 'service -> "test")
 
     override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=on")
 
@@ -488,7 +473,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "not start services before cluster formation if requested" in new WithNode3 {
     duringPeriodInMillis(10000) {
-      onNode3ExpectNoEvents(ServiceNodeSysevents.StartingService, 'service -> "test")
+      onNode3ExpectNoEvents(ServiceNodeActor.Evt.StartingService, 'service -> "test")
     }
 
     override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
@@ -497,7 +482,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
   it should "start services after cluster formation if requested" in new WithNode2 {
-    onNode2ExpectSomeEventsWithTimeout(15000, ServiceNodeSysevents.StartingService, 'service -> "test")
+    onNode2ExpectSomeEventsWithTimeout(15000, ServiceNodeActor.Evt.StartingService, 'service -> "test")
 
     override def node2Configs: Seq[ConfigReference] = super.node2Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
 

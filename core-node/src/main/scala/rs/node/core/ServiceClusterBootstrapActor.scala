@@ -20,13 +20,12 @@ import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.actors.{WithGlobalConfig, ActorWithComposableBehavior, ActorUtils, BaseActorSysevents}
+import rs.core.actors.{BaseActorSysevents, BasicActor, WithGlobalConfig}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.GlobalConfig
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
-import rs.node.core.ServiceNodeActor.Start
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
@@ -45,7 +44,7 @@ object ServiceClusterBootstrapActor {
 }
 
 class ServiceClusterBootstrapActor(implicit val cfg: Config)
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with StrictLogging
   with ServiceClusterBootstrapSysevents
   with WithSyseventPublisher
@@ -95,7 +94,7 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
     StartingCluster { ctx =>
       clusterSystem = Some(ActorSystem(clusterSystemId, cfg))
       clusterSystem foreach { sys =>
-        context.watch(sys.actorOf(Props[ServiceNodeActor], "node")) ! Start
+        context.watch(sys.actorOf(Props[ServiceNodeActor], "node"))
       }
     }
   }

@@ -66,7 +66,7 @@ trait AbstractNodeTestContext {
 
     def stopNode1() = stopNode(nodeIdx)
 
-    def node1Configs: Seq[ConfigReference] = Seq.empty
+    def node1Configs: Seq[ConfigReference] = Seq(ConfigFromContents("""akka.cluster.roles+="wCritical""""),ConfigFromContents("""akka.cluster.roles+="seed""""))
 
     def node1Services: Map[String, Class[_]] = Map.empty
 
@@ -110,7 +110,7 @@ trait AbstractNodeTestContext {
 
     def stopNode2() = stopNode(nodeIdx)
 
-    def node2Configs: Seq[ConfigReference] = Seq.empty
+    def node2Configs: Seq[ConfigReference] = Seq(ConfigFromContents("""akka.cluster.roles+="wPreferred""""),ConfigFromContents("""akka.cluster.roles+="seed""""))
 
     def node2Services: Map[String, Class[_]] = Map.empty
 

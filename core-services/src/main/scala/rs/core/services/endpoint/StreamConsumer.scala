@@ -17,7 +17,7 @@ package rs.core.services.endpoint
 
 import akka.actor.ActorRef
 import akka.pattern.Patterns
-import rs.core.actors.ActorWithComposableBehavior
+import rs.core.actors.BasicActor
 import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServicePortSubscriptionRequestSink
 import rs.core.services.internal.SignalPort
@@ -28,7 +28,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 
-trait StreamConsumer extends ActorWithComposableBehavior with ServicePortSubscriptionRequestSink {
+trait StreamConsumer extends BasicActor with ServicePortSubscriptionRequestSink {
 
   type StreamUpdateHandler = PartialFunction[(Subject, StreamState), Unit]
   type ServiceKeyEventHandler = PartialFunction[ServiceKey, Unit]

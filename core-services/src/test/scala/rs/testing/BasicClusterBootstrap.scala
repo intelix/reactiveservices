@@ -4,7 +4,7 @@ import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor.{Props, OneForOneStrategy, SupervisorStrategy, ActorSystem}
 import com.typesafe.config.Config
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.actors.{WithGlobalConfig, ActorWithComposableBehavior, BaseActorSysevents}
+import rs.core.actors.{WithGlobalConfig, BasicActor, BaseActorSysevents}
 import rs.core.bootstrap.ServicesBootstrapActor
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
@@ -30,7 +30,7 @@ object BasicClusterBootstrap {
 }
 
 class BasicClusterBootstrap(implicit val cfg: Config)
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with StrictLogging
   with BasicClusterBootstrapSysevents
   with WithSyseventPublisher

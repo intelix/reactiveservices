@@ -18,7 +18,7 @@ object Dependencies {
 
     val groovyVersion = "2.3.8"
 
-    val akkaVersion = "2.3.12"
+    val akkaVersion = "2.3.13"
     val akkaStreamVersion = "1.0"
     val akkaHTTPVersion = "1.0"
     val akkaDataReplVersion = "0.11"

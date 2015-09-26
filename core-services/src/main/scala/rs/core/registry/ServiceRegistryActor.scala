@@ -17,8 +17,7 @@ package rs.core.registry
 
 import akka.actor._
 import rs.core.ServiceKey
-import rs.core.actors.{ActorWithComposableBehavior, BaseActorSysevents}
-import rs.core.config.ConfigOps.wrap
+import rs.core.actors.{BaseActorSysevents, BasicActor}
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.{RegistryLocation, RegistryLocationRequest}
 
@@ -43,15 +42,13 @@ object ServiceRegistryActor {
 }
 
 class ServiceRegistryActor(id: String)
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with ServiceRegistrySysevents {
 
   private var services: Map[ServiceKey, List[ActorRef]] = Map.empty
   private var interests: Map[ServiceKey, Set[ActorRef]] = Map.empty
 
   context.system.eventStream.subscribe(self, classOf[RegistryLocationRequest])
-
-  val nodeId = config.asString("node.id", "n/a")
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> id, 'nodeid -> nodeId)
 

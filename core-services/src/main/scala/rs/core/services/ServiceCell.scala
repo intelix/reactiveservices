@@ -17,15 +17,14 @@ package rs.core.services
 
 import akka.actor.{ActorRef, Address, Deploy}
 import akka.remote.RemoteScope
-import rs.core.actors.{BaseActorSysevents, ActorWithComposableBehavior, ClusterAwareness, WithGlobalConfig}
+import rs.core.actors.{BaseActorSysevents, BasicActor, ClusterAwareness, WithGlobalConfig}
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{GlobalConfig, ServiceConfig}
+import rs.core.config.ServiceConfig
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.ServiceCell._
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
 import rs.core.stream.{StreamState, StreamStateTransition}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.metrics.WithCHMetrics
 import rs.core.{ServiceKey, Subject}
 
@@ -67,7 +66,7 @@ trait ServiceCellSysevents extends BaseActorSysevents with RemoteStreamsBroadcas
 }
 
 abstract class ServiceCell(id: String)
-  extends ActorWithComposableBehavior
+  extends BasicActor
   with WithCHMetrics
   with ClusterAwareness
   with SimpleInMemoryAcknowledgedDelivery
@@ -120,7 +119,6 @@ abstract class ServiceCell(id: String)
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
 
 
-
   onClusterMemberUp {
     case (address, roles) if nodeRoles.isEmpty || roles.exists(nodeRoles.contains) =>
       NodeAvailable('address -> address, 'host -> address.host, 'roles -> roles)
@@ -155,7 +153,8 @@ abstract class ServiceCell(id: String)
           sender() ! StreamMapping(subj, x)
           SubjectMapped('stream -> streamKey, 'subj -> subj)
       }
-    case OpenStreamFor(streamKey) => registerStreamInterest(streamKey, sender())
+    case OpenStreamFor(streamKey) =>
+      registerStreamInterest(streamKey, sender())
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
     case StreamResyncRequest(key) => StreamResync { ctx =>
       ctx +('stream -> key, 'ref -> sender())
@@ -180,7 +179,7 @@ abstract class ServiceCell(id: String)
   }
 
   @throws[Exception](classOf[Exception])
-  override  def preStart(): Unit = {
+  override def preStart(): Unit = {
     super.preStart()
     ServiceRunning()
   }

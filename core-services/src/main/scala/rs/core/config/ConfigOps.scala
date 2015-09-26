@@ -62,4 +62,5 @@ class ConfigOps(cfg: Config) {
 
   def asOptClass(key: String) = cfg.as[Option[String]](fieldFor(key)).map(Class.forName)
 
+
 }

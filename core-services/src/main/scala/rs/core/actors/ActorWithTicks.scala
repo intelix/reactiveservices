@@ -20,7 +20,7 @@ import scala.concurrent.duration._
 
 private case class CallbackRequest(f: () => Unit, intervalMs: Long, lastCallTs: Long)
 
-trait ActorWithTicks extends ActorWithComposableBehavior {
+trait ActorWithTicks extends BasicActor {
 
   implicit private val ec = context.dispatcher
 

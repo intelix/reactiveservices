@@ -32,12 +32,10 @@ object SimpleREPLProtocol {
     private var aliases: Map[String, Subject] = Map.empty
 
     def addAlias(name: String, value: Subject) = synchronized {
-      println(s"!>>> added $name")
       aliases += name -> value
     }
 
     def locate(name: String): Option[Subject] = synchronized {
-      println(s"!>>> locating $name = ${aliases.get(name)}")
       aliases get name
     }
   }
@@ -55,8 +53,6 @@ object SimpleREPLProtocol {
   def fromBytes(bytes: ByteString)(implicit ctx: REPLContext): List[Any] = {
     val utf8 = bytes.utf8String.trim
 
-    println(s"!>>> Received: $utf8")
-
     if (utf8.length > 0) {
       val tail = utf8.tail
       utf8.head match {
@@ -65,16 +61,13 @@ object SimpleREPLProtocol {
           val name = values(0)
           val value = values(1)
           parseSubject(value) foreach (ctx.addAlias(name, _))
-          println(s"!>>> Added alias $name=$value")
 
           List(Feedback(s"Added alias $name=$value"))
         case 's' =>
           val params = tail.split(',').map(_.trim).toSeq
-          println(s"!>>> After split: $params")
 
           if (params.nonEmpty && params.head.nonEmpty) ctx.locate(params.head) match {
             case Some(subj) =>
-              println(s"!>>> Subject: $subj")
               val prio = if (params.length > 1) Some(params(1)) else None
               val aggr = if (params.length > 2) params(2).toInt else 0
               List(OpenSubscription(subj, prio, aggr), Feedback(s"Subscribed to $subj, priority=$prio, aggregation=$aggr ms"))
@@ -121,7 +114,6 @@ object SimpleREPLProtocol {
 
 
         override def postStop(): Unit = {
-          println(s"!>>> FeedbackRouter stopped")
           super.postStop()
         }
 
@@ -129,7 +121,7 @@ object SimpleREPLProtocol {
           onUpstreamFailure = (ctx, cause) => ctx.finish(),
           onUpstreamFinish = ctx => ctx.finish(),
           onDownstreamFinish = (ctx, _) => {
-            ctx.finish();
+            ctx.finish()
             SameState
           }
         )
@@ -146,13 +138,10 @@ object SimpleREPLProtocol {
       val translateFromBytes = fb.add(Flow[ByteString].mapConcat(fromBytes))
       val translateToBytes = fb.add(Flow[Any].map(toBytes))
       val merge = fb.add(MergePreferred[Any](1))
-      println(s"!>>> constructed A")
 
       translateFromBytes ~> router.in
       router.out(1) ~> merge.preferred
       merge ~> translateToBytes
-
-      println(s"!>>> constructed B")
 
       BidiShape(FlowShape(translateFromBytes.inlet, router.out(0)), FlowShape(merge.in(0), translateToBytes.outlet))
     }

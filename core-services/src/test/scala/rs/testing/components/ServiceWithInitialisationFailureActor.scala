@@ -21,6 +21,7 @@ class ServiceWithInitialisationFailureActor(id: String) extends ServiceCell(id) 
 
     if (!ServiceWithInitialisationFailureActor.recoveryEnabled || ServiceWithInitialisationFailureActor.failureCounter < 5)
       throw new RuntimeException("simulated failure on preStart")
+
   }
 }
 
