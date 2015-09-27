@@ -17,7 +17,7 @@
 package rs.core.actors
 
 
-trait BasicActor extends ActorWithData[None.type] {
+trait BasicActor extends FSMActor {
 
   case object Default extends ActorState
 

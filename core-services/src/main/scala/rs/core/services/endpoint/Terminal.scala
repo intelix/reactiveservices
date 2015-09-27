@@ -16,13 +16,20 @@
 package rs.core.services.endpoint
 
 import akka.actor.ActorRef
-import rs.core.actors.BasicActor
+import akka.pattern.Patterns
+import rs.core.Subject
+import rs.core.actors.FSMActor
+import rs.core.services.Messages._
+import rs.core.services.endpoint.akkastreams.ServicePortSubscriptionRequestSink
+import rs.core.services.internal.{DemandProducerContract, SignalPort, StreamAggregatorActor}
 import rs.core.stream._
-import rs.core.services.internal.{StreamAggregatorActor, DemandProducerContract}
+
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.language.postfixOps
 
 trait Terminal
-  extends BasicActor
-  with StreamConsumer
+  extends StreamConsumer
+  with ServicePortSubscriptionRequestSink
   with StringStreamConsumer
   with CustomStreamConsumer
   with DictionaryMapStreamConsumer
@@ -30,15 +37,45 @@ trait Terminal
   with ListStreamConsumer
   with DemandProducerContract {
 
+  _: FSMActor =>
+
 
   override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(componentId), "stream-aggregator")
 
   startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)
+
 
   override def preStart(): Unit = {
     super.preStart()
     startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)
   }
 
-  final override def onDemandFulfilled(): Unit = upstreamDemandFulfilled(streamAggregator, 1)
+  val signalPort: ActorRef = context.actorOf(SignalPort.props, "signal-port")
+
+
+  final def onDemandFulfilled(): Unit = upstreamDemandFulfilled(streamAggregator, 1)
+
+  final def signal(subj: Subject, payload: Any = None, expiry: FiniteDuration = 1 minute, orderingGroup: Option[Any] = None, correlationId: Option[Any] = None) = {
+    signalPort ! Signal(subj, payload, now + expiry.toMillis, orderingGroup, correlationId)
+  }
+
+  final def signalAsk(subj: Subject, payload: Any = None, expiry: FiniteDuration = 1 minute, orderingGroup: Option[Any] = None, correlationId: Option[Any] = None) =
+    Patterns.ask(signalPort, Signal(subj, payload, now + expiry.toMillis, orderingGroup, correlationId), expiry.toMillis)
+
+  final def subscribe(subj: Subject, priorityKey: Option[String] = None, aggregationIntervalMs: Int = 0) = {
+    addSubscription(OpenSubscription(subj, priorityKey, aggregationIntervalMs))
+  }
+
+  final def unsubscribe(subj: Subject) = {
+    removeSubscription(CloseSubscription(subj))
+  }
+
+
+  onMessage {
+    case StreamStateUpdate(subject, state) =>
+      onDemandFulfilled()
+      update(subject, state)
+    case ServiceNotAvailable(service) =>
+      processServiceNotAvailable(service)
+  }
 }

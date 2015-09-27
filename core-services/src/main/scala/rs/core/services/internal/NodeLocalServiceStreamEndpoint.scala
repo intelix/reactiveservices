@@ -22,7 +22,7 @@ import akka.cluster.Cluster
 import rs.core.actors.{ClusterAwareness, BasicActor, ActorWithTicks}
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages.{InvalidRequest, StreamStateUpdate}
-import rs.core.services.ServiceCell._
+import rs.core.services.FSMServiceCell._
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._

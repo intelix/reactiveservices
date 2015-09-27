@@ -18,7 +18,7 @@ package rs.core.stream
 import play.api.libs.json.{JsValue, Json}
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
-import rs.core.services.{StreamId, ServiceCell}
+import rs.core.services.{FSMServiceCell, StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
 
 import scala.language.implicitConversions
@@ -45,7 +45,7 @@ trait JStringStreamPublisher {
 
 
 trait StringStreamPublisher {
-  self: ServiceCell =>
+  self: FSMServiceCell =>
 
   implicit def toString(v: JsValue): String = Json.stringify(v)
 

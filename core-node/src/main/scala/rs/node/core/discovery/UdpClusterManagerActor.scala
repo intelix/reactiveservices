@@ -7,7 +7,7 @@ import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 import akka.io.{IO, Udp}
 import akka.util.ByteString
-import rs.core.actors.{ActorState, ActorWithData, BaseActorSysevents}
+import rs.core.actors.{ActorState, FSMActor, BaseActorSysevents}
 import rs.core.config.ConfigOps.wrap
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.UdpClusterManagerActor._
@@ -118,7 +118,7 @@ object UdpClusterManagerActor {
 }
 
 
-class UdpClusterManagerActor extends ActorWithData[ManagerStateData] with Evt {
+class UdpClusterManagerActor extends FSMActor with Evt {
 
   case object Start
 
@@ -186,18 +186,18 @@ class UdpClusterManagerActor extends ActorWithData[ManagerStateData] with Evt {
   IO(Udp) ! Udp.Bind(self, new InetSocketAddress(udpEndpointHost, udpEndpointPort))
 
   when(Initial) {
-    case Event(Udp.Bound(local), state) =>
+    case Event(Udp.Bound(local), state: ManagerStateData) =>
       UdpBound('local -> local)
       transitionTo(InitialDiscovery) using state.copy(socket = Some(sender()))
   }
 
   when(InitialDiscovery) {
-    case Event(CheckState, state) => if (state.haveResponsesFromAll) transitionTo(ContinuousDiscovery) else stay()
+    case Event(CheckState, state: ManagerStateData) => if (state.haveResponsesFromAll) transitionTo(ContinuousDiscovery) else stay()
     case Event(DiscoveryTimeout, state) => transitionTo(ContinuousDiscovery)
   }
 
   when(ContinuousDiscovery) {
-    case Event(CheckState, state) =>
+    case Event(CheckState, state: ManagerStateData) =>
       var newState = state
 
       if (state.discoveredClustersSetChanged) {
@@ -216,52 +216,52 @@ class UdpClusterManagerActor extends ActorWithData[ManagerStateData] with Evt {
   }
 
   whenUnhandledChained {
-    case Event(PerformHandshake, state) =>
+    case Event(PerformHandshake, state: ManagerStateData) =>
       state.endpoints.foreach { ep =>
         if (!state.isBlocked(ep.addr)) state.socket.foreach(_ ! Udp.Send(Request(ep.uri).toByteString, ep.addr))
       }
       stay()
-    case Event(Udp.Received(Request(uri), senderAddress), state) =>
+    case Event(Udp.Received(Request(uri), senderAddress), state: ManagerStateData) =>
       if (!state.isBlocked(senderAddress)) self ! SendResponseTo(uri, senderAddress)
       stay()
-    case Event(Udp.Received(Response(uri, addr, members, uptime, roles, s), senderAddress), state) =>
+    case Event(Udp.Received(Response(uri, addr, members, uptime, roles, s), senderAddress), state: ManagerStateData) =>
       if (!state.isBlocked(senderAddress)) {
         self ! CheckState
         stay using state.copy(responses = state.responses + (uri -> Response(uri, addr, members, uptime, roles, s)))
       } else stay()
 
-    case Event(SendResponseTo(uri, addr), state) =>
+    case Event(SendResponseTo(uri, addr), state: ManagerStateData) =>
       if (!state.isBlocked(addr)) {
         state.socket.foreach(_ ! Udp.Send(Response(uri, selfAddress.toString, state.currentMembers.keys.map(_.toString).toSet, context.system.uptime, state.combinedRoles, mySeed).toByteString, addr))
       }
       stay()
-    case Event(LeaderChanged(leader), state) =>
+    case Event(LeaderChanged(leader), state: ManagerStateData) =>
       NewLeaderElected('leader -> leader)
       self ! CheckState
       stay using state.copy(currentLeader = leader)
-    case Event(MemberExited(member), state) =>
+    case Event(MemberExited(member), state: ManagerStateData) =>
       NodeExited('addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(responses = state.responses.filter(_._2.address != member.address.toString), currentMembers = state.currentMembers - member.address)
-    case Event(MemberRemoved(member, _), state) =>
+    case Event(MemberRemoved(member, _), state: ManagerStateData) =>
       NodeRemoved('addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(responses = state.responses.filter(_._2.address != member.address.toString), currentMembers = state.currentMembers - member.address)
-    case Event(UnreachableMember(member), state) =>
+    case Event(UnreachableMember(member), state: ManagerStateData) =>
       NodeUnreachable('addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(responses = state.responses.filter(_._2.address != member.address.toString), currentMembers = state.currentMembers + (member.address -> member.roles))
-    case Event(ReachableMember(member), state) =>
+    case Event(ReachableMember(member), state: ManagerStateData) =>
       NodeReachable('addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(currentMembers = state.currentMembers + (member.address -> member.roles))
-    case Event(MemberUp(member), state) =>
+    case Event(MemberUp(member), state: ManagerStateData) =>
       NodeUp('addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(currentMembers = state.currentMembers + (member.address -> member.roles))
-    case Event(BlockCommunicationWith(host, port), state) =>
+    case Event(BlockCommunicationWith(host, port), state: ManagerStateData) =>
       stay using state.copy(blockedPorts = state.blockedPorts + port)
-    case Event(UnblockCommunicationWith(host, port), state) =>
+    case Event(UnblockCommunicationWith(host, port), state: ManagerStateData) =>
       self ! CheckState
       self ! PerformHandshake
       stay using state.copy(blockedPorts = state.blockedPorts - port)

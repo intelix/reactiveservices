@@ -1,0 +1,259 @@
+package rs.service.websocket
+
+import akka.actor.{ActorRef, FSM, Props, Stash}
+import akka.io.IO
+import akka.util.{ByteIterator, ByteString}
+import rs.core.Subject
+import rs.core.actors.{ActorState, FSMActor, WithGlobalConfig}
+import rs.core.codec.binary.BinaryProtocolMessages._
+import rs.core.services.endpoint.StreamConsumer
+import rs.core.services.{ServiceCell, ServiceCellSysevents}
+import rs.core.stream._
+import rs.core.sysevents.WithSyseventPublisher
+import rs.service.websocket.WebSocketClient.{Connecting, Established, WebsocketConnection}
+import rs.service.websocket.WebsocketClientStubService.{CloseSubscriptionFromStub, Evt, OpenSubscriptionFromStub, StartWebsocketClient}
+import spray.can.Http.Connect
+import spray.can.server.UHttp
+import spray.can.websocket.frame.{BinaryFrame, TextFrame}
+import spray.can.{Http, websocket}
+import spray.http.{HttpHeaders, HttpMethods, HttpRequest, HttpResponse}
+
+import scala.annotation.tailrec
+import scala.language.postfixOps
+
+object WebsocketClientStubService {
+
+  trait Evt extends ServiceCellSysevents {
+    val ConnectionUpgraded = "ConnectionUpgraded".info
+    val ConnectionEstablished = "ConnectionEstablished".info
+    val ConnectionClosed = "ConnectionClosed".info
+
+    val ReceivedPing = "ReceivedPing".info
+    val ReceivedServiceNotAvailable = "ReceivedServiceNotAvailable".info
+    val ReceivedInvalidRequest = "ReceivedInvalidRequest".info
+    val ReceivedSubscriptionClosed = "ReceivedSubscriptionClosed".info
+    val ReceivedStreamStateUpdate = "ReceivedStreamStateUpdate".info
+    val ReceivedStreamStateTransitionUpdate = "ReceivedStreamStateTransitionUpdate".info
+    val ReceivedSignalAckOk = "ReceivedSignalAckOk".info
+    val ReceivedSignalAckFailed = "ReceivedSignalAckFailed".info
+
+    val StringUpdate = "StringUpdate".info
+    val SetUpdate = "SetUpdate".info
+    val MapUpdate = "MapUpdate".info
+    val ListUpdate = "ListUpdate".info
+
+
+    override def componentId: String = "WebsocketClientStubService"
+  }
+
+  object Evt extends Evt
+
+
+  case class StartWebsocketClient(id: String, host: String, port: Int)
+
+  case class OpenSubscriptionFromStub(subj: Subject)
+
+  case class CloseSubscriptionFromStub(subj: Subject)
+
+}
+
+class WebsocketClientStubService(serviceId: String) extends ServiceCell(serviceId) {
+
+  onMessage {
+    case StartWebsocketClient(id, host, port) => context.actorOf(Props(classOf[WebSocketClient], id, host, port), id)
+  }
+
+}
+
+trait Consumer
+  extends StreamConsumer
+  with StringStreamConsumer
+  with CustomStreamConsumer
+  with DictionaryMapStreamConsumer
+  with SetStreamConsumer
+  with ListStreamConsumer
+
+object WebSocketClient {
+
+  case class WebsocketConnection(connection: Option[ActorRef] = None)
+
+  case object Connecting extends ActorState
+
+  case object Established extends ActorState
+
+}
+
+class WebSocketClient(id: String, endpoint: String, port: Int)
+  extends FSMActor
+  with WithGlobalConfig
+  with Consumer
+  with Stash
+  with Evt
+  with WithSyseventPublisher {
+
+  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('id -> id)
+
+  startWith(Connecting, WebsocketConnection())
+
+  when(Connecting) {
+    case Event(Http.Connected(remoteAddress, localAddress), state) =>
+      val upgradePipelineStage = { response: HttpResponse =>
+        response match {
+          case websocket.HandshakeResponse(st) =>
+            st match {
+              case wsFailure: websocket.HandshakeFailure => None
+              case wsContext: websocket.HandshakeContext => Some(websocket.clientPipelineStage(self, wsContext))
+            }
+        }
+      }
+      ConnectionEstablished()
+      sender() ! UHttp.UpgradeClient(upgradePipelineStage, upgradeRequest)
+      stay()
+
+    case Event(UHttp.Upgraded, state: WebsocketConnection) =>
+      ConnectionUpgraded()
+      unstashAll()
+      transitionTo(Established) using state.copy(connection = Some(sender()))
+
+    case Event(Http.CommandFailed(con: Connect), state) =>
+      val msg = s"failed to connect to ${con.remoteAddress}"
+      Error('msg -> msg)
+      stop(FSM.Failure(msg))
+
+    case Event(_, state) =>
+      stash()
+      stay()
+  }
+
+  when(Established) {
+    case Event(ev: Http.ConnectionClosed, state) =>
+      ConnectionClosed()
+      stop(FSM.Normal)
+    case Event(t: BinaryDialectInbound, state: WebsocketConnection) =>
+      state.connection.foreach(_ ! BinaryFrame(encode(t)))
+      stay()
+  }
+
+  onMessage {
+    case TextFrame(bs) => // unsupported for now
+    case BinaryFrame(bs) => decode(bs) foreach {
+      case BinaryDialectPing(pid) =>
+        self ! BinaryDialectPong(pid)
+        ReceivedPing('pingId -> pid)
+      case BinaryDialectSubscriptionClosed(alias) =>
+        ReceivedSubscriptionClosed('alias -> alias)
+      case BinaryDialectServiceNotAvailable(service) =>
+        ReceivedServiceNotAvailable('service -> service)
+      case BinaryDialectInvalidRequest(alias) =>
+        ReceivedInvalidRequest('alias -> alias)
+      case BinaryDialectStreamStateUpdate(alias, state) =>
+        ReceivedStreamStateUpdate('alias -> alias, 'state -> state)
+        translate(alias, state)
+      case BinaryDialectStreamStateTransitionUpdate(alias, trans) =>
+        ReceivedStreamStateTransitionUpdate('alias -> alias, 'transition -> trans)
+        transition(alias, trans)
+      case BinaryDialectSignalAckOk(alias, correlation, payload) =>
+        ReceivedSignalAckOk('alias -> alias, 'correlation -> correlation, 'payload -> payload)
+      case BinaryDialectSignalAckFailed(alias, correlation, payload) =>
+        ReceivedSignalAckFailed('alias -> alias, 'correlation -> correlation, 'payload -> payload)
+    }
+
+    case OpenSubscriptionFromStub(subj) =>
+      self ! BinaryDialectOpenSubscription(aliasFor(subj))
+    case CloseSubscriptionFromStub(subj) =>
+      self ! BinaryDialectCloseSubscription(aliasFor(subj))
+
+
+  }
+
+  private def transition(alias: Int, trans: StreamStateTransition) =
+    aliases.find(_._2 == alias).foreach {
+      case (s, _) =>
+        val st = states.getOrElse(s, None)
+        if (trans.applicableTo(st))
+          trans.toNewStateFrom(st) match {
+            case x@Some(newState) =>
+              update(s, newState)
+              states += s -> x
+            case None => states -= s
+          }
+      }
+
+
+
+  private def translate(alias: Int, state: StreamState) = {
+    aliases.find(_._2 == alias).foreach {
+      case (s, _) =>
+        states += s -> Some(state)
+        update(s, state)
+    }
+  }
+
+  val connect = Http.Connect(endpoint, port, sslEncryption = false)
+
+  val headers = List(
+    HttpHeaders.Host(endpoint, port),
+    HttpHeaders.Connection("Upgrade"),
+    HttpHeaders.RawHeader("Upgrade", "websocket"),
+    HttpHeaders.RawHeader("Sec-WebSocket-Version", "13"),
+    HttpHeaders.RawHeader("Sec-WebSocket-Key", "x3JJHMbDL1EzLkh9GBhXDw=="),
+    HttpHeaders.RawHeader("Sec-WebSocket-Extensions", "permessage-deflate"))
+
+  val upgradeRequest: HttpRequest = HttpRequest(HttpMethods.GET, "/", headers)
+
+  implicit val sys = context.system
+  implicit val ec = context.dispatcher
+
+  IO(UHttp) ! connect
+
+  private var counter: Int = 0
+  private var aliases: Map[Subject, Int] = Map()
+  private var states: Map[Subject, Option[StreamState]] = Map()
+
+  private def aliasFor(subj: Subject) = aliases getOrElse(subj, {
+    counter += 1
+    aliases += subj -> counter
+    self ! BinaryDialectAlias(counter, subj)
+    counter
+  })
+
+
+  import rs.core.codec.binary.BinaryCodec.DefaultCodecs
+
+  def decode(bs: ByteString): List[BinaryDialectOutbound] = {
+    @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = {
+      if (!i.hasNext) l else dec(l :+ DefaultCodecs.clientBinaryCodec.decode(i), i)
+    }
+
+    val i = bs.iterator
+    val decoded = dec(List.empty, i)
+    decoded
+  }
+
+  def encode(bdi: BinaryDialectInbound): ByteString = {
+    val b = ByteString.newBuilder
+    DefaultCodecs.clientBinaryCodec.encode(bdi, b)
+    val encoded = b.result()
+    encoded
+  }
+
+  onStringRecord {
+    case (s, str) => StringUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> str)
+  }
+
+  onSetRecord {
+    case (s, set) => SetUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> set.toList.sorted.mkString(","))
+  }
+
+  onDictMapRecord {
+    case (s, map) => MapUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> map.asMap)
+  }
+
+  onListRecord {
+    case (s, list) => ListUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> list.mkString(","))
+  }
+
+
+}
+
+

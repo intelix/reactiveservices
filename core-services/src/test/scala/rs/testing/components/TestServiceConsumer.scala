@@ -3,7 +3,7 @@ package rs.testing.components
 import rs.core.Subject
 import rs.core.actors.WithGlobalConfig
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
-import rs.core.services.ServiceCell.StopRequest
+import rs.core.services.FSMServiceCell.StopRequest
 import rs.core.services.ServiceCellSysevents
 import rs.core.services.endpoint.Terminal
 import rs.testing.components.TestServiceConsumer.{Close, Evt, Open, SendSignal}

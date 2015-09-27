@@ -17,11 +17,11 @@ package rs.core.services
 
 import akka.actor.{ActorRef, Address, Deploy}
 import akka.remote.RemoteScope
-import rs.core.actors.{BaseActorSysevents, BasicActor, ClusterAwareness, WithGlobalConfig}
+import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.ServiceConfig
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
-import rs.core.services.ServiceCell._
+import rs.core.services.FSMServiceCell._
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
 import rs.core.stream.{StreamPublishers, StreamState, StreamStateTransition}
@@ -31,7 +31,7 @@ import rs.core.{ServiceKey, Subject}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object ServiceCell {
+object FSMServiceCell {
 
   case object StopRequest
 
@@ -67,8 +67,10 @@ trait ServiceCellSysevents extends BaseActorSysevents with RemoteStreamsBroadcas
   val SubjectMappingError = "SubjectMappingError".warn
 }
 
-abstract class ServiceCell(id: String)
-  extends BasicActor
+abstract class ServiceCell(id: String) extends FSMServiceCell(id) with BasicActor
+
+abstract class FSMServiceCell(id: String)
+  extends FSMActor
   with WithCHMetrics
   with ClusterAwareness
   with SimpleInMemoryAcknowledgedDelivery

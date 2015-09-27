@@ -3,7 +3,7 @@ package rs.testing
 import org.scalatest.FlatSpec
 import rs.core.SubjectKeys.UserId
 import rs.core.registry.ServiceRegistrySysevents
-import rs.core.services.ServiceCell.StopRequest
+import rs.core.services.FSMServiceCell.StopRequest
 import rs.core.services.StreamId
 import rs.core.stream.ListStreamState.{ListSpecs, RejectAdd}
 import rs.node.core.ServiceNodeActor

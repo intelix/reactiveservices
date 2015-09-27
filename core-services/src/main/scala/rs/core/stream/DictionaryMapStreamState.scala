@@ -20,7 +20,7 @@ import java.util
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{ServiceCell, StreamId}
+import rs.core.services.{FSMServiceCell, ServiceCell, StreamId}
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 
 import scala.language.implicitConversions
@@ -164,7 +164,7 @@ trait JDictionaryMapStreamPublisher extends DictionaryMapStreamPublisher {
 }
 
 trait DictionaryMapStreamPublisher {
-  self: ServiceCell =>
+  self: FSMServiceCell =>
 
   def ?#(s: StreamId): Option[DictionaryMapStreamState] = currentStreamState(s) flatMap {
     case s: DictionaryMapStreamState => Some(s)

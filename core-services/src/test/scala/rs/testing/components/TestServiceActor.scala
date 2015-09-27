@@ -4,7 +4,7 @@ import rs.core.SubjectKeys.UserId
 import rs.core.actors.ClusterAwareness
 import rs.core.config.ConfigOps.wrap
 import rs.core.registry.RegistryRef
-import rs.core.services.ServiceCell.StopRequest
+import rs.core.services.FSMServiceCell.StopRequest
 import rs.core.services.{ServiceCell, ServiceCellSysevents, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromTail, FromHead, RejectAdd, ListSpecs}

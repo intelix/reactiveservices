@@ -38,6 +38,7 @@ class PingInjector extends BinaryDialectStageBuilder {
           case BinaryDialectPong(ts) =>
             val now = System.currentTimeMillis() % Int.MaxValue
             val latency = (now - ts) / 2
+            println(s"!>>>> Latency: $latency ")
             // TODO handle latency
             false
           case t => true

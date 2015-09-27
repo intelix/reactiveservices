@@ -54,7 +54,7 @@ object BinaryCodec {
     implicit val idCodec = new ByteIdCodec
     implicit val commonCodec = new DefaultCommonDataBinaryCodec
     implicit val serverBinaryCodec = new DefaultServerBinaryCodec
-    implicit val clientBinaryCodec = new DefaultClientBinaryCodec
+    implicit val clientBinaryCodec: ClientBinaryCodec = new DefaultClientBinaryCodec
   }
 
 

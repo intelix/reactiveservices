@@ -1,9 +1,9 @@
 package rs.core.stream
 
-import rs.core.services.ServiceCell
+import rs.core.services.{FSMServiceCell, ServiceCell}
 
 trait StreamPublishers extends DictionaryMapStreamPublisher with ListStreamPublisher with SetStreamPublisher with StringStreamPublisher {
-  self: ServiceCell =>
+  self: FSMServiceCell =>
 }
 
 

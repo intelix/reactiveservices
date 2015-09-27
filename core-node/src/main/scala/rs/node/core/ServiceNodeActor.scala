@@ -6,7 +6,7 @@ import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
-import rs.core.services.ServiceCell.StopRequest
+import rs.core.services.FSMServiceCell.StopRequest
 import rs.node.core.ServiceNodeActor._
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.{JoinStrategy, RolePriorityStrategy, UdpClusterManagerActor}
@@ -43,7 +43,7 @@ object ServiceNodeActor {
 }
 
 
-class ServiceNodeActor extends ActorWithData[ServiceNodeData] with Evt {
+class ServiceNodeActor extends FSMActor with Evt {
 
   private case object Start
 
@@ -110,8 +110,6 @@ class ServiceNodeActor extends ActorWithData[ServiceNodeData] with Evt {
   }
 
 
-
-
   startWith(Initial, ServiceNodeData(
     joinStrategy = globalCfg.asClass("node.cluster.join.strategy", classOf[RolePriorityStrategy]).newInstance().asInstanceOf[JoinStrategy]
   ))
@@ -125,34 +123,35 @@ class ServiceNodeActor extends ActorWithData[ServiceNodeData] with Evt {
   }
 
   when(ClusterDiscovery) {
-    case Event(DiscoveryTimeout, state) => transitionTo(ClusterFormationPending)
-    case Event(CheckState, state) => joinExistingCluster(state) | stay()
+    case Event(DiscoveryTimeout, state: ServiceNodeData) => transitionTo(ClusterFormationPending)
+    case Event(CheckState, state: ServiceNodeData) => joinExistingCluster(state) | stay()
   }
 
   when(ClusterFormationPending) {
-    case Event(CheckState, state) =>
+    case Event(CheckState, state: ServiceNodeData) =>
       joinExistingCluster(state) getOrElse ifSeedFormCluster(state) | stay()
   }
 
   when(Joining) {
-    case Event(JoinTimeout, state) =>
+    case Event(JoinTimeout, state: ServiceNodeData) =>
       UnableToJoinCluster('seeds -> state.seedsToJoin)
       stop(FSM.Failure("Unable to join cluster, seeds: " + state.seedsToJoin))
     case Event(LeaderChanged(Some(a)), _) => transitionTo(Joined)
   }
 
   when(Joined) {
-    case Event(CheckState, state) => mergeWithExistingCluster(state) | stay()
+    case Event(CheckState, state: ServiceNodeData) => mergeWithExistingCluster(state) | stay()
   }
 
   onTransition {
     case _ -> ClusterDiscovery =>
       setTimer("timeout", DiscoveryTimeout, discoveryTimeout, repeat = false)
     case _ -> Joining =>
+      val state = nextStateData.asInstanceOf[ServiceNodeData]
       cancelTimer("checkstate")
       setTimer("timeout", JoinTimeout, joinTimeout, repeat = false)
-      JoiningCluster('seeds -> nextStateData.seedsToJoin)
-      cluster.joinSeedNodes(nextStateData.seedsToJoin.toList)
+      JoiningCluster('seeds -> state.seedsToJoin)
+      cluster.joinSeedNodes(state.seedsToJoin.toList)
     case _ -> ClusterFormationPending =>
       cancelTimer("timeout")
       setTimer("checkstate", CheckState, 300 millis, repeat = true)
@@ -164,12 +163,12 @@ class ServiceNodeActor extends ActorWithData[ServiceNodeData] with Evt {
   }
 
   whenUnhandledChained {
-    case Event(s@ReachableClusters(our, other), state) =>
+    case Event(s@ReachableClusters(our, other), state: ServiceNodeData) =>
       ClustersDiscovered('our -> our.map(_.toString), 'other -> other.map(_.toString).mkString(","))
       self ! CheckState
       stay using state.copy(reachableClusters = Some(s))
 
-    case Event(ReachableNodes(ns), state) =>
+    case Event(ReachableNodes(ns), state: ServiceNodeData) =>
       AvailableSeeds('list -> ns)
       self ! CheckState
       stay using state.copy(availableSeeds = ns)
@@ -181,14 +180,12 @@ class ServiceNodeActor extends ActorWithData[ServiceNodeData] with Evt {
       StoppingService { ctx =>
         val actor = sender()
         context.unwatch(actor)
-        ctx +('ref -> actor)
+        ctx + ('ref -> actor)
         runningServices -= actor
         context.stop(actor)
         stay()
       }
   }
-
-
 
 
   private def joinExistingCluster(state: ServiceNodeData) = state.reachableClusters.flatMap { reachable =>

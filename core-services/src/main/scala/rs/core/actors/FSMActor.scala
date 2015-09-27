@@ -37,8 +37,8 @@ trait BaseActorSysevents extends ComponentWithBaseSysevents {
 trait ActorState
 
 
-trait ActorWithData[T]
-  extends FSM[ActorState, T]
+trait FSMActor
+  extends FSM[ActorState, Any]
   with ActorUtils
   with WithInstrumentationHooks
   with StrictLogging

@@ -21,7 +21,7 @@ import akka.cluster.Member
 
 trait ClusterAwareness extends ClusterMembershipEventSubscription {
 
-  _: ActorWithData[_] =>
+  _: FSMActor =>
 
   var reachableMembers: Map[Address, Member] = Map.empty
 

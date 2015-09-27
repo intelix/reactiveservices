@@ -19,7 +19,7 @@ import java.util
 
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
-import rs.core.services.{StreamId, ServiceCell}
+import rs.core.services.{FSMServiceCell, StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
 import rs.core.stream.ListStreamState._
 
@@ -155,7 +155,7 @@ trait JListStreamPublisher extends ListStreamPublisher {
 
 
 trait ListStreamPublisher {
-  self: ServiceCell =>
+  self: FSMServiceCell =>
 
   implicit def toListPublisher(v: String): ListPublisher = ListPublisher(v)
 
