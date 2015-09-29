@@ -13,24 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+require(['react','app/content', 'socket'], function (React, Layout, Socket) {
 
-(function () {
+    React.render(<Layout />, document.getElementById('content'));
 
-    //noinspection JSFileReferences
-    require(["/assets/javascripts/rs-config.js"], function () {
-        require.config({
+    Socket.connect("ws://localhost:8080");
 
-            /*noinspection */
-            packages: [
-                'app/content'
-            ]
-        });
-
-        require([
-            "app/main"
-        ]);
-
-    });
-
-
-})();
+});

@@ -14,23 +14,16 @@
  * limitations under the License.
  */
 
-(function () {
+package controllers
 
-    //noinspection JSFileReferences
-    require(["/assets/javascripts/rs-config.js"], function () {
-        require.config({
+import play.api.mvc._
 
-            /*noinspection */
-            packages: [
-                'app/content'
-            ]
-        });
-
-        require([
-            "app/main"
-        ]);
-
-    });
+object Application extends Controller {
 
 
-})();
+  def index = Action {
+    Ok(views.html.index())
+  }
+
+
+}

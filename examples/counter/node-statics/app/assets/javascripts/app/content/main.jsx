@@ -14,63 +14,81 @@
  * limitations under the License.
  */
 
-define(['react', 'rs_mixin', 'auth_mixin', './SecuredContent'], function (React, RSMixin, AuthMixin, SecuredContent) {
+define(['react', 'rs_mixin'],
+    function (React, RSMixin) {
 
-    return React.createClass({
+        var ServiceNotAvailable = "Service not available";
 
-        mixins: [RSMixin, AuthMixin],
+        return React.createClass({
 
-        componentName: function () {
-            return "app/content/commons/Login";
-        },
+            mixins: [RSMixin],
 
-        handleSubmit: function () {
-            var user = this.refs.formUser.getDOMNode().value;
-            var passw = this.refs.formPassword.getDOMNode().value;
-            this.performCredentialsAuthentication(user, passw);
-        },
+            getInitialState: function () {
+                return {
+                    connected: false, // automatically managed
+                    counterValue: ServiceNotAvailable,
+                    jcounterValue: ServiceNotAvailable
+                };
+            },
 
-        renderUnsecured: function () {
-            var self = this;
 
-            var buttonClasses = this.cx({
-                'disabled': (!self.state.connected || self.isAuthenticationPending()),
-                'btn btn-lg btn-primary btn-block': true
-            });
-            var fieldClasses = this.cx({
-                'disabled': (self.isAuthenticationPending()),
-                'form-control': true
-            });
+            subscriptionConfig: function (props) {
+                return [
+                    {
+                        service: "counter-service",
+                        topic: "counter",
+                        stateKey: "counterValue",
+                        onUnavailable: this.onCounterUnavailable
+                    },
+                    {
+                        service: "j-counter-service",
+                        topic: "counter",
+                        stateKey: "jcounterValue",
+                        onUnavailable: this.onJCounterUnavailable
+                    }
+                ];
+            },
 
-            var buttonText = "Log in";
-            if (!self.state.connected) {
-                buttonText = "Connecting ...";
+            onCounterUnavailable: function () {
+                this.setState({counterValue: ServiceNotAvailable});
+            },
+            onJCounterAvailable: function () {
+                this.setState({counterValue: ServiceNotAvailable});
+            },
+
+            onJCounterUnavailable: function () {
+                this.setState({jcounterValue: ServiceNotAvailable});
+            },
+
+            onResetCounter: function () {
+                this.sendSignal("counter-service", "reset");
+            },
+            onResetJCounter: function () {
+                this.sendSignal("j-counter-service", "reset");
+            },
+
+            render: function () {
+
+                var state = this.state;
+
+                if (state.connected) {
+                    var counterReset = (state.counterValue == ServiceNotAvailable)
+                        ? ""
+                        : <a href="#" onClick={this.onResetCounter}>Reset</a>;
+
+                    var jcounterReset = (state.jcounterValue == ServiceNotAvailable)
+                        ? ""
+                        : <a href="#" onClick={this.onResetJCounter}>Reset</a>;
+
+                    return (
+                        <span>
+                        <div>Counter (Scala based): {state.counterValue} {counterReset}</div>
+                        <div>Counter (Java based) : {state.jcounterValue} {jcounterReset}</div>
+                    </span>
+                    );
+                } else
+                    return <div>Connecting... </div>;
             }
-            if (self.isAuthenticationPending()) {
-                buttonText = "Authenticating ...";
-            }
-
-            return (
-                <div className="container">
-                    <form className="form-signin">
-                        <h2 className="form-signin-heading text-muted"></h2>
-                        <input type="test" id="input-user" className={fieldClasses} placeholder="Username"
-                               required="true" autofocus="true" ref="formUser"/>
-                        <input type="password" id="input-password" className={fieldClasses} placeholder="Password"
-                               required="true" ref="formPassword"/>
-                        <button className={buttonClasses} type="button" onClick={this.handleSubmit}>
-                            {buttonText}
-                        </button>
-                    </form>
-                </div>
-            );
-
-        },
-
-        renderSecured: function () {
-            return <SecuredContent {...this.props} />;
-        }
+        });
 
     });
-
-});

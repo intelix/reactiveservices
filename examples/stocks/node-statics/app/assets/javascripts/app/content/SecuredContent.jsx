@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-(function () {
+define(['react', 'rs_mixin', './Prices', './TradeBlotter'],
+    function (React, RSMixin, Prices, TradeBlotter) {
 
-    //noinspection JSFileReferences
-    require(["/assets/javascripts/rs-config.js"], function () {
-        require.config({
+        return React.createClass({
 
-            /*noinspection */
-            packages: [
-                'app/content'
-            ]
+            mixins: [RSMixin],
+
+            render: function () {
+
+                return (
+                    <div>
+                        <h3>Prices:</h3>
+                        <Prices />
+                        <h3>Trades:</h3>
+                        <TradeBlotter />
+                    </div>
+                );
+
+            }
         });
 
-        require([
-            "app/main"
-        ]);
-
     });
-
-
-})();

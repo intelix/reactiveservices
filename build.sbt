@@ -95,6 +95,13 @@ lazy val js = Project(
 ).enablePlugins(PlayScala, SbtWeb)
 
 
+
+
+
+
+/** Examples: Counter **/
+
+
 lazy val examples_counter_statics = Project(
   id = "examples-counter-node-statics",
   base = file("examples/counter/node-statics"),
@@ -114,7 +121,7 @@ lazy val examples_counter_websocket = Project(
     auth,
     websocket_server
   )
-)
+).enablePlugins(JavaServerAppPackaging)
 
 lazy val examples_counter_service = Project(
   id = "examples-counter-node-service",
@@ -122,6 +129,52 @@ lazy val examples_counter_service = Project(
   dependencies = Seq(
   core,
   auth,
+    node % "compile;test->test"
+  )
+).enablePlugins(JavaServerAppPackaging)
+
+
+
+
+/** Examples: Stocks **/
+
+lazy val examples_stocks_statics = Project(
+  id = "examples-stocks-node-statics",
+  base = file("examples/stocks/node-statics"),
+  dependencies = Seq(
+    core % "compile;test->test",
+    node % "compile;test->test",
+    js, auth_js
+  )
+).enablePlugins(PlayScala, SbtWeb)
+
+lazy val examples_stocks_websocket = Project(
+  id = "examples-stocks-node-websocket",
+  base = file("examples/stocks/node-websocket"),
+  dependencies = Seq(
+    core % "compile;test->test",
+    node,
+    auth,
+    websocket_server
+  )
+).enablePlugins(JavaServerAppPackaging)
+
+lazy val examples_stocks_engine = Project(
+  id = "examples-stocks-node-engine",
+  base = file("examples/stocks/node-engine"),
+  dependencies = Seq(
+    core,
+    auth,
+    node % "compile;test->test"
+  )
+).enablePlugins(JavaServerAppPackaging)
+
+lazy val examples_stocks_pricesource = Project(
+  id = "examples-stocks-node-pricesource",
+  base = file("examples/stocks/node-pricesource"),
+  dependencies = Seq(
+    core,
+    auth,
     node % "compile;test->test"
   )
 ).enablePlugins(JavaServerAppPackaging)

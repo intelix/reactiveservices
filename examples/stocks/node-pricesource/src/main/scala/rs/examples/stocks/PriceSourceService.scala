@@ -13,39 +13,44 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package rs.examples.counter
+package rs.examples.stocks
 
-
-import rs.core.services.ServiceCell
+import rs.core.services.{ServiceCell, StreamId}
+import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.{Subject, TopicKey}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class CounterService(id: String) extends ServiceCell(id) {
+class PriceSourceService(id: String) extends ServiceCell(id) {
 
-  var counter = 0
+  implicit val dict = Dictionary("price")
+
+  var symbols: Map[String, Int] = Map.empty
 
   onSubjectSubscription {
-    case Subject(_, TopicKey("counter"), _) => Some("counter")
+    case Subject(_, TopicKey(sym), _) => Some(sym)
   }
+
+  onStreamActive {
+    case StreamId(sym, _) => symbols += sym -> (Math.random() * 5000).toInt
+  }
+
+  onStreamPassive {
+    case StreamId(sym, _) => symbols -= sym
+  }
+
 
   onMessage {
     case "tick" =>
-      counter += 1
-      publishCounter()
+      symbols.foreach {
+        case (sym, base) =>
+          val price = (base + ((Math.random() * 500).toInt - 250)).toDouble / 100
+          sym !# ("price" -> price)
+      }
       scheduleOnce(2 seconds, "tick")
   }
 
-  onSignal {
-    case (Subject(_, TopicKey("reset"), _), _) =>
-      counter = 0
-      publishCounter()
-      Some(SignalOk())
-  }
-
   scheduleOnce(2 seconds, "tick")
-
-  private def publishCounter() = "counter" !~ counter.toString
 
 }
