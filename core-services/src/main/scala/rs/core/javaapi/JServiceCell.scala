@@ -15,14 +15,17 @@
  */
 package rs.core.javaapi
 
+import akka.actor.Actor
 import rs.core.Subject
-import rs.core.services.{StreamId, ServiceCell}
+import rs.core.actors.JBaseActor
+import rs.core.services.{WithId, ServiceWithId, BaseServiceCell, StreamId}
 import rs.core.stream._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-abstract class JServiceCell(id: String) extends ServiceCell(id) with JStringStreamPublisher with JListStreamPublisher with JSetStreamPublisher with JDictionaryMapStreamPublisher {
+abstract class JServiceCell(id: String)
+  extends ServiceWithId(id) with JBaseActor with BaseServiceCell with JStringStreamPublisher with JListStreamPublisher with JSetStreamPublisher with JDictionaryMapStreamPublisher {
 
   trait MessageCallback[T] {
     def handle(v: T)

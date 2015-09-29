@@ -18,7 +18,7 @@ package rs.core.services.internal
 import java.util
 
 import akka.actor.{ActorRef, Props}
-import rs.core.actors.{BasicActor, BaseActorSysevents}
+import rs.core.actors.{SingleStateActor, BaseActorSysevents}
 import rs.core.services.Messages._
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
 import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
@@ -52,7 +52,7 @@ trait StreamAggregatorActorSysevents extends BaseActorSysevents {
 }
 
 final class StreamAggregatorActor(consumerId: String)
-  extends BasicActor
+  extends SingleStateActor
   with DemandProducerContract with StreamDemandBinding with ConsumerDemandTracker with StreamAggregatorActorSysevents {
 
 

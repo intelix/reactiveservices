@@ -17,7 +17,7 @@ package rs.core.registry
 
 import akka.actor._
 import rs.core.ServiceKey
-import rs.core.actors.{BaseActorSysevents, BasicActor}
+import rs.core.actors.{BaseActorSysevents, SingleStateActor}
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.{RegistryLocation, RegistryLocationRequest}
 
@@ -42,7 +42,7 @@ object ServiceRegistryActor {
 }
 
 class ServiceRegistryActor(id: String)
-  extends BasicActor
+  extends SingleStateActor
   with ServiceRegistrySysevents {
 
   private var services: Map[ServiceKey, List[ActorRef]] = Map.empty

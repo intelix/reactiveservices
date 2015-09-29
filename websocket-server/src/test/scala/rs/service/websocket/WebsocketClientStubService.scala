@@ -1,3 +1,18 @@
+/*
+ * Copyright 2014-15 Intelix Pty Ltd
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package rs.service.websocket
 
 import akka.actor.{ActorRef, FSM, Props, Stash}
@@ -11,7 +26,7 @@ import rs.core.services.{ServiceCell, ServiceCellSysevents}
 import rs.core.stream._
 import rs.core.sysevents.WithSyseventPublisher
 import rs.service.websocket.WebSocketClient.{Connecting, Established, WebsocketConnection}
-import rs.service.websocket.WebsocketClientStubService.{CloseSubscriptionFromStub, Evt, OpenSubscriptionFromStub, StartWebsocketClient}
+import rs.service.websocket.WebsocketClientStubService._
 import spray.can.Http.Connect
 import spray.can.server.UHttp
 import spray.can.websocket.frame.{BinaryFrame, TextFrame}
@@ -51,9 +66,13 @@ object WebsocketClientStubService {
 
   case class StartWebsocketClient(id: String, host: String, port: Int)
 
-  case class OpenSubscriptionFromStub(subj: Subject)
+  case class OpenSubscriptionFromStub(subj: Subject, priorityKey: Option[String] = None, aggregationIntervalMs: Int = 0)
 
   case class CloseSubscriptionFromStub(subj: Subject)
+
+  case class ResetSubscriptionFromStub(subj: Subject)
+
+  case class SignalFromStub(subj: Subject, payload: Any, expireAt: Long, orderingGroup: Option[Any], correlationId: Option[Any])
 
 }
 
@@ -158,11 +177,14 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
         ReceivedSignalAckFailed('alias -> alias, 'correlation -> correlation, 'payload -> payload)
     }
 
-    case OpenSubscriptionFromStub(subj) =>
-      self ! BinaryDialectOpenSubscription(aliasFor(subj))
+    case OpenSubscriptionFromStub(subj, key, aggrInt) =>
+      self ! BinaryDialectOpenSubscription(aliasFor(subj), key, aggrInt)
     case CloseSubscriptionFromStub(subj) =>
       self ! BinaryDialectCloseSubscription(aliasFor(subj))
-
+    case ResetSubscriptionFromStub(subj) =>
+      self ! BinaryDialectResetSubscription(aliasFor(subj))
+    case SignalFromStub(subj, payload, expireAt, group, correlation) =>
+      self ! BinaryDialectSignal(aliasFor(subj), payload, expireAt, group, correlation)
 
   }
 

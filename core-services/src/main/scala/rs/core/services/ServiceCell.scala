@@ -15,13 +15,13 @@
  */
 package rs.core.services
 
-import akka.actor.{ActorRef, Address, Deploy}
+import akka.actor.{Actor, ActorRef, Address, Deploy}
 import akka.remote.RemoteScope
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.ServiceConfig
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
-import rs.core.services.FSMServiceCell._
+import rs.core.services.BaseServiceCell._
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
 import rs.core.stream.{StreamPublishers, StreamState, StreamStateTransition}
@@ -31,7 +31,7 @@ import rs.core.{ServiceKey, Subject}
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-object FSMServiceCell {
+object BaseServiceCell {
 
   case object StopRequest
 
@@ -67,10 +67,19 @@ trait ServiceCellSysevents extends BaseActorSysevents with RemoteStreamsBroadcas
   val SubjectMappingError = "SubjectMappingError".warn
 }
 
-abstract class ServiceCell(id: String) extends FSMServiceCell(id) with BasicActor
 
-abstract class FSMServiceCell(id: String)
-  extends FSMActor
+trait WithId {
+  def id: String
+}
+
+abstract class ServiceCell(id: String) extends ServiceWithId(id) with SingleStateActor with BaseServiceCell
+abstract class FSMServiceCell(id: String) extends ServiceWithId(id) with FSMActor with BaseServiceCell
+
+abstract class ServiceWithId(override val id: String) extends Actor with WithId
+
+trait BaseServiceCell
+  extends BaseActor
+  with WithId
   with WithCHMetrics
   with ClusterAwareness
   with SimpleInMemoryAcknowledgedDelivery
@@ -81,14 +90,13 @@ abstract class FSMServiceCell(id: String)
   with ServiceCellSysevents
   with WithGlobalConfig {
 
+  implicit lazy val serviceCfg = ServiceConfig(config.asConfig(id))
+  lazy val serviceKey: ServiceKey = id
 
   type SubjectToStreamKeyMapper = PartialFunction[Subject, Option[StreamId]]
   type StreamKeyToUnit = PartialFunction[StreamId, Unit]
   type SignalHandler = PartialFunction[(Subject, Any), Option[SignalResponse]]
 
-  implicit val serviceCfg = ServiceConfig(config.asConfig(id))
-
-  val serviceKey: ServiceKey = id
   val nodeRoles: Set[String] = Set.empty
   private var subjectToStreamKeyMapperFunc: SubjectToStreamKeyMapper = {
     case _ => None
@@ -166,6 +174,8 @@ abstract class FSMServiceCell(id: String)
       ctx +('stream -> key, 'ref -> sender())
       reopenStream(sender(), key)
     }
+    case StopRequest => context.parent ! StopRequest
+
   }
 
 
@@ -230,6 +240,7 @@ abstract class FSMServiceCell(id: String)
       }
     }
     if (!hasAgentWithInterestIn(streamKey)) IdleStream { ctx =>
+      ctx +('stream -> streamKey)
       activeStreams -= streamKey
       streamPassiveFunc(streamKey)
     }

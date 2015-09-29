@@ -20,7 +20,7 @@ import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
 import net.ceedubs.ficus.Ficus._
-import rs.core.actors.{BasicActor, BaseActorSysevents, WithGlobalConfig}
+import rs.core.actors.{SingleStateActor, BaseActorSysevents, WithGlobalConfig}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.GlobalConfig
 import rs.core.sysevents.WithSyseventPublisher
@@ -51,7 +51,7 @@ object ServiceClusterGuardianActor {
 }
 
 class ServiceClusterGuardianActor(config: Config)
-  extends BasicActor
+  extends SingleStateActor
   with ServiceClusterGuardianSysevents
   with StrictLogging
   with WithSyseventPublisher

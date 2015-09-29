@@ -16,14 +16,14 @@
 package rs.core.services.internal
 
 import akka.actor.ActorRef
-import rs.core.actors.BasicActor
+import rs.core.actors.{BaseActor, SingleStateActor}
 import rs.core.services.{MessageId, Newer, Unknown}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait DuplicateMessageTracker extends BasicActor {
+trait DuplicateMessageTracker extends BaseActor {
 
   private case object Purge
 

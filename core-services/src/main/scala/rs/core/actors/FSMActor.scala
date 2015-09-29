@@ -16,7 +16,7 @@
 
 package rs.core.actors
 
-import akka.actor.{ActorRef, FSM, Terminated}
+import akka.actor.{Actor, ActorRef, FSM, Terminated}
 import com.typesafe.scalalogging.StrictLogging
 import rs.core.sysevents.WithSyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
@@ -36,10 +36,68 @@ trait BaseActorSysevents extends ComponentWithBaseSysevents {
 
 trait ActorState
 
+trait FSMActor extends FSM[ActorState, Any] with BaseActor {
+  @throws[Exception](classOf[Exception])
+  override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
+    super.preRestart(reason, message)
+    initialize()
+  }
 
-trait FSMActor
-  extends FSM[ActorState, Any]
-  with ActorUtils
+  @throws[Exception](classOf[Exception])
+  override def preStart(): Unit = {
+    super.preStart()
+    initialize()
+  }
+
+
+
+  def transitionTo(state: ActorState) = {
+    if (stateName != state) StateChange('to -> state, 'from -> stateName)
+    goto(state)
+  }
+
+
+  private var chainedUnhandled: StateFunction = {
+    case Event(Terminated(ref), _) =>
+      terminatedFuncChain.foreach(_ (ref))
+      stay()
+  }
+
+  final def whenUnhandledChained(f: StateFunction) = {
+    chainedUnhandled = f orElse chainedUnhandled
+  }
+
+  whenUnhandled {
+    case x if chainedUnhandled.isDefinedAt(x) => chainedUnhandled(x)
+  }
+
+
+  final override def onMessage(f: Receive) = whenUnhandledChained {
+    case Event(x, _) if f.isDefinedAt(x) =>
+      f(x)
+      stay()
+  }
+
+
+}
+
+trait JBaseActor extends BaseActor {
+
+  private var chainedFunc: Receive = {
+    case Terminated(ref) => terminatedFuncChain.foreach(_ (ref))
+  }
+
+  override final def onMessage(f: Receive): Unit = chainedFunc = f orElse chainedFunc
+
+  override final val receive: Actor.Receive = {
+    case x if chainedFunc.isDefinedAt(x) => chainedFunc(x)
+    case x => unhandled(x)
+  }
+}
+
+
+trait BaseActor
+  extends ActorUtils
   with WithInstrumentationHooks
   with StrictLogging
   with BaseActorSysevents
@@ -52,7 +110,7 @@ trait FSMActor
   private lazy val ArrivalRateMeter = meterSensor(ActorMetricGroup, Metrics.ArrivalRate)
   private lazy val FailureRateMeter = meterSensor(ActorMetricGroup, Metrics.FailureRate)
 
-  private var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
+  protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
 
   def onActorTerminated(f: ActorRef => Unit) = terminatedFuncChain = terminatedFuncChain :+ f
 
@@ -65,7 +123,6 @@ trait FSMActor
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
     PreRestart('reason -> reason.getMessage, 'msg -> message, 'path -> self.path.toStringWithoutAddress)
     super.preRestart(reason, message)
-    initialize()
   }
 
 
@@ -80,36 +137,16 @@ trait FSMActor
   override def preStart(): Unit = {
     PreStart('path -> self.path.toStringWithoutAddress)
     super.preStart()
-    initialize()
   }
 
   @throws[Exception](classOf[Exception])
   override def postStop(): Unit = {
     super.postStop()
-    PostStop('path -> self.path.toStringWithoutAddress, 'state -> stateName)
+    PostStop('path -> self.path.toStringWithoutAddress)
   }
 
-  def transitionTo(state: ActorState) = {
-    if (stateName != state) StateChange('to -> state, 'from -> stateName)
-    goto(state)
-  }
 
-  private var chainedUnhandled: StateFunction = {
-    case Event(Terminated(ref), _) =>
-      terminatedFuncChain.foreach(_ (ref))
-      stay()
-  }
-
-  final def whenUnhandledChained(f: StateFunction) = {
-    chainedUnhandled = f orElse chainedUnhandled
-    whenUnhandled(chainedUnhandled)
-  }
-
-  final def onMessage(f: Receive) = whenUnhandledChained {
-    case Event(x, _) if f.isDefinedAt(x) =>
-      f(x)
-      stay()
-  }
+  def onMessage(f: Receive)
 
 
 }

@@ -15,13 +15,12 @@
  */
 package rs.core.actors
 
-import akka.actor.Address
+import akka.actor.{Actor, Address}
 import akka.cluster.ClusterEvent._
 import akka.cluster.Member
+import rs.core.services.BaseServiceCell
 
-trait ClusterAwareness extends ClusterMembershipEventSubscription {
-
-  _: FSMActor =>
+trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription {
 
   var reachableMembers: Map[Address, Member] = Map.empty
 
@@ -65,7 +64,6 @@ trait ClusterAwareness extends ClusterMembershipEventSubscription {
       if (!wasLeader && isClusterLeader) clusterLeaderTakeoverChain.foreach(_.apply())
       clusterLeaderChangedChain.foreach(_.applyOrElse(l, (_: Any) => ()))
     }
-
 
   onMessage {
 //    case CurrentClusterState(m, u, _, l, _) =>

@@ -19,7 +19,7 @@ import akka.actor.{ActorRef, PoisonPill, Props}
 import akka.stream.actor.ActorSubscriberMessage.{OnComplete, OnError, OnNext}
 import akka.stream.actor.{ActorSubscriber, RequestStrategy, WatermarkRequestStrategy}
 import rs.core.ServiceKey
-import rs.core.actors.BasicActor
+import rs.core.actors.SingleStateActor
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages._
 import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
@@ -37,7 +37,7 @@ trait ServicePortSubscriptionRequestSinkSysevents extends ComponentWithBaseSysev
 
 
 trait ServicePortSubscriptionRequestSink
-  extends BasicActor
+  extends SingleStateActor
   with RegistryRef
   with ServicePortSubscriptionRequestSinkSysevents {
 

@@ -15,6 +15,7 @@
  */
 package rs.examples.counter;
 
+import akka.actor.Actor;
 import rs.core.Subject;
 import rs.core.javaapi.JServiceCell;
 import rs.core.stream.DictionaryMapStreamState.Dictionary;
@@ -23,9 +24,6 @@ import scala.Option;
 import java.util.HashSet;
 import java.util.LinkedList;
 
-public class JCounterService {}
-
-/*
 public class JCounterService extends JServiceCell {
 
     public JCounterService(String id) {
@@ -41,6 +39,7 @@ public class JCounterService extends JServiceCell {
 
             @Override
             public void handle(String v) {
+
                 streamSetAdd("counterset", "jset-" + counter);
                 streamSetRemove("counterset", "jset-" + (counter - 20));
                 streamString("ticker", "jhello-" + (counter++));
@@ -78,8 +77,10 @@ public class JCounterService extends JServiceCell {
         onTopicSubscription("map", "map");
 
         scheduleOnceToSelf(1000, "tick");
+
     }
+
 }
 
-*/
+
 

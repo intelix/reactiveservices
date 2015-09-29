@@ -20,7 +20,7 @@ import java.util
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{FSMServiceCell, ServiceCell, StreamId}
+import rs.core.services.{BaseServiceCell, StreamId}
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 
 import scala.language.implicitConversions
@@ -111,7 +111,7 @@ case class DictionaryMapStreamTransitionPartial(seed: Int, seq: Int, seq2: Int, 
     case _ => false
   }
 
-  override lazy val toString: String = s"""DictionaryMapStreamTransitionPartial($seed,$seq,$seq2,${diffs.mkString("[",",","]")})"""
+  override lazy val toString: String = s"""DictionaryMapStreamTransitionPartial($seed,$seq,$seq2,${diffs.mkString("[", ",", "]")})"""
 
 
 }
@@ -127,8 +127,9 @@ class DictionaryMap(dict: Dictionary, values: Array[Any]) {
     case -1 => defaultValue
     case i => values(i).asInstanceOf[T]
   }
+
   lazy val asMap = dict.fields.zipWithIndex.map {
-    case (v,k) => v -> values(k)
+    case (v, k) => v -> values(k)
   }.toMap
 }
 
@@ -164,7 +165,7 @@ trait JDictionaryMapStreamPublisher extends DictionaryMapStreamPublisher {
 }
 
 trait DictionaryMapStreamPublisher {
-  self: FSMServiceCell =>
+  self: BaseServiceCell =>
 
   def ?#(s: StreamId): Option[DictionaryMapStreamState] = currentStreamState(s) flatMap {
     case s: DictionaryMapStreamState => Some(s)

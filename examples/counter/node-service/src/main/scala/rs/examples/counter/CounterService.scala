@@ -60,12 +60,10 @@ class CounterService(id: String) extends ServiceCell(id) with StringStreamPublis
 
     case StreamId("token", _) => "token" !~ "tok123"
     case StreamId("permissions", _) => "permissions" !~ "allow_*"
-
-    case key => logger.info(s"!>>>> Stream active $key")
   }
 
   onStreamPassive {
-    case key => logger.info(s"!>>>> Stream passive $key")
+    case key => logger.info(s"Stream passive $key")
   }
 
   onSubjectSubscription {

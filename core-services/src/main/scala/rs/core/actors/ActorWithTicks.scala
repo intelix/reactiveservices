@@ -16,11 +16,13 @@
 
 package rs.core.actors
 
+import akka.actor.Actor
+
 import scala.concurrent.duration._
 
 private case class CallbackRequest(f: () => Unit, intervalMs: Long, lastCallTs: Long)
 
-trait ActorWithTicks extends BasicActor {
+trait ActorWithTicks extends BaseActor {
 
   implicit private val ec = context.dispatcher
 

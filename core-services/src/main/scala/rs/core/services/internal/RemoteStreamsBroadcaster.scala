@@ -18,7 +18,7 @@ package rs.core.services.internal
 import java.util
 
 import akka.actor.ActorRef
-import rs.core.actors.BasicActor
+import rs.core.actors.BaseActor
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.stream.{StreamState, StreamStateTransition}
@@ -34,8 +34,7 @@ trait RemoteStreamsBroadcasterSysevents extends ComponentWithBaseSysevents {
   val StreamUpdateSent = "StreamUpdateSent".trace
 }
 
-trait RemoteStreamsBroadcaster extends RemoteStreamsBroadcasterSysevents {
-  this: BasicActor =>
+trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSysevents {
 
   private val targets: mutable.Map[ActorRef, ConsumerWithStreamSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, StreamBroadcaster] = mutable.HashMap()
@@ -64,7 +63,7 @@ trait RemoteStreamsBroadcaster extends RemoteStreamsBroadcasterSysevents {
     ctx +('stream -> key, 'ref -> ref)
     val target = targets getOrElse(ref, newTarget(ref))
     val stream = streams getOrElse(key, {
-      ctx +('broadcaster -> "new")
+      ctx + ('broadcaster -> "new")
       newStreamBroadcaster(key)
     })
 

@@ -16,7 +16,7 @@
 package rs.core.services.internal
 
 import akka.actor.{ActorRef, Props}
-import rs.core.actors.{BasicActor, BaseActorSysevents}
+import rs.core.actors.{SingleStateActor, BaseActorSysevents}
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages.Signal
 import rs.core.services.internal.InternalMessages.SignalPayload
@@ -30,7 +30,7 @@ object SignalPort {
 }
 
 class SignalPort
-  extends BasicActor
+  extends SingleStateActor
   with SimpleInMemoryAckedDeliveryWithDynamicRouting
   with RegistryRef
   with SignalPortSysevents {

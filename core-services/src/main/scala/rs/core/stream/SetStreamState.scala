@@ -19,8 +19,8 @@ import java.util
 
 import rs.core.Subject
 import rs.core.javaapi.JServiceCell
-import rs.core.services.{FSMServiceCell, StreamId, ServiceCell}
 import rs.core.services.endpoint.StreamConsumer
+import rs.core.services.{BaseServiceCell, StreamId}
 import rs.core.stream.SetStreamState._
 
 import scala.language.implicitConversions
@@ -111,7 +111,7 @@ trait JSetStreamPublisher extends SetStreamPublisher {
 
 
 trait SetStreamPublisher {
-  self: FSMServiceCell =>
+  self: BaseServiceCell =>
 
   implicit def toSetPublisher(v: String): SetPublisher = SetPublisher(v)
 

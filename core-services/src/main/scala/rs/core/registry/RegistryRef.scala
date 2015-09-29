@@ -17,7 +17,7 @@ package rs.core.registry
 
 import akka.actor.ActorRef
 import rs.core.ServiceKey
-import rs.core.actors.FSMActor
+import rs.core.actors.{BaseActor, FSMActor}
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.RegistryLocation
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
@@ -31,7 +31,7 @@ trait RegistryRefSysevents extends ComponentWithBaseSysevents {
   val ServiceLocationUpdate = "ServiceLocationUpdate".trace
 }
 
-trait RegistryRef extends FSMActor with RegistryRefSysevents {
+trait RegistryRef extends BaseActor with RegistryRefSysevents {
 
   type LocationHandler = PartialFunction[(ServiceKey, Option[ActorRef]), Unit]
 

@@ -1,10 +1,10 @@
 package rs.testing.components
 
-import rs.core.SubjectKeys.UserId
+import rs.core.SubjectKeys.{UserToken, UserId}
 import rs.core.actors.ClusterAwareness
 import rs.core.config.ConfigOps.wrap
 import rs.core.registry.RegistryRef
-import rs.core.services.FSMServiceCell.StopRequest
+import rs.core.services.BaseServiceCell.StopRequest
 import rs.core.services.{ServiceCell, ServiceCellSysevents, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromTail, FromHead, RejectAdd, ListSpecs}
@@ -71,6 +71,9 @@ class TestServiceActor(id: String) extends ServiceCell(id) with Evt with Cluster
     case s@StreamId("string", x) =>
       StreamActive('stream -> s)
       StreamId("string", x) !~ TestServiceActor.AutoStringReply
+    case s@StreamId("stringX", x) =>
+      StreamActive('stream -> s)
+      StreamId("stringX", x) !~ TestServiceActor.AutoStringReply + "X"
     case s@StreamId("set", x) =>
       StreamActive('stream -> s)
       StreamId("set", x) !% TestServiceActor.AutoSetReply
@@ -104,6 +107,7 @@ class TestServiceActor(id: String) extends ServiceCell(id) with Evt with Cluster
     case Subject(_, TopicKey("string"), _) => Some("string")
     case Subject(_, TopicKey("string1"), _) => Some("string")
     case Subject(_, TopicKey("string2"), _) => Some("string")
+    case Subject(_, TopicKey("stringX"), _) => Some("stringX")
     case Subject(_, TopicKey("stringWithId"), UserId(i)) => Some(StreamId("string", Some(i)))
 
     case Subject(_, TopicKey("set"), _) => Some("set")
@@ -114,7 +118,6 @@ class TestServiceActor(id: String) extends ServiceCell(id) with Evt with Cluster
   }
 
   onMessage {
-    case StopRequest => context.parent ! StopRequest
     case PublishString(sId, v) => sId !~ v
     case PublishSet(sId, v) => sId !% v
     case PublishSetAdd(sId, v) => v.foreach(sId !%+ _)
