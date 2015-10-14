@@ -27,17 +27,24 @@ import scala.language.postfixOps
 abstract class JServiceCell(id: String)
   extends ServiceWithId(id) with JBaseActor with BaseServiceCell with JStringStreamPublisher with JListStreamPublisher with JSetStreamPublisher with JDictionaryMapStreamPublisher {
 
+  self: Actor =>
+
   trait MessageCallback[T] {
     def handle(v: T)
   }
 
   trait StreamStateCallback {
-    def handle(streamRef: String)
+    def handle(streamRef: StreamId)
   }
 
   trait SubjectMapper {
-    def map(subject: Subject): String
+    def map(subject: Subject): StreamId
   }
+
+  trait SubjectMatcher {
+    def isMatch(subject: Subject): Boolean
+  }
+
 
   abstract class SignalCallback {
     def success(): Option[SignalResponse] = Some(SignalOk())
@@ -74,10 +81,22 @@ abstract class JServiceCell(id: String)
     }
   }
 
+  final def onStreamPassive(streamRef: String, callback: StreamStateCallback): Unit = {
+    onStreamPassive {
+      case x: StreamId if x.id == streamRef => callback.handle(x.id)
+    }
+  }
+
   final def onSignalForTopic(topic: String, callback: SignalCallback): Unit = {
     onSignal {
       case (s, p) if s.topic.id == topic || s.topic.id.startsWith(topic) =>
         callback.handle(s, p)
+    }
+  }
+
+  final def onTopicSubscription(topic: String, streamRef: StreamId): Unit = {
+    onSubjectSubscription {
+      case s if s.topic.id == topic => Some(streamRef)
     }
   }
 
@@ -90,6 +109,11 @@ abstract class JServiceCell(id: String)
   final def onTopicSubscription(topic: String, mapper: SubjectMapper): Unit = {
     onSubjectSubscription {
       case s if s.topic.id == topic => Some(mapper.map(s))
+    }
+  }
+  final def onSubjectSubscription(subject: SubjectMatcher, mapper: SubjectMapper): Unit = {
+    onSubjectSubscription {
+      case s if subject.isMatch(s) => Some(mapper.map(s))
     }
   }
 

@@ -32,7 +32,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
     var TypeByte = 2;
     var TypeShort = 3;
     var TypeInt = 4;
-    //var TypeLong = 5; // TODO
+    var TypeLong = 5;
     var TypeFloat = 6;
     var TypeDouble = 7;
     var TypeBoolean = 8;
@@ -308,6 +308,10 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
         return frame.getInt32();
     }
 
+    function _readLong(frame) {
+        return frame.getInt64();
+    }
+
     function _readFloat(frame) {
         return frame.getFloat32();
     }
@@ -368,6 +372,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
     _addDecoder(TypeByte, _readByte);
     _addDecoder(TypeShort, _readShort);
     _addDecoder(TypeInt, _readInt);
+    _addDecoder(TypeLong, _readLong);
     _addDecoder(TypeFloat, _readFloat);
     _addDecoder(TypeDouble, _readDouble);
     _addDecoder(TypeBoolean, _readBoolean);

@@ -160,7 +160,13 @@ trait JDictionaryMapStreamPublisher extends DictionaryMapStreamPublisher {
 
   def streamMapSnapshot(streamRef: String, values: util.Map[String, Any], dict: Dictionary) = streamRef.!#(values.toMap)(dict)
 
+  def streamMapSnapshot(streamRef: StreamId, values: Array[Any], dict: Dictionary) = streamRef.!#(values)(dict)
+
+  def streamMapSnapshot(streamRef: StreamId, values: util.Map[String, Any], dict: Dictionary) = streamRef.!#(values.toMap)(dict)
+
   def streamMapPut(streamRef: String, values: util.Map[String, Any], dict: Dictionary) = streamRef.!#+(values.toMap)(dict)
+
+  def streamMapPut(streamRef: StreamId, values: util.Map[String, Any], dict: Dictionary) = streamRef.!#+(values.toMap)(dict)
 
 }
 

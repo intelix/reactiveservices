@@ -325,7 +325,6 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions'],
                         if (currentlyVisible) {
                             self._reopenAllSubscriptions();
                         } else {
-                            self.logInfo("Invisible");
                             self._closeAllSubscriptions();
                         }
                     }

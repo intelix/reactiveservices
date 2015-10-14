@@ -151,6 +151,17 @@ trait JListStreamPublisher extends ListStreamPublisher {
   def streamListRemoveValue(s: String, v: String): Unit = s !:-? v
 
   def streamListReplaceValue(s: String, v: String, newV: String): Unit = s !:*?(v, newV)
+
+  def streamListAdd(s: StreamId, pos: Int, v: String): Unit = s !:+(pos, v)
+
+  def streamListRemove(s: StreamId, pos: Int): Unit = s !:- pos
+
+  def streamListReplace(s: StreamId, pos: Int, v: String): Unit = s !:*(pos, v)
+
+  def streamListRemoveValue(s: StreamId, v: String): Unit = s !:-? v
+
+  def streamListReplaceValue(s: StreamId, v: String, newV: String): Unit = s !:*?(v, newV)
+
 }
 
 
