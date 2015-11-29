@@ -23,6 +23,10 @@ import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, Matchers}
 import org.slf4j.LoggerFactory
+import rs.testing.CoreServiceTest.LookupLocation
+
+import scala.concurrent.duration.{DurationInt, FiniteDuration}
+import scala.language.{postfixOps, implicitConversions}
 
 trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEach with BeforeAndAfterAll with StrictLogging {
   self: org.scalatest.Suite =>
@@ -43,6 +47,7 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
 
   override protected def afterAll() {
     super.afterAll()
+    specs = List()
     logger.warn("**** > Finished " + this.getClass)
   }
 
@@ -190,5 +195,48 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
       e.get(event).get should haveAllValues(count, values)
     }
   }
+
+
+  var specs: List[MatchSpec] = List()
+
+  case class LookupLocation()
+
+  val node1 = LookupLocation()
+  val node2 = LookupLocation()
+
+  class MatchSpec(e: Sysevent) {
+    specs :+= this
+
+    var fields: Seq[(Symbol, Any)] = Seq()
+    var location: Option[LookupLocation] = None
+    var presenceExpected: Boolean = true
+    var waitTimeout: FiniteDuration = 5 seconds
+
+    def matching(x: (Symbol, Any)*) = {
+      fields = x.toSeq
+      this
+    }
+
+    def expectedOn(s: LookupLocation) = {
+      location = Some(s)
+      presenceExpected = true
+      this
+    }
+    def notExpectedOn(s: LookupLocation) = {
+      location = Some(s)
+      presenceExpected = false
+      this
+    }
+
+    def within(i: FiniteDuration) = {
+      waitTimeout = i
+      this
+    }
+  }
+
+  implicit def convertToMatchSpec(e: Sysevent):MatchSpec = new MatchSpec(e)
+
+
+
 
 }

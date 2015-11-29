@@ -21,6 +21,7 @@ import rs.core.registry.ServiceRegistrySysevents
 import rs.core.services.BaseServiceCell.StopRequest
 import rs.core.services.StreamId
 import rs.core.stream.ListStreamState.{ListSpecs, RejectAdd}
+import rs.core.sysevents.Sysevent
 import rs.node.core.ServiceNodeActor
 import rs.node.core.discovery.UdpClusterManagerActor
 import rs.testing.components.TestServiceActor._
@@ -28,7 +29,7 @@ import rs.testing.components.TestServiceConsumer.{Close, Open, SendSignal}
 import rs.testing.components.{ClusterAwareService, TestServiceActor, TestServiceConsumer}
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
+import scala.language.{implicitConversions, postfixOps}
 
 class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with IsolatedActorSystems {
 
@@ -58,7 +59,22 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     override def node3Services: Map[String, Class[_]] = super.node3Services + ("test" -> classOf[ClusterAwareService])
   }
 
+
+
+
+
   "Cluster-aware service on single node" should "receive MemberUp notification from own node" in new WithClusterAwareServiceOn1 {
+
+    import ClusterAwareService.Evt._
+
+    MemberUp matching 'addr -> node1Address expectedOn node2 within (1 second)
+
+
+    //this exp 1 of ClusterAwareService.Evt.MemberUp
+
+
+
+
     onNode1ExpectExactlyOneEvent(ClusterAwareService.Evt.MemberUp, 'addr -> node1Address)
   }
   it should "become a leader" in new WithClusterAwareServiceOn1 {
