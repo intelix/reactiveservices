@@ -28,7 +28,7 @@ import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
 import rs.core.services.internal.acks.Acknowledgeable
 import rs.core.stream.{StreamState, StreamStateTransition}
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.{ServiceKey, Subject}
 
@@ -267,7 +267,7 @@ private class LocalSubjectStreamSink(val streamKey: StreamId, subj: Subject, can
 }
 
 
-private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String) extends ConsumerDemandTracker with WithSyseventPublisher with NodeLocalServiceStreamEndpointSysevents {
+private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String) extends ConsumerDemandTracker with WithSysevents with NodeLocalServiceStreamEndpointSysevents {
   private val subjectToSink: mutable.Map[Subject, LocalSubjectStreamSink] = mutable.HashMap()
   private val streams: util.ArrayList[LocalSubjectStreamSink] = new util.ArrayList[LocalSubjectStreamSink]()
   private val canUpdate = () => hasDemand

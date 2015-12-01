@@ -58,7 +58,7 @@ object ServiceNodeActor {
 }
 
 
-class ServiceNodeActor extends FSMActor with Evt {
+class ServiceNodeActor extends FSMActor[Any] with Evt {
 
   private case object Start
 
@@ -177,7 +177,7 @@ class ServiceNodeActor extends FSMActor with Evt {
       if (!startServicesBeforeCluster) startProviders()
   }
 
-  whenUnhandledChained {
+  otherwise {
     case Event(s@ReachableClusters(our, other), state: ServiceNodeData) =>
       ClustersDiscovered('our -> our.map(_.toString), 'other -> other.map(_.toString).mkString(","))
       self ! CheckState

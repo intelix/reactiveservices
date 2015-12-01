@@ -29,7 +29,7 @@ import rs.core.tools.metrics.WithCHMetrics
 import rs.core.{ServiceKey, Subject}
 
 import scala.concurrent.duration._
-import scala.language.postfixOps
+import scala.language.{implicitConversions, postfixOps}
 
 object BaseServiceCell {
 
@@ -73,7 +73,7 @@ trait WithId {
 }
 
 abstract class ServiceCell(id: String) extends ServiceWithId(id) with SingleStateActor with BaseServiceCell
-abstract class FSMServiceCell(id: String) extends ServiceWithId(id) with FSMActor with BaseServiceCell
+abstract class FSMServiceCell[T](id: String) extends ServiceWithId(id) with FSMActor[T] with BaseServiceCell
 
 abstract class ServiceWithId(override val id: String) extends Actor with WithId
 
@@ -113,7 +113,7 @@ trait BaseServiceCell
   private var activeStreams: Set[StreamId] = Set.empty
   private var activeAgents: Map[Address, AgentView] = Map.empty
 
-  final def onSubjectSubscription(f: SubjectToStreamKeyMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
+  final def onSubscription(f: SubjectToStreamKeyMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
 
   final def onStreamActive(f: StreamKeyToUnit): Unit = streamActiveFunc = f orElse streamActiveFunc
 
@@ -128,6 +128,8 @@ trait BaseServiceCell
   final def currentStreamState(key: StreamId): Option[StreamState] = stateOf(key)
 
   final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
+
+  implicit def signalResponseToOptionWrapper(x: SignalResponse): Option[SignalResponse] = Some(x)
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
 

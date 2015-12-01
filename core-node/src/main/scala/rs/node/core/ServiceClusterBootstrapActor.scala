@@ -24,7 +24,7 @@ import rs.core.actors.{BaseActorSysevents, SingleStateActor, WithGlobalConfig}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.GlobalConfig
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 import scala.concurrent.duration.DurationInt
@@ -47,7 +47,7 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
   extends SingleStateActor
   with StrictLogging
   with ServiceClusterBootstrapSysevents
-  with WithSyseventPublisher
+  with WithSysevents
   with WithGlobalConfig {
 
   //  private val blockingWaitTimeout = cfg[FiniteDuration]("node.cluster.termination-wait-timeout", 10 seconds)

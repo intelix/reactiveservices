@@ -37,7 +37,7 @@ trait Terminal
   with ListStreamConsumer
   with DemandProducerContract {
 
-  _: FSMActor =>
+  _: FSMActor[_] =>
 
 
   override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(componentId), "stream-aggregator")

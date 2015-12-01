@@ -17,7 +17,6 @@ package rs.core.sysevents
 
 import scala.language.implicitConversions
 
-
 trait SyseventComponent {
 
   implicit val component = this
@@ -26,10 +25,10 @@ trait SyseventComponent {
 
   implicit def symbolToSyseventOps(s: Symbol): SyseventOps = new SyseventOps(s.name, this)
 
-  def trace(id: String) = new TraceSysevent(id, componentId)
-  def info(id: String) = new InfoSysevent(id, componentId)
-  def warn(id: String) = new WarnSysevent(id, componentId)
-  def error(id: String) = new ErrorSysevent(id, componentId)
+  def trace(id: String) = TraceSysevent(id, componentId)
+  def info(id: String) = InfoSysevent(id, componentId)
+  def warn(id: String) = WarnSysevent(id, componentId)
+  def error(id: String) = ErrorSysevent(id, componentId)
 
   def componentId: String
 }

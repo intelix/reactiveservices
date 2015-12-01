@@ -89,7 +89,7 @@ abstract class UserAuthenticationActor(id: String)
       None
   }
 
-  onSubjectSubscription {
+  onSubscription {
     case s@Subject(_, TopicKey("token"), UserToken(ut)) => Some(tokenStream(ut))
     case Subject(_, TopicKey("permissions"), UserToken(ut)) => Some(permissionsStream(ut))
     case Subject(_, TopicKey("info"), UserToken(ut)) => Some(infoStream(ut))

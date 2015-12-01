@@ -17,7 +17,6 @@
 package rs.core.sysevents.ref
 
 import rs.core.sysevents.SyseventComponent
-import rs.core.sysevents.SyseventOps.symbolToSyseventOps
 
 trait ComponentWithBaseSysevents extends SyseventComponent {
 

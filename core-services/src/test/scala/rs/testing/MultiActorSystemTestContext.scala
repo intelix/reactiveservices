@@ -5,9 +5,9 @@ import com.typesafe.config._
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import org.slf4j.LoggerFactory
 import rs.core.actors.SingleStateActor
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
-import rs.core.sysevents.support.EventAssertions
+import rs.core.sysevents.support.{WithSyseventsCollector, EventAssertions}
 import rs.core.tools.UUIDTools
 
 import scala.concurrent.Await
@@ -55,7 +55,7 @@ private object WatcherActor extends WatcherSysevents {
   def props(componentId: String) = Props(new WatcherActor(componentId))
 }
 
-private class WatcherActor(id: String) extends SingleStateActor with WatcherSysevents with WithSyseventPublisher {
+private class WatcherActor(id: String) extends SingleStateActor with WatcherSysevents with WithSysevents {
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('InstanceId -> id)
 
   var watched = Set[ActorRef]()
@@ -99,7 +99,7 @@ case class ConfigFromContents(contents: String) extends ConfigReference {
   override def toConfig: String = contents + "\n"
 }
 
-trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSystemTestContextSysevents with WithSyseventPublisher {
+trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSystemTestContextSysevents with WithSyseventsCollector with WithSysevents {
   self: Suite with ActorSystemManagement with EventAssertions =>
 
   object OnlyThisTest extends Tag("OnlyThisTest")
@@ -119,7 +119,7 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
       val actor = Await.result(futureActor, 5.seconds)
       DestroyingActor('Actor -> actor)
       underlyingSystem.stop(actor)
-      expectSomeEventsWithTimeout(5000, WatcherActor.WatchedActorGone, 'Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
+      on anyNode expectSome of WatcherActor.WatchedActorGone + ('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
       clearComponentEvents(watcherComponentId)
     }
 
@@ -142,7 +142,7 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
       clearComponentEvents(watcherComponentId)
       if (!underlyingSystem.isTerminated) {
         watcher ! StopAll()
-        expectSomeEventsWithTimeout(15000, WatcherActor.AllWatchedActorsGone, 'InstanceId -> watcherComponentId)
+        on anyNode expectSome of WatcherActor.AllWatchedActorsGone + ('InstanceId -> watcherComponentId)
       }
       clearComponentEvents(watcherComponentId)
       AllActorsTerminated('TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000, 'System -> configName)

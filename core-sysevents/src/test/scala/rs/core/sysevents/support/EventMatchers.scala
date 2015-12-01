@@ -15,9 +15,8 @@
  */
 package rs.core.sysevents.support
 
-import core.sysevents.FieldAndValue
-import rs.core.sysevents._
 import org.scalatest.matchers.{MatchResult, Matcher}
+import rs.core.sysevents._
 
 import scala.util.matching.Regex
 
@@ -25,7 +24,7 @@ case class EventFieldMatcher(f: String => Boolean)
 
 trait EventMatchers {
 
-  class ContainsAllFields(count: Option[Range], values: Seq[FieldAndValue]) extends Matcher[List[Seq[FieldAndValue]]] {
+  class ContainsAllFields(e: Sysevent, count: Option[Range], values: Seq[FieldAndValue]) extends Matcher[List[Seq[FieldAndValue]]] {
     def apply(left: List[Seq[FieldAndValue]]) = {
       val found = if (values.isEmpty) left.size
       else left.count(next =>
@@ -43,12 +42,12 @@ trait EventMatchers {
           case Some(req) => req.contains(found)
           case None => found > 0
         },
-        s"No event with provided field values $values (count=$found)", s"Found event with provided field values $values  (count=$found)"
+        s"[$e] with values $values should be raised $count times, matching found = $found, total events inspected = ${left.size}", s"Found [$e] with values $values, count=$found"
       )
     }
   }
 
-  def haveAllValues(count: Range, values: Seq[FieldAndValue]) = new ContainsAllFields(Some(count),values)
+  def haveAllValues(e: Sysevent, count: Range, values: Seq[FieldAndValue]) = new ContainsAllFields(e, Some(count), values)
 
-  def haveAllValues(values: Seq[FieldAndValue]) = new ContainsAllFields(None, values)
+  def haveAllValues(e: Sysevent, values: Seq[FieldAndValue]) = new ContainsAllFields(e, None, values)
 }

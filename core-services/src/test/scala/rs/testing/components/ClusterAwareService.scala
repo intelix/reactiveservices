@@ -4,7 +4,7 @@ import rs.core.actors.ClusterAwareness
 import rs.core.services.{ServiceCell, ServiceCellSysevents}
 import rs.core.stream.StringStreamPublisher
 
-trait ClusterAwareServiceSysevents extends ServiceCellSysevents {
+object ClusterAwareServiceEvt extends ServiceCellSysevents {
 
   val LeaderChanged = "LeaderChanged".info
   val LeaderHandover = "LeaderHandover".info
@@ -17,13 +17,9 @@ trait ClusterAwareServiceSysevents extends ServiceCellSysevents {
   override def componentId: String = "Test"
 }
 
-object ClusterAwareService {
+class ClusterAwareService(id: String) extends ServiceCell(id) with ClusterAwareness with StringStreamPublisher {
 
-  object Evt extends ClusterAwareServiceSysevents
-
-}
-
-class ClusterAwareService(id: String) extends ServiceCell(id) with ClusterAwareServiceSysevents with ClusterAwareness with StringStreamPublisher {
+  import ClusterAwareServiceEvt._
 
   onLeaderChanged {
     case a => LeaderChanged('addr -> a)

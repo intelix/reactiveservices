@@ -16,29 +16,24 @@
 package rs.core.sysevents.support
 
 import com.typesafe.scalalogging.StrictLogging
-import core.sysevents.FieldAndValue
-import rs.core.sysevents.SyseventOps.symbolToSyseventOps
-import rs.core.sysevents._
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, Matchers}
 import org.slf4j.LoggerFactory
-import rs.testing.CoreServiceTest.LookupLocation
+import rs.core.sysevents._
+import rs.core.sysevents.log.StandardLogMessageFormatterWithDate
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
-import scala.language.{postfixOps, implicitConversions}
+import scala.language.{implicitConversions, postfixOps}
 
-trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEach with BeforeAndAfterAll with StrictLogging {
+trait EventAssertions extends Matchers with WithSyseventsCollector with WithSysevents with EventMatchers with BeforeAndAfterEach with BeforeAndAfterAll with StrictLogging with StandardLogMessageFormatterWithDate {
   self: org.scalatest.Suite =>
 
-  SyseventPublisherRef.ref = new TestSyseventPublisher()
-  SyseventSystemRef.ref = SyseventSystem("test")
+  def clearEvents() = evtPublisher.asInstanceOf[TestSyseventPublisher].clear()
 
-  def clearEvents() =
-    SyseventPublisherRef.ref.asInstanceOf[TestSyseventPublisher].clear()
+  def clearComponentEvents(componentId: String) = evtPublisher.asInstanceOf[TestSyseventPublisher].clearComponentEvents(componentId)
 
-  def clearComponentEvents(componentId: String) =
-    SyseventPublisherRef.ref.asInstanceOf[TestSyseventPublisher].clearComponentEvents(componentId)
+  def events = evtPublisher.asInstanceOf[TestSyseventPublisher].events
 
   override protected def beforeAll(): Unit = {
     logger.warn("**** > Starting " + this.getClass)
@@ -47,7 +42,6 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
 
   override protected def afterAll() {
     super.afterAll()
-    specs = List()
     logger.warn("**** > Finished " + this.getClass)
   }
 
@@ -55,9 +49,8 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
   override protected def afterEach(): Unit = {
     super.afterEach()
     clearEvents()
+    eventTimeout = EventWaitTimeout(8 seconds)
   }
-
-  def events = SyseventPublisherRef.ref.asInstanceOf[TestSyseventPublisher].events
 
   override protected def beforeEach(): Unit = {
     super.beforeEach()
@@ -75,9 +68,9 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
   def printRaisedEvents() = {
     val log = LoggerFactory.getLogger("history")
     log.error("*" * 60 + " RAISED EVENTS: " + "*" * 60)
-    SyseventPublisherRef.ref.asInstanceOf[TestSyseventPublisher].withOrderedEvents { events =>
+    evtPublisher.asInstanceOf[TestSyseventPublisher].withOrderedEvents { events =>
       events.foreach { next =>
-        LoggerSyseventPublisherWithDateHelper.log(next.timestamp, next.event, SyseventSystemRef.ref, next.values, s => log.error(s))
+        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
       }
     }
     log.error("*" * 120 + "\n\n\n\n")
@@ -89,15 +82,15 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
     log2.error("Test failed", x)
     log2.error("*" * 60 + " RAISED EVENTS: " + "*" * 60)
     log2.error("Raised sysevents:")
-    SyseventPublisherRef.ref.asInstanceOf[TestSyseventPublisher].withOrderedEvents { events =>
+    evtPublisher.asInstanceOf[TestSyseventPublisher].withOrderedEvents { events =>
       events.foreach { next =>
-        LoggerSyseventPublisherWithDateHelper.log(next.timestamp, next.event, SyseventSystemRef.ref, next.values, s => log.error(s))
+        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
       }
     }
     log2.error("*" * 120 + "\n\n\n\n")
   }
 
-  def waitWithTimeout(millis: Long)(f: => Unit) = {
+  private def checkForSpecificDuration(millis: Long)(f: => Unit) = {
     val allowedAttempts = millis / 15
     var attempt = 0
     var success = false
@@ -115,15 +108,15 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
       f
     } catch {
       case x: Throwable =>
-        val ctx = SyseventPublisherRef.ref.contextFor(SyseventSystemRef.ref, ErrorSysevent("ExpectationFailed", "Test"), Seq())
-        SyseventPublisherRef.ref.publish(ctx)
+        val ctx = evtPublisher.contextFor(ErrorSysevent("ExpectationFailed", "Test"), Seq())
+        evtPublisher.publish(ctx)
         report(x)
         throw x
     }
   }
 
   def locateAllEvents(event: Sysevent) = {
-    expectOneOrMoreEvents(event)
+    on anyNode expectSome of event
     events.get(event)
   }
 
@@ -135,7 +128,7 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
     val maybeValue = for (
       all <- locateAllEvents(event);
       first = all.head;
-      (f, v) <- first.find { case (f, v) => f.name == field}
+      (f, v) <- first.find { case (f, v) => f.name == field }
     ) yield v
     maybeValue.get
   }
@@ -144,99 +137,80 @@ trait EventAssertions extends Matchers with EventMatchers with BeforeAndAfterEac
     val maybeValue = for (
       all <- locateAllEvents(event);
       first = all.last;
-      (f, v) <- first.find { case (f, v) => f.name == field}
+      (f, v) <- first.find { case (f, v) => f.name == field }
     ) yield v
     maybeValue.get
   }
 
-  def waitAndCheck(f: => Unit) = duringPeriodInMillis(500)(f)
+  def within(duration: FiniteDuration)(f: => Unit): Unit = within(duration.toMillis)(f)
 
-  def duringPeriodInMillis(millis: Long)(f: => Unit) = {
+  def within(millis: Long)(f: => Unit):Unit = {
     val startedAt = System.currentTimeMillis()
     while (System.currentTimeMillis() - startedAt < millis) {
       f
       Thread.sleep(50)
     }
+  }
+
+  private type EventCheck = (FiniteDuration, Sysevent, Seq[FieldAndValue]) => Unit
+
+  private def eventsExpected(count: Range) =
+    (timeout: FiniteDuration, event: Sysevent, values: Seq[FieldAndValue]) =>
+      checkForSpecificDuration(timeout.toMillis) {
+        val e = events
+        e should contain key event
+        e.get(event).get should haveAllValues(event, count, values)
+      }
+
+  private val eventsNotExpected = (timeout: FiniteDuration, event: Sysevent, values: Seq[FieldAndValue]) =>
+      try {
+        events.get(event).foreach(_ shouldNot haveAllValues(event, values))
+      } catch {
+        case x: Throwable =>
+          report(x)
+          throw x
+      }
+
+
+  case class BaseExpectation(check: EventCheck)
+
+  def expect(r: Range): BaseExpectation = BaseExpectation(eventsExpected(r))
+
+  def expect(i: Int): BaseExpectation = expect(i to i)
+
+  def expectOne: BaseExpectation = expect(1)
+
+  def expectSome: BaseExpectation = expect(1 to Int.MaxValue)
+
+  def expectNone: BaseExpectation = BaseExpectation(eventsNotExpected)
+
+  implicit def convertToEventSpec(e: Sysevent): EventSpec = EventSpec(e)
+
+  case class EventSpec(e: Sysevent, fields: Seq[(Symbol, Any)] = Seq()) {
+    def withFields(x: (Symbol, Any)*) = copy(fields = fields ++ x)
+
+    def +(x: (Symbol, Any)*) = withFields(x: _*)
+  }
+
+  case class EventAssertionKey()
+
+  val on = EventAssertionKey()
+
+  case class EventWaitTimeout(duration: FiniteDuration)
+
+  implicit var eventTimeout = EventWaitTimeout(15 seconds)
+
+  case class ExecutableExpectation(expectation: BaseExpectation, requiredFields: Seq[(Symbol, Any)]) {
+    def of(spec: EventSpec)(implicit t: EventWaitTimeout): Unit = expectation.check(t.duration, spec.e, spec.fields ++ requiredFields)
+
+    def ofEach(specs: EventSpec*)(implicit t: EventWaitTimeout): Unit = specs foreach(of(_)(t))
 
   }
 
-  def expectNoEvents(event: Sysevent, values: FieldAndValue*): Unit =
-    try {
-      events.get(event).foreach(_ shouldNot haveAllValues(values))
-    } catch {
-      case x: Throwable =>
-        report(x)
-        throw x
-    }
-
-  def expectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(8000, event, values: _*)
-
-  def expectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(8000, count to count, event, values: _*)
-
-  def expectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(8000, 1 to 1, event, values: _*)
-
-  def expectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(8000, count, event, values: _*)
-
-  def expectSomeEventsWithTimeout(timeout: Int, event: Sysevent, values: FieldAndValue*): Unit = {
-    waitWithTimeout(timeout) {
-      val e = Map() ++ events
-      e should contain key event
-      e.get(event).get should haveAllValues(values)
-    }
+  case class OnAnyNode() {
+    def anyNode(e: BaseExpectation): ExecutableExpectation = ExecutableExpectation(e, Seq())
   }
 
-  def expectSomeEventsWithTimeout(timeout: Int, c: Int, event: Sysevent, values: FieldAndValue*): Unit =
-    expectRangeOfEventsWithTimeout(timeout, c to c, event, values: _*)
-
-  def expectRangeOfEventsWithTimeout(timeout: Int, count: Range, event: Sysevent, values: FieldAndValue*): Unit = {
-    waitWithTimeout(timeout) {
-      val e = Map() ++ events
-      e should contain key event
-      e.get(event).get should haveAllValues(count, values)
-    }
-  }
-
-
-  var specs: List[MatchSpec] = List()
-
-  case class LookupLocation()
-
-  val node1 = LookupLocation()
-  val node2 = LookupLocation()
-
-  class MatchSpec(e: Sysevent) {
-    specs :+= this
-
-    var fields: Seq[(Symbol, Any)] = Seq()
-    var location: Option[LookupLocation] = None
-    var presenceExpected: Boolean = true
-    var waitTimeout: FiniteDuration = 5 seconds
-
-    def matching(x: (Symbol, Any)*) = {
-      fields = x.toSeq
-      this
-    }
-
-    def expectedOn(s: LookupLocation) = {
-      location = Some(s)
-      presenceExpected = true
-      this
-    }
-    def notExpectedOn(s: LookupLocation) = {
-      location = Some(s)
-      presenceExpected = false
-      this
-    }
-
-    def within(i: FiniteDuration) = {
-      waitTimeout = i
-      this
-    }
-  }
-
-  implicit def convertToMatchSpec(e: Sysevent):MatchSpec = new MatchSpec(e)
-
-
-
+  implicit def convertToOnAnyNode(s: EventAssertionKey): OnAnyNode = OnAnyNode()
 
 }

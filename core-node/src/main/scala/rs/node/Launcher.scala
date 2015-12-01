@@ -17,23 +17,17 @@ package rs.node
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-import rs.core.config.ConfigOps.wrap
-import rs.core.sysevents._
+import rs.core.config.WithExternalConfig
 import rs.node.core.ServiceClusterGuardianActor
 
-object Launcher extends App {
+object Launcher extends App with WithExternalConfig {
 
-  private val configName: String = java.lang.System.getProperty("config", "node.conf")
+  System.setProperty("default-config", "node.conf")
+
   private val localSystemConfigName: String = java.lang.System.getProperty("local-config", "node-local.conf")
   private val localSystemName: String = java.lang.System.getProperty("local-system", "local")
-  val config = ConfigFactory.load(configName)
-
-  SyseventPublisherRef.ref = config.asClass("node.events-publisher", classOf[Log4JSyseventsPublisher]).newInstance().asInstanceOf[SyseventPublisher]
-
-  SyseventSystemRef.ref = SyseventSystem(config.asString("node.id", "Node"))
-
   implicit val system = ActorSystem(localSystemName, ConfigFactory.load(localSystemConfigName))
 
-  ServiceClusterGuardianActor.start(config)
+  ServiceClusterGuardianActor.start(globalConfig.config)
 
 }

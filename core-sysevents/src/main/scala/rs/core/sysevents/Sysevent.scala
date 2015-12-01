@@ -15,8 +15,6 @@
  */
 package rs.core.sysevents
 
-import core.sysevents._
-
 import scala.language.implicitConversions
 
 sealed trait Sysevent {
@@ -28,8 +26,8 @@ sealed trait Sysevent {
 
   type EffectBlock[T] = SyseventPublisherContext => T
 
-  private def run[T](ff: => Seq[FieldAndValue], f: EffectBlock[T])(implicit ctx: WithSyseventPublisher): T = {
-    val eCtx = ctx.evtPublisher.contextFor(ctx.evtSystem, this, ff)
+  private def run[T](ff: => Seq[FieldAndValue], f: EffectBlock[T])(implicit ctx: WithSysevents): T = {
+    val eCtx = ctx.evtPublisher.contextFor(this, ff)
     val start = if (eCtx.isMute) 0 else System.nanoTime()
 
     try f(eCtx) catch {
@@ -45,41 +43,42 @@ sealed trait Sysevent {
       ctx.evtPublisher.publish(eCtx)
     }
   }
-  private def run(ff: => Seq[FieldAndValue])(implicit ctx: WithSyseventPublisher): Unit = {
-    val eCtx = ctx.evtPublisher.contextFor(ctx.evtSystem, this, ff)
+
+  private def run(ff: => Seq[FieldAndValue])(implicit ctx: WithSysevents): Unit = {
+    val eCtx = ctx.evtPublisher.contextFor(this, ff)
     if (!eCtx.isMute) {
       if (ctx.commonFields.nonEmpty) eCtx ++ ctx.commonFields
     }
     ctx.evtPublisher.publish(eCtx)
   }
 
-  def apply[T](f: EffectBlock[T])(implicit ctx: WithSyseventPublisher): T = run(Seq.empty, f)
+  def apply[T](f: EffectBlock[T])(implicit ctx: WithSysevents): T = run(Seq.empty, f)
 
-  def apply[T](f1: => FieldAndValue)(implicit ctx: WithSyseventPublisher): Unit = run(Seq(f1))
+  def apply[T](f1: => FieldAndValue)(implicit ctx: WithSysevents): Unit = run(Seq(f1))
 
-  def apply[T]()(implicit ctx: WithSyseventPublisher): Unit = run(Seq.empty)
+  def apply[T]()(implicit ctx: WithSysevents): Unit = run(Seq.empty)
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue)
-              (implicit ctx: WithSyseventPublisher): Unit = run(Seq(f1, f2))
+              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
                f3: => FieldAndValue)
-              (implicit ctx: WithSyseventPublisher): Unit = run(Seq(f1, f2, f3))
+              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
                f3: => FieldAndValue,
                f4: => FieldAndValue)
-              (implicit ctx: WithSyseventPublisher): Unit = run(Seq(f1, f2, f3, f4))
+              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
                f3: => FieldAndValue,
                f4: => FieldAndValue,
                f5: => FieldAndValue)
-              (implicit ctx: WithSyseventPublisher): Unit = run(Seq(f1, f2, f3, f4, f5))
+              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4, f5))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
@@ -87,7 +86,7 @@ sealed trait Sysevent {
                f4: => FieldAndValue,
                f5: => FieldAndValue,
                f6: => FieldAndValue)
-              (implicit ctx: WithSyseventPublisher): Unit = run(Seq(f1, f2, f3, f4, f5, f6))
+              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4, f5, f6))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
@@ -96,7 +95,7 @@ sealed trait Sysevent {
                f5: => FieldAndValue,
                f6: => FieldAndValue,
                f7: => FieldAndValue)
-              (implicit ctx: WithSyseventPublisher): Unit = run(Seq(f1, f2, f3, f4, f5, f6, f7))
+              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4, f5, f6, f7))
 
 }
 
@@ -128,6 +127,5 @@ case class InfoSysevent(id: String, componentId: String) extends Sysevent
 case class WarnSysevent(id: String, componentId: String) extends Sysevent
 
 case class ErrorSysevent(id: String, componentId: String) extends Sysevent
-
 
 

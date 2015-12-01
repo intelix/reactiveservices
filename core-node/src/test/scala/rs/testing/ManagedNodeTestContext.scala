@@ -25,6 +25,9 @@ import rs.node.core.discovery.UdpClusterManagerActor
 import rs.node.core.discovery.UdpClusterManagerActor.{UnblockCommunicationWith, BlockCommunicationWith}
 import rs.node.core.{ServiceClusterGuardianActor, ServiceNodeActor}
 
+import scala.concurrent.duration.DurationInt
+import scala.language.postfixOps
+
 trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAssertions with AbstractNodeTestContext {
   _: Suite with ActorSystemManagement =>
 
@@ -75,7 +78,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
   protected def udpPortFor(idx: Int) = portFor(idx) + 10000
 
   override protected def startWithConfig(idx: Int, configs: ConfigReference*): ActorRef =
-    withSystem(instanceId(idx)) { implicit sys =>
+    withSystem(instanceId(idx), ConfigFromFile("sysevents-log")) { implicit sys =>
       val config = buildConfig(configs: _*)
       sys.start(ServiceClusterGuardianActor.props(config), UUIDTools.generateShortUUID)
     }
@@ -128,98 +131,99 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
     private val nodeIdx = 1
 
     def atNode1BlockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode1("mgmt", Block(Seq(portFor(i))))
-      sendToServiceOnNode1(ServiceNodeActor.DiscoveryMgrId, BlockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode1("mgmt") ! Block(Seq(portFor(i)))
+      serviceOnNode1(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
     def atNode1UnblockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode1("mgmt", Unblock(Seq(portFor(i))))
-      sendToServiceOnNode1(ServiceNodeActor.DiscoveryMgrId, UnblockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode1("mgmt") ! Unblock(Seq(portFor(i)))
+      serviceOnNode1(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
   }
 
   trait WithGremlinOnNode2 extends WithNode2 {
     def atNode2BlockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode2("mgmt", Block(Seq(portFor(i))))
-      sendToServiceOnNode2(ServiceNodeActor.DiscoveryMgrId, BlockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode2("mgmt") ! Block(Seq(portFor(i)))
+      serviceOnNode2(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
     def atNode2UnblockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode2("mgmt", Unblock(Seq(portFor(i))))
-      sendToServiceOnNode2(ServiceNodeActor.DiscoveryMgrId, UnblockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode2("mgmt") ! Unblock(Seq(portFor(i)))
+      serviceOnNode2(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
 
   }
 
   trait WithGremlinOnNode3 extends WithNode3 {
     def atNode3BlockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode3("mgmt", Block(Seq(portFor(i))))
-      sendToServiceOnNode3(ServiceNodeActor.DiscoveryMgrId, BlockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode3("mgmt") ! Block(Seq(portFor(i)))
+      serviceOnNode3(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
     def atNode3UnblockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode3("mgmt", Unblock(Seq(portFor(i))))
-      sendToServiceOnNode3(ServiceNodeActor.DiscoveryMgrId, UnblockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode3("mgmt") ! Unblock(Seq(portFor(i)))
+      serviceOnNode3(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
 
   }
 
   trait WithGremlinOnNode4 extends WithNode4 {
     def atNode4BlockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode4("mgmt", Block(Seq(portFor(i))))
-      sendToServiceOnNode4(ServiceNodeActor.DiscoveryMgrId, BlockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode4("mgmt") ! Block(Seq(portFor(i)))
+      serviceOnNode4(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
     def atNode4UnblockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode4("mgmt", Unblock(Seq(portFor(i))))
-      sendToServiceOnNode4(ServiceNodeActor.DiscoveryMgrId, UnblockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode4("mgmt") ! Unblock(Seq(portFor(i)))
+      serviceOnNode4(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
   }
 
   trait WithGremlinOnNode5 extends WithNode5 {
     def atNode5BlockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode5("mgmt", Block(Seq(portFor(i))))
-      sendToServiceOnNode5(ServiceNodeActor.DiscoveryMgrId, BlockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode5("mgmt") ! Block(Seq(portFor(i)))
+      serviceOnNode5(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
     def atNode5UnblockNode(idx: Int*) = idx.foreach { i =>
-      sendToServiceOnNode5("mgmt", Unblock(Seq(portFor(i))))
-      sendToServiceOnNode5(ServiceNodeActor.DiscoveryMgrId, UnblockCommunicationWith("localhost", udpPortFor(i)))
+      serviceOnNode5("mgmt") ! Unblock(Seq(portFor(i)))
+      serviceOnNode5(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
   }
 
   trait With2Nodes extends WithNode1 with WithNode2 {
+    eventTimeout = EventWaitTimeout(20 seconds)
     def expectFullyBuilt() {
-      onNode1ExpectSomeEventsWithTimeout(20000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
-      onNode2ExpectSomeEventsWithTimeout(20000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
-      onNode2ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node1Address)
-      onNode2ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node2Address)
-      onNode1ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node2Address)
+      on node1 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node2 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node2 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
+      on node2 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
+      on node1 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
     }
   }
 
   trait With3Nodes extends With2Nodes with WithNode3 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      onNode3ExpectSomeEventsWithTimeout(20000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
-      onNode3ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node1Address)
-      onNode3ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node2Address)
-      onNode3ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
-      onNode1ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
+      on node3 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
+      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
+      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
+      on node1 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
     }
   }
 
   trait With4Nodes extends With3Nodes with WithNode4 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      onNode4ExpectSomeEventsWithTimeout(20000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
-      onNode4ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node1Address)
-      onNode4ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node2Address)
-      onNode4ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node3Address)
-      onNode4ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
-      onNode1ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
-      onNode2ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
-      onNode3ExpectExactlyOneEvent(UdpClusterManagerActor.Evt.NodeUp, 'addr -> node4Address)
+      on node4 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
+      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
+      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
+      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
+      on node1 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
+      on node2 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
+      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
     }
   }
 
@@ -228,7 +232,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
   trait With5Nodes extends With4Nodes with WithNode5 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      onNode5ExpectSomeEventsWithTimeout(20000, ServiceNodeActor.Evt.StateChange, 'to -> "Joined")
+      on node5 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
     }
   }
 

@@ -95,24 +95,24 @@ abstract class JServiceCell(id: String)
   }
 
   final def onTopicSubscription(topic: String, streamRef: StreamId): Unit = {
-    onSubjectSubscription {
+    onSubscription {
       case s if s.topic.id == topic => Some(streamRef)
     }
   }
 
   final def onTopicSubscription(topic: String, streamRef: String): Unit = {
-    onSubjectSubscription {
+    onSubscription {
       case s if s.topic.id == topic => Some(streamRef)
     }
   }
 
   final def onTopicSubscription(topic: String, mapper: SubjectMapper): Unit = {
-    onSubjectSubscription {
+    onSubscription {
       case s if s.topic.id == topic => Some(mapper.map(s))
     }
   }
   final def onSubjectSubscription(subject: SubjectMatcher, mapper: SubjectMapper): Unit = {
-    onSubjectSubscription {
+    onSubscription {
       case s if subject.isMatch(s) => Some(mapper.map(s))
     }
   }

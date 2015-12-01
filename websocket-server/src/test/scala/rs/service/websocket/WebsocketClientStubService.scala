@@ -24,7 +24,7 @@ import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.services.endpoint.StreamConsumer
 import rs.core.services.{ServiceCell, ServiceCellSysevents}
 import rs.core.stream._
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 import rs.service.websocket.WebSocketClient.{Connecting, Established, WebsocketConnection}
 import rs.service.websocket.WebsocketClientStubService._
 import spray.can.Http.Connect
@@ -103,12 +103,12 @@ object WebSocketClient {
 }
 
 class WebSocketClient(id: String, endpoint: String, port: Int)
-  extends FSMActor
+  extends FSMActor[WebsocketConnection]
   with WithGlobalConfig
   with Consumer
   with Stash
   with Evt
-  with WithSyseventPublisher {
+  with WithSysevents {
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('id -> id)
 

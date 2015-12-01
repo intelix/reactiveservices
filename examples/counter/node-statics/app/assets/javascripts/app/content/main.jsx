@@ -60,6 +60,9 @@ define(['react', 'rs_mixin'],
                 this.setState({jcounterValue: ServiceNotAvailable});
             },
 
+            onStopCounter: function () {
+                this.sendSignal("counter-service", "stop");
+            },
             onResetCounter: function () {
                 this.sendSignal("counter-service", "reset");
             },
@@ -80,9 +83,14 @@ define(['react', 'rs_mixin'],
                         ? ""
                         : <a href="#" onClick={this.onResetJCounter}>Reset</a>;
 
+                    var counterStop = (state.counterValue == ServiceNotAvailable)
+                        ? ""
+                        : <a href="#" onClick={this.onStopCounter}>Stop</a>;
+
+
                     return (
                         <span>
-                        <div>Counter (Scala based): {state.counterValue} {counterReset}</div>
+                        <div>Counter (Scala based): {state.counterValue} {counterReset} {counterStop}</div>
                         <div>Counter (Java based) : {state.jcounterValue} {jcounterReset}</div>
                     </span>
                     );

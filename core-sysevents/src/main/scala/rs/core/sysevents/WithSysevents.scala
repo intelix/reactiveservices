@@ -15,8 +15,19 @@
  */
 package rs.core.sysevents
 
-case class SyseventSystem(id: String)
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.WithExternalConfig
+import rs.core.sysevents.log.LoggerSyseventPublisher
 
-object SyseventSystemRef {
-  implicit var ref = SyseventSystem("default")
+trait WithSysevents extends WithExternalConfig {
+
+  implicit val evtPublisher = WithSysevents.ref
+  implicit val evtPublisherContext = this
+
+  def commonFields: Seq[FieldAndValue] = Seq()
+}
+
+object WithSysevents extends WithExternalConfig {
+  private lazy val ref = globalConfig.asClass("sysevents.publisher-provider", classOf[LoggerSyseventPublisher]).newInstance().asInstanceOf[SyseventPublisher]
+
 }

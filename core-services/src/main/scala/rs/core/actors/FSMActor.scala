@@ -18,7 +18,7 @@ package rs.core.actors
 
 import akka.actor.{Actor, ActorRef, FSM, Terminated}
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.NowProvider
 import rs.core.tools.metrics.MetricGroups.ActorMetricGroup
@@ -36,7 +36,7 @@ trait BaseActorSysevents extends ComponentWithBaseSysevents {
 
 trait ActorState
 
-trait FSMActor extends FSM[ActorState, Any] with BaseActor {
+trait FSMActor[T] extends FSM[ActorState, T] with BaseActor {
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
     super.preRestart(reason, message)
@@ -63,7 +63,7 @@ trait FSMActor extends FSM[ActorState, Any] with BaseActor {
       stay()
   }
 
-  final def whenUnhandledChained(f: StateFunction) = {
+  final def otherwise(f: StateFunction) = {
     chainedUnhandled = f orElse chainedUnhandled
   }
 
@@ -72,7 +72,7 @@ trait FSMActor extends FSM[ActorState, Any] with BaseActor {
   }
 
 
-  final override def onMessage(f: Receive) = whenUnhandledChained {
+  final override def onMessage(f: Receive) = otherwise {
     case Event(x, _) if f.isDefinedAt(x) =>
       f(x)
       stay()
@@ -101,7 +101,7 @@ trait BaseActor
   with WithInstrumentationHooks
   with StrictLogging
   with BaseActorSysevents
-  with WithSyseventPublisher
+  with WithSysevents
   with NowProvider
   with WithGlobalConfig {
 

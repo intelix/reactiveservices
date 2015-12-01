@@ -15,34 +15,33 @@
  */
 package rs.core.sysevents.support
 
-import core.sysevents.FieldAndValue
 import rs.core.sysevents._
-
-import scala.collection.mutable
+import rs.core.sysevents.log.LoggerSyseventPublisher
 
 case class RaisedEvent(timestamp: Long, event: Sysevent, values: Seq[FieldAndValue])
 
-class TestSyseventPublisher extends SyseventPublisher with LoggerSyseventPublisher {
+class TestSyseventPublisher extends LoggerSyseventPublisher {
 
-  val events = mutable.Map[Sysevent, List[Seq[FieldAndValue]]]()
+  @volatile var events = Map[Sysevent, List[Seq[FieldAndValue]]]()
   private var eventsInOrder = List[RaisedEvent]()
 
-  def withOrderedEvents(f: List[RaisedEvent] => Unit) = events.synchronized {
+  def withOrderedEvents(f: List[RaisedEvent] => Unit) = this.synchronized {
     f(eventsInOrder)
   }
 
-  def clear() = events.synchronized {
-    events.clear()
+  def clear() = this.synchronized {
+    events = Map()
     eventsInOrder = List()
   }
-  def clearComponentEvents(componentId: String) = events.synchronized {
-    events.keys.filter(_.componentId == componentId).foreach(events.remove)
+
+  def clearComponentEvents(componentId: String) = this.synchronized {
+    events = events.filter(_._1.componentId == componentId)
     eventsInOrder = eventsInOrder.filter(_.event.componentId != componentId)
   }
 
 
   override def publish(ctx: SyseventPublisherContext): Unit = {
-    events.synchronized {
+    this.synchronized {
       val cwf = ctx.asInstanceOf[ContextWithFields]
       eventsInOrder = eventsInOrder :+ RaisedEvent(System.currentTimeMillis(), cwf.event, cwf.fields)
       events += (cwf.event -> (events.getOrElse(cwf.event, List()) :+ cwf.fields.map {

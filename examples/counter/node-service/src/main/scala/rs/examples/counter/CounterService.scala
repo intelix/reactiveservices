@@ -16,36 +16,98 @@
 package rs.examples.counter
 
 
-import rs.core.services.ServiceCell
+import rs.core.actors.ActorState
+import rs.core.services.{ServiceCellSysevents, FSMServiceCell}
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.{Subject, TopicKey}
+import rs.examples.counter.CounterService.CounterValue
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class CounterService(id: String) extends ServiceCell(id) {
+trait CounterServiceEvt extends ServiceCellSysevents {
 
-  var counter = 0
+  val CounterReset = "CounterReset".info
+  val NowTicking = "NowTicking".info
+  val NowStopped = "NowStopped".info
 
-  onSubjectSubscription {
-    case Subject(_, TopicKey("counter"), _) => Some("counter")
+  override def componentId: String = "CounterService"
+}
+
+object CounterServiceEvt extends CounterServiceEvt
+
+object CounterService {
+  val CounterTopic = "counter"
+
+  case object Initial extends ActorState
+
+  case object Ticking extends ActorState
+
+  case object Stopped extends ActorState
+
+  case class CounterValue(value: Int)
+
+  case object Tick
+  case object Reset
+  case object Stop
+  case object Start
+
+}
+
+class CounterService(id: String) extends FSMServiceCell[CounterValue](id) with CounterServiceEvt {
+
+  import CounterService._
+
+  startWith(Initial, CounterValue(0))
+  self ! Start
+
+  when(Initial) {
+    case Event(Start, _) => transitionTo(Ticking)
+    case Event(Stop, _) => transitionTo(Stopped)
   }
 
-  onMessage {
-    case "tick" =>
-      counter += 1
-      publishCounter()
-      scheduleOnce(2 seconds, "tick")
+  when(Ticking) {
+    case Event(Tick, CounterValue(v)) =>
+      CounterTopic !~ v.toString
+      stay() using CounterValue(v + 1)
+    case Event(Stop, _) => transitionTo(Stopped)
+  }
+
+  when(Stopped) {
+    case Event(Start, _) => transitionTo(Stopped)
+  }
+
+  otherwise {
+    case Event(Reset, _) =>
+      CounterReset()
+      stay() using CounterValue(0)
+    case Event(Stop, _) => stay()
+    case Event(Start, _) => stay()
+  }
+
+  onTransition {
+    case _ -> Ticking =>
+      NowTicking('current -> stateData.value)
+      setTimer("ticker", Tick, 2 seconds, repeat = true)
+    case _ -> Stopped =>
+      NowStopped('current -> stateData.value)
+      cancelTimer("ticker")
+  }
+
+  onSubscription {
+    case Subject(_, TopicKey("counter"), _) => Some(CounterTopic)
   }
 
   onSignal {
     case (Subject(_, TopicKey("reset"), _), _) =>
-      counter = 0
-      publishCounter()
-      Some(SignalOk())
+      self ! Reset
+      SignalOk()
+    case (Subject(_, TopicKey("start"), _), _) =>
+      self ! Start
+      SignalOk()
+    case (Subject(_, TopicKey("stop"), _), _) =>
+      self ! Stop
+      SignalOk()
   }
-
-  scheduleOnce(2 seconds, "tick")
-
-  private def publishCounter() = "counter" !~ counter.toString
 
 }

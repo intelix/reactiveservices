@@ -1,11 +1,11 @@
 package rs.testing
 
 import akka.actor.ActorRef
-import core.sysevents._
 import org.scalatest.Suite
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
-import rs.core.sysevents.Sysevent
 import rs.core.sysevents.support.EventAssertions
+
+import scala.language.implicitConversions
 
 
 trait AbstractNodeTestContext {
@@ -21,6 +21,10 @@ trait AbstractNodeTestContext {
   protected def nodeId(idx: Int) = "Node" + idx
 
   protected def baseConfig(idx: Int): Seq[ConfigReference]
+
+  class OnNodeX(i: Int) {
+    val fields = Seq('nodeid -> nodeId(i))
+  }
 
 
   protected def startWithConfig(idx: Int, configs: ConfigReference*): ActorRef
@@ -53,8 +57,19 @@ trait AbstractNodeTestContext {
 
   }
 
+  case class ServiceRef(id: String, ref: Option[ActorRef]) {
+    def !(m: Any) = ref.foreach(_ ! ForwardToService(id, m))
+  }
+
   trait WithNode1 extends WithNode {
     private val nodeIdx = 1
+
+    case class OnNode1() extends OnNodeX(1) {
+      def node1(e: BaseExpectation): ExecutableExpectation = ExecutableExpectation(e, fields)
+    }
+
+    implicit def convertToOnNode1(s: EventAssertionKey): OnNode1 = OnNode1()
+
 
     def node1Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
 
@@ -66,29 +81,13 @@ trait AbstractNodeTestContext {
 
     def stopNode1() = stopNode(nodeIdx)
 
-    def node1Configs: Seq[ConfigReference] = Seq(ConfigFromContents("""akka.cluster.roles+="wCritical""""),ConfigFromContents("""akka.cluster.roles+="seed""""))
+    def node1Configs: Seq[ConfigReference] = Seq(ConfigFromContents("""akka.cluster.roles+="wCritical""""), ConfigFromContents("""akka.cluster.roles+="seed""""))
 
     def node1Services: Map[String, Class[_]] = Map.empty
 
-    def onNode1ExpectNoEvents(event: Sysevent, values: FieldAndValue*): Unit = expectNoEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode1ExpectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectOneOrMoreEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode1ExpectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectExactlyOneEvent(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode1ExpectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectExactlyNEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode1ExpectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectNtoMEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode1ExpectSomeEventsWithTimeout(timeout: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode1ExpectSomeEventsWithTimeout(timeout: Int, c: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, c, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode1ExpectRangeOfEventsWithTimeout(timeout: Int, count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(timeout, count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
     var node1BootstrapRef: Option[ActorRef] = None
 
-    def sendToServiceOnNode1(id: String, m: Any) = node1BootstrapRef.foreach(_ ! ForwardToService(id, m))
+    def serviceOnNode1(id: String) = ServiceRef(id, node1BootstrapRef)
 
     def startNode1(): Unit = node1BootstrapRef = startNode1(serviceClassesToConfig(node1Services) +: node1Configs: _*)
 
@@ -100,6 +99,12 @@ trait AbstractNodeTestContext {
   trait WithNode2 extends WithNode {
     private val nodeIdx = 2
 
+    case class OnNode2() extends OnNodeX(2) {
+      def node2(e: BaseExpectation): ExecutableExpectation = ExecutableExpectation(e, fields)
+    }
+
+    implicit def convertToOnNode2(s: EventAssertionKey): OnNode2 = OnNode2()
+
     def node2Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
 
     def node2System = locateExistingSystem(instanceId(nodeIdx))
@@ -110,30 +115,13 @@ trait AbstractNodeTestContext {
 
     def stopNode2() = stopNode(nodeIdx)
 
-    def node2Configs: Seq[ConfigReference] = Seq(ConfigFromContents("""akka.cluster.roles+="wPreferred""""),ConfigFromContents("""akka.cluster.roles+="seed""""))
+    def node2Configs: Seq[ConfigReference] = Seq(ConfigFromContents("""akka.cluster.roles+="wPreferred""""), ConfigFromContents("""akka.cluster.roles+="seed""""))
 
     def node2Services: Map[String, Class[_]] = Map.empty
 
-    def onNode2ExpectNoEvents(event: Sysevent, values: FieldAndValue*): Unit = expectNoEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode2ExpectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectOneOrMoreEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode2ExpectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectExactlyOneEvent(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode2ExpectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectExactlyNEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode2ExpectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectNtoMEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode2ExpectSomeEventsWithTimeout(timeout: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode2ExpectSomeEventsWithTimeout(timeout: Int, c: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, c, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode2ExpectRangeOfEventsWithTimeout(timeout: Int, count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(timeout, count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-
     var node2BootstrapRef: Option[ActorRef] = None
 
-    def sendToServiceOnNode2(id: String, m: Any) = node2BootstrapRef.foreach(_ ! ForwardToService(id, m))
+    def serviceOnNode2(id: String) = ServiceRef(id, node2BootstrapRef)
 
     def startNode2(): Unit = node2BootstrapRef = startNode2(serviceClassesToConfig(node2Services) +: node2Configs: _*)
 
@@ -143,6 +131,12 @@ trait AbstractNodeTestContext {
 
   trait WithNode3 extends WithNode {
     private val nodeIdx = 3
+
+    case class OnNode3() extends OnNodeX(3) {
+      def node3(e: BaseExpectation): ExecutableExpectation = ExecutableExpectation(e, fields)
+    }
+
+    implicit def convertToOnNode3(s: EventAssertionKey): OnNode3 = OnNode3()
 
     def node3Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
 
@@ -158,26 +152,9 @@ trait AbstractNodeTestContext {
 
     def node3Services: Map[String, Class[_]] = Map.empty
 
-    def onNode3ExpectNoEvents(event: Sysevent, values: FieldAndValue*): Unit = expectNoEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode3ExpectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectOneOrMoreEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode3ExpectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectExactlyOneEvent(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode3ExpectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectExactlyNEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode3ExpectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectNtoMEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode3ExpectSomeEventsWithTimeout(timeout: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode3ExpectSomeEventsWithTimeout(timeout: Int, c: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, c, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode3ExpectRangeOfEventsWithTimeout(timeout: Int, count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(timeout, count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-
     var node3BootstrapRef: Option[ActorRef] = None
 
-    def sendToServiceOnNode3(id: String, m: Any) = node3BootstrapRef.foreach(_ ! ForwardToService(id, m))
+    def serviceOnNode3(id: String) = ServiceRef(id, node3BootstrapRef)
 
     def startNode3(): Unit = node3BootstrapRef = startNode3(serviceClassesToConfig(node3Services) +: node3Configs: _*)
 
@@ -187,6 +164,13 @@ trait AbstractNodeTestContext {
 
   trait WithNode4 extends WithNode {
     private val nodeIdx = 4
+
+    case class OnNode4() extends OnNodeX(4) {
+      def node4(e: BaseExpectation): ExecutableExpectation = ExecutableExpectation(e, fields)
+    }
+
+    implicit def convertToOnNode4(s: EventAssertionKey): OnNode4 = OnNode4()
+
 
     def node4Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
 
@@ -202,26 +186,9 @@ trait AbstractNodeTestContext {
 
     def node4Services: Map[String, Class[_]] = Map.empty
 
-    def onNode4ExpectNoEvents(event: Sysevent, values: FieldAndValue*): Unit = expectNoEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode4ExpectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectOneOrMoreEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode4ExpectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectExactlyOneEvent(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode4ExpectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectExactlyNEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode4ExpectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectNtoMEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode4ExpectSomeEventsWithTimeout(timeout: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode4ExpectSomeEventsWithTimeout(timeout: Int, c: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, c, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode4ExpectRangeOfEventsWithTimeout(timeout: Int, count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(timeout, count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-
     var node4BootstrapRef: Option[ActorRef] = None
 
-    def sendToServiceOnNode4(id: String, m: Any) = node4BootstrapRef.foreach(_ ! ForwardToService(id, m))
+    def serviceOnNode4(id: String) = ServiceRef(id, node4BootstrapRef)
 
     def startNode4(): Unit = node4BootstrapRef = startNode4(serviceClassesToConfig(node4Services) +: node4Configs: _*)
 
@@ -231,6 +198,13 @@ trait AbstractNodeTestContext {
 
   trait WithNode5 extends WithNode {
     private val nodeIdx = 5
+
+    case class OnNode5() extends OnNodeX(5) {
+      def node5(e: BaseExpectation): ExecutableExpectation = ExecutableExpectation(e, fields)
+    }
+
+    implicit def convertToOnNode5(s: EventAssertionKey): OnNode5 = OnNode5()
+
 
     def node5Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
 
@@ -244,26 +218,9 @@ trait AbstractNodeTestContext {
 
     def node5Services: Map[String, Class[_]] = Map.empty
 
-    def onNode5ExpectNoEvents(event: Sysevent, values: FieldAndValue*): Unit = expectNoEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode5ExpectOneOrMoreEvents(event: Sysevent, values: FieldAndValue*): Unit = expectOneOrMoreEvents(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode5ExpectExactlyOneEvent(event: Sysevent, values: FieldAndValue*): Unit = expectExactlyOneEvent(event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode5ExpectExactlyNEvents(count: Int, event: Sysevent, values: FieldAndValue*): Unit = expectExactlyNEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode5ExpectNtoMEvents(count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectNtoMEvents(count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode5ExpectSomeEventsWithTimeout(timeout: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode5ExpectSomeEventsWithTimeout(timeout: Int, c: Int, event: Sysevent, values: FieldAndValue*): Unit = expectSomeEventsWithTimeout(timeout, c, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-    def onNode5ExpectRangeOfEventsWithTimeout(timeout: Int, count: Range, event: Sysevent, values: FieldAndValue*): Unit = expectRangeOfEventsWithTimeout(timeout, count, event, ('nodeid -> nodeId(nodeIdx)) +: values: _*)
-
-
     var node5BootstrapRef: Option[ActorRef] = None
 
-    def sendToServiceOnNode5(id: String, m: Any) = node5BootstrapRef.foreach(_ ! ForwardToService(id, m))
+    def serviceOnNode5(id: String) = ServiceRef(id, node5BootstrapRef)
 
     def startNode5(): Unit = node5BootstrapRef = startNode5(serviceClassesToConfig(node5Services) +: node5Configs: _*)
 

@@ -28,7 +28,7 @@ class PriceSourceService(id: String) extends ServiceCell(id) {
 
   var symbols: Map[String, Int] = Map.empty
 
-  onSubjectSubscription {
+  onSubscription {
     case Subject(_, TopicKey(sym), _) => Some(sym)
   }
 

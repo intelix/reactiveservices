@@ -23,7 +23,7 @@ import net.ceedubs.ficus.Ficus._
 import rs.core.actors.{SingleStateActor, BaseActorSysevents, WithGlobalConfig}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.GlobalConfig
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceClusterGuardianActor.RestartRequestException
 
@@ -54,7 +54,7 @@ class ServiceClusterGuardianActor(config: Config)
   extends SingleStateActor
   with ServiceClusterGuardianSysevents
   with StrictLogging
-  with WithSyseventPublisher
+  with WithSysevents
   with WithGlobalConfig {
 
   private val maxRetries = config.as[Option[Int]]("node.cluster.max-retries") | -1

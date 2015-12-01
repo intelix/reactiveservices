@@ -17,9 +17,9 @@ package rs.core.actors
 
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.GlobalConfig
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 
-trait WithGlobalConfig extends WithSyseventPublisher with ActorUtils {
+trait WithGlobalConfig extends WithSysevents with ActorUtils {
 
 
   implicit val globalCfg = GlobalConfig(config)

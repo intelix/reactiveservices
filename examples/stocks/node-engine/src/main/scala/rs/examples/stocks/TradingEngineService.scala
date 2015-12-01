@@ -51,7 +51,7 @@ class TradingEngineService(id: String) extends ServiceCell(id) with Terminal wit
 
   var trades: List[Trade] = List.empty
 
-  onSubjectSubscription {
+  onSubscription {
     case Subject(_, TopicKey("symbols"), _) => Some("symbols")
     case Subject(_, CompositeTopicKey("symbol", sym), _) => Some(("symbol", sym))
     case Subject(_, TopicKey("trades"), _) => Some("trades")

@@ -21,14 +21,14 @@ import akka.util.ByteString
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.services.endpoint.akkastreams.BytesStageBuilder
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class ByteStringAggregator extends BytesStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSysevents) =
     if (serviceCfg.asBoolean("aggregator.enabled", defaultValue = true))
       Some(BidiFlow() { b =>
 

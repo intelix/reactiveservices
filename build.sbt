@@ -1,9 +1,18 @@
 ProjectBuild.coreSettings("reactiveservices")
 
 
+lazy val utils = Project(
+  id = "core-utils",
+  base = file("core-utils")
+)
+
+
 lazy val sysevents = Project(
   id = "core-sysevents",
-  base = file("core-sysevents")
+  base = file("core-sysevents"),
+  dependencies = Seq(
+    utils % "compile;test->test"
+  )
 )
 
 

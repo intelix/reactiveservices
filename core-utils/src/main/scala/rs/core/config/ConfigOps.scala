@@ -15,7 +15,7 @@
  */
 package rs.core.config
 
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 
 import scala.concurrent.duration.FiniteDuration

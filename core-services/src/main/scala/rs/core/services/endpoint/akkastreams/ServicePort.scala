@@ -23,7 +23,7 @@ import akka.stream.stage._
 import akka.stream.{Attributes, FlowShape, UniformFanOutShape}
 import rs.core.services.Messages._
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 
@@ -43,7 +43,7 @@ trait ServicePortSysevents extends ComponentWithBaseSysevents {
 object ServicePort extends ServicePortSysevents {
 
 
-  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: WithSyseventPublisher) = Flow.wrap[ServiceInbound, ServiceOutbound, Any](FlowGraph.partial() { implicit b =>
+  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: WithSysevents) = Flow.wrap[ServiceInbound, ServiceOutbound, Any](FlowGraph.partial() { implicit b =>
 
     import FlowGraph.Implicits._
 

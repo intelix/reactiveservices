@@ -133,7 +133,7 @@ object UdpClusterManagerActor {
 }
 
 
-class UdpClusterManagerActor extends FSMActor with Evt {
+class UdpClusterManagerActor extends FSMActor[ManagerStateData] with Evt {
 
   case object Start
 
@@ -230,7 +230,7 @@ class UdpClusterManagerActor extends FSMActor with Evt {
       stay using newState
   }
 
-  whenUnhandledChained {
+  otherwise {
     case Event(PerformHandshake, state: ManagerStateData) =>
       state.endpoints.foreach { ep =>
         if (!state.isBlocked(ep.addr)) state.socket.foreach(_ ! Udp.Send(Request(ep.uri).toByteString, ep.addr))

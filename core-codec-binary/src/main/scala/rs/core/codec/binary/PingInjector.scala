@@ -20,14 +20,14 @@ import akka.stream.{BidiShape, FlowShape}
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
-import rs.core.sysevents.WithSyseventPublisher
+import rs.core.sysevents.WithSysevents
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 class PingInjector extends BinaryDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSyseventPublisher) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSysevents) =
     if (serviceCfg.asBoolean("ping.enabled", defaultValue = true))
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
