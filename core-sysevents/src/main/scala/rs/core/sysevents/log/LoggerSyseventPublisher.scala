@@ -1,10 +1,8 @@
 package rs.core.sysevents.log
 
-import rs.core.config.ConfigOps.wrap
-import rs.core.config.WithExternalConfig
 import rs.core.sysevents._
 
-class LoggerSyseventPublisher extends WithExternalConfig with SyseventPublisher with EventLogger with StandardLogMessageFormatter {
+class LoggerSyseventPublisher extends SyseventPublisher with EventLogger with StandardLogMessageFormatter {
 
   override def contextFor(event: Sysevent, values: => Seq[(Symbol, Any)]) = new ContextWithFields(event, values)
 

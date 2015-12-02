@@ -74,7 +74,7 @@ class CounterService(id: String) extends FSMServiceCell[CounterValue](id) with C
   }
 
   when(Stopped) {
-    case Event(Start, _) => transitionTo(Stopped)
+    case Event(Start, _) => transitionTo(Ticking)
   }
 
   otherwise {

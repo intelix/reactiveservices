@@ -35,11 +35,7 @@ private[websocket] object WebsocketBinaryFrameFolder {
       }.mapAsync[ByteString](sCfg.asInt("packet-folding-parallelism", 2)) {
         case BinaryMessage.Strict(bs) => Future.successful(bs)
         case t: BinaryMessage =>
-          val sink = Sink.fold[ByteString, ByteString](ByteString.empty) {
-            case (bx, n) =>
-              // TODO metrics here
-              bx ++ n
-          }
+          val sink = Sink.fold[ByteString, ByteString](ByteString.empty)(_ ++ _)
           t.dataStream.runWith(sink)
         case _ => Future.successful(ByteString.empty)
     }

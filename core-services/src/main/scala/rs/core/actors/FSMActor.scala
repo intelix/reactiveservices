@@ -21,8 +21,6 @@ import com.typesafe.scalalogging.StrictLogging
 import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.NowProvider
-import rs.core.tools.metrics.MetricGroups.ActorMetricGroup
-import rs.core.tools.metrics.Metrics
 
 trait BaseActorSysevents extends ComponentWithBaseSysevents {
   val PostStop = "Lifecycle.PostStop".info
@@ -48,7 +46,6 @@ trait FSMActor[T] extends FSM[ActorState, T] with BaseActor {
     super.preStart()
     initialize()
   }
-
 
 
   def transitionTo(state: ActorState) = {
@@ -98,17 +95,12 @@ trait JBaseActor extends BaseActor {
 
 trait BaseActor
   extends ActorUtils
-  with WithInstrumentationHooks
-  with StrictLogging
-  with BaseActorSysevents
-  with WithSysevents
-  with NowProvider
-  with WithGlobalConfig {
+    with StrictLogging
+    with BaseActorSysevents
+    with WithSysevents
+    with NowProvider
+    with WithGlobalConfig {
 
-
-  private lazy val MessageProcessingTimer = timerSensor(ActorMetricGroup, Metrics.ProcessingTime)
-  private lazy val ArrivalRateMeter = meterSensor(ActorMetricGroup, Metrics.ArrivalRate)
-  private lazy val FailureRateMeter = meterSensor(ActorMetricGroup, Metrics.FailureRate)
 
   protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
 

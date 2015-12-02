@@ -87,7 +87,6 @@ class WebsocketClientStubService(serviceId: String) extends ServiceCell(serviceI
 trait Consumer
   extends StreamConsumer
   with StringStreamConsumer
-  with CustomStreamConsumer
   with DictionaryMapStreamConsumer
   with SetStreamConsumer
   with ListStreamConsumer

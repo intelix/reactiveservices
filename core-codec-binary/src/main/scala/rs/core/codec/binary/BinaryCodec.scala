@@ -133,16 +133,17 @@ object BinaryCodec {
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
       val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
 
-       @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = {
-        if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
-       }
+        @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = {
+          if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
+        }
 
-       val i = x.iterator
-       val decoded = dec(List.empty, i)
-       decoded
+        val i = x.iterator
+        val decoded = dec(List.empty, i)
+        decoded
       }
       val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
-        val b = ByteString.newBuilder; codec.encode(x, b)
+        val b = ByteString.newBuilder;
+        codec.encode(x, b)
         val encoded = b.result()
         // TODO debug events here
         encoded
@@ -154,16 +155,17 @@ object BinaryCodec {
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
       val top = b add Flow[ByteString].mapConcat[BinaryDialectOutbound] { x =>
 
-       @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = {
-        if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
-       }
+        @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = {
+          if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
+        }
 
-       val i = x.iterator
-       val decoded = dec(List.empty, i)
-       decoded
+        val i = x.iterator
+        val decoded = dec(List.empty, i)
+        decoded
       }
       val bottom = b add Flow[BinaryDialectInbound].map[ByteString] { x =>
-        val b = ByteString.newBuilder; codec.encode(x, b)
+        val b = ByteString.newBuilder
+        codec.encode(x, b)
         val encoded = b.result()
         encoded
       }
@@ -204,8 +206,6 @@ object BinaryCodec {
 
 
     val TypeStringStreamState: Short = 50
-
-    val TypeCustomStreamState: Short = 51
 
     val TypeDictionaryMapStreamState: Short = 52
     val TypeDictionaryMapNoChange: Short = 53
@@ -567,7 +567,6 @@ object BinaryCodec {
           case TypeBoolean => BooleanCodecLogic.decode(bytes)
           case TypeString => StringCodecLogic.decode(bytes)
           case TypeStringStreamState => StringStreamState(StringCodecLogic.decode(bytes))
-          case TypeCustomStreamState => CustomStreamState(decode(bytes))
           case TypeDictionaryMapStreamState => DictionaryMapStreamState(bytes.getInt, bytes.getInt, ArrayAnyCodecLogic.decode(bytes), Dictionary(ArrayStringsCodecLogic.decode(bytes)))
           case TypeDictionaryMapNoChange => NoChange
           case TypeDictionaryMapStreamTransitionPartial => DictionaryMapStreamTransitionPartial(bytes.getInt, bytes.getInt, bytes.getInt, ArrayAnyCodecLogic.decode(bytes))
@@ -599,8 +598,6 @@ object BinaryCodec {
           case x: String => putId(TypeString); StringCodecLogic.encode(x, builder)
           case x: ByteString => putId(TypeString); StringCodecLogic.encode(x.utf8String, builder)
           case x: StringStreamState => putId(TypeStringStreamState); StringCodecLogic.encode(x.value, builder)
-
-          case x: CustomStreamState => putId(TypeCustomStreamState); encode(x.value, builder)
 
           case x: DictionaryMapStreamState => putId(TypeDictionaryMapStreamState)
             builder.putInt(x.seed)

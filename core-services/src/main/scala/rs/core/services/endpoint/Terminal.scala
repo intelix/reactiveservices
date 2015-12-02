@@ -31,7 +31,6 @@ trait Terminal
   extends StreamConsumer
   with ServicePortSubscriptionRequestSink
   with StringStreamConsumer
-  with CustomStreamConsumer
   with DictionaryMapStreamConsumer
   with SetStreamConsumer
   with ListStreamConsumer

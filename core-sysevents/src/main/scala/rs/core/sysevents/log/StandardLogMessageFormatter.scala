@@ -1,15 +1,14 @@
 package rs.core.sysevents.log
 
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.WithExternalConfig
 import rs.core.sysevents._
 
-trait StandardLogMessageFormatter extends LogMessageFormatter with WithExternalConfig {
+trait StandardLogMessageFormatter extends LogMessageFormatter with WithSyseventsConfig {
 
-  val logFormat: String = globalConfig.asString("sysevents.log.format", "%35s - %-30s : %s")
-  val fieldPrefix: String = globalConfig.asString("sysevents.log.field-prefix", "#")
-  val fieldPostfix: String = globalConfig.asString("sysevents.log.field-postfix", "=")
-  val fieldsSeparator: String = globalConfig.asString("sysevents.log.field-separator", "  ")
+  val logFormat: String = syseventsConfig.asString("sysevents.log.format", "%35s - %-30s : %s")
+  val fieldPrefix: String = syseventsConfig.asString("sysevents.log.field-prefix", "#")
+  val fieldPostfix: String = syseventsConfig.asString("sysevents.log.field-postfix", "=")
+  val fieldsSeparator: String = syseventsConfig.asString("sysevents.log.field-separator", "  ")
 
   def buildEventLogMessage(event: Sysevent, values: Seq[FieldAndValue]): String = {
     val fields = values.foldLeft(new StringBuilder) {

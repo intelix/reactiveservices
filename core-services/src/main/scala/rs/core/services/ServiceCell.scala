@@ -20,12 +20,11 @@ import akka.remote.RemoteScope
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.ServiceConfig
-import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.BaseServiceCell._
+import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
 import rs.core.stream.{StreamPublishers, StreamState, StreamStateTransition}
-import rs.core.tools.metrics.WithCHMetrics
 import rs.core.{ServiceKey, Subject}
 
 import scala.concurrent.duration._
@@ -73,22 +72,22 @@ trait WithId {
 }
 
 abstract class ServiceCell(id: String) extends ServiceWithId(id) with SingleStateActor with BaseServiceCell
+
 abstract class FSMServiceCell[T](id: String) extends ServiceWithId(id) with FSMActor[T] with BaseServiceCell
 
 abstract class ServiceWithId(override val id: String) extends Actor with WithId
 
 trait BaseServiceCell
   extends BaseActor
-  with WithId
-  with WithCHMetrics
-  with ClusterAwareness
-  with SimpleInMemoryAcknowledgedDelivery
-  with StreamDemandBinding
-  with RemoteStreamsBroadcaster
-  with MessageAcknowledging
-  with StreamPublishers
-  with ServiceCellSysevents
-  with WithGlobalConfig {
+    with WithId
+    with ClusterAwareness
+    with SimpleInMemoryAcknowledgedDelivery
+    with StreamDemandBinding
+    with RemoteStreamsBroadcaster
+    with MessageAcknowledging
+    with StreamPublishers
+    with ServiceCellSysevents
+    with WithGlobalConfig {
 
   implicit lazy val serviceCfg = ServiceConfig(config.asConfig(id))
   lazy val serviceKey: ServiceKey = id
@@ -242,7 +241,7 @@ trait BaseServiceCell
       }
     }
     if (!hasAgentWithInterestIn(streamKey)) IdleStream { ctx =>
-      ctx +('stream -> streamKey)
+      ctx + ('stream -> streamKey)
       activeStreams -= streamKey
       streamPassiveFunc(streamKey)
     }

@@ -17,12 +17,14 @@ package rs.node
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-import rs.core.config.WithExternalConfig
+import rs.core.config.GlobalConfig
 import rs.node.core.ServiceClusterGuardianActor
 
-object Launcher extends App with WithExternalConfig {
+object Launcher extends App {
 
-  System.setProperty("default-config", "node.conf")
+  private val configName: String = java.lang.System.getProperty("config", "node.conf")
+  private val config = if (configName == null) ConfigFactory.empty() else ConfigFactory.load(configName)
+  implicit val globalConfig: GlobalConfig = GlobalConfig(config)
 
   private val localSystemConfigName: String = java.lang.System.getProperty("local-config", "node-local.conf")
   private val localSystemName: String = java.lang.System.getProperty("local-system", "local")

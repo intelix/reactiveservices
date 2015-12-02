@@ -21,7 +21,7 @@ import rs.core.Subject
 import rs.core.services.BaseServiceCell.StopRequest
 import rs.core.services.StreamId
 import rs.node.core.ServiceNodeActor
-import rs.service.auth.UserAuthenticationSysevents
+import rs.service.auth.BaseAuthEvt$
 import rs.service.websocket.WebsocketClientStubService._
 import rs.testing._
 import rs.testing.components.TestServiceActor
@@ -671,8 +671,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk + ('correlation -> "Some(auth2)", 'payload -> "Some(true)", 'id -> "c2")
     on node3 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk + ('correlation -> "Some(auth3)", 'payload -> "Some(true)", 'id -> "c3")
 
-    on node1 expect(2) of UserAuthenticationSysevents.SuccessfulCredentialsAuth + ( 'userid -> "user1")
-    on node1 expect(1) of UserAuthenticationSysevents.SuccessfulCredentialsAuth + ( 'userid -> "user2")
+    on node1 expect(2) of BaseAuthEvt.SuccessfulCredentialsAuth + ( 'userid -> "user1")
+    on node1 expect(1) of BaseAuthEvt.SuccessfulCredentialsAuth + ( 'userid -> "user2")
 
 
     clearEvents()
@@ -717,8 +717,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk + ('correlation -> "Some(auth2)", 'payload -> "Some(true)", 'id -> "c2")
     on node3 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk + ('correlation -> "Some(auth3)", 'payload -> "Some(true)", 'id -> "c3")
 
-    on node1 expect(2) of UserAuthenticationSysevents.SuccessfulCredentialsAuth + ( 'userid -> "user1")
-    on node1 expect(1) of UserAuthenticationSysevents.SuccessfulCredentialsAuth + ( 'userid -> "user2")
+    on node1 expect(2) of BaseAuthEvt.SuccessfulCredentialsAuth + ( 'userid -> "user1")
+    on node1 expect(1) of BaseAuthEvt.SuccessfulCredentialsAuth + ( 'userid -> "user2")
 
 
     clearEvents()
@@ -750,7 +750,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
         Subject("auth", "authenticate"),
         Json.obj("t" -> auth1Token).toString(),
         System.currentTimeMillis() + 8000, None, Some("auth1"))
-    on node1 expectOne of UserAuthenticationSysevents.SuccessfulTokenAuth + ('authkey -> auth1Token.r)
+    on node1 expectOne of BaseAuthEvt.SuccessfulTokenAuth + ('authkey -> auth1Token.r)
     on node1 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk + ('correlation -> "Some(auth1)", 'payload -> "Some(true)", 'id -> "c1")
   }
 

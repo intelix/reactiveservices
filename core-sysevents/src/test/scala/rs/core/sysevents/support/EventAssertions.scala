@@ -133,13 +133,13 @@ trait EventAssertions extends Matchers with WithSyseventsCollector with WithSyse
     maybeValue.get
   }
 
-  def locateLastEventFieldValue(event: Sysevent, field: String) = {
+  def locateLastEventFieldValue[T](event: Sysevent, field: String) = {
     val maybeValue = for (
       all <- locateAllEvents(event);
       first = all.last;
       (f, v) <- first.find { case (f, v) => f.name == field }
     ) yield v
-    maybeValue.get
+    maybeValue.get.asInstanceOf[T]
   }
 
   def within(duration: FiniteDuration)(f: => Unit): Unit = within(duration.toMillis)(f)

@@ -16,12 +16,12 @@
 package rs.service.auth
 
 import play.api.libs.json.Json
-import rs.service.auth.UserAuthenticationActor.User
+import rs.service.auth.BaseAuthActor.User
 
 object UserAuthenticationStubActor {
 }
 
-class UserAuthenticationStubActor(id: String) extends UserAuthenticationActor(id) {
+class UserAuthenticationStubActor(id: String) extends BaseAuthActor(id) {
 
   val CanDoAnything = Json.stringify(Json.obj(
     "p" -> Json.arr(

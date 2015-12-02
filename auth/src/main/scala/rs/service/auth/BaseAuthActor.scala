@@ -17,40 +17,18 @@ package rs.service.auth
 
 import play.api.libs.json.Json
 import rs.core.SubjectKeys.UserToken
-import rs.core.actors.{ActorWithTicks, BaseActorSysevents}
+import rs.core.actors.BaseActorSysevents
 import rs.core.services.{ServiceCell, StreamId}
 import rs.core.stream.SetStreamState.SetSpecs
-import rs.core.stream.{SetStreamPublisher, StringStreamPublisher}
 import rs.core.tools.Tools.configHelper
 import rs.core.{Subject, TopicKey}
-import rs.service.auth.UserAuthenticationActor.{Session, User}
+import rs.service.auth.BaseAuthActor.{Session, User}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait UserAuthenticationSysevents extends BaseActorSysevents {
 
-  val UserTokenSubscription = "UserTokenSubscription".trace
-  val AuthToken = "AuthToken".trace
-  val UserInfo = "UserInfo".trace
-  val UserPermissions = "UserPermissions".trace
-  val UserTokenInvalidated = "UserTokenInvalidated".info
-  val UserTokenAdded = "UserTokenAdded".info
-  val SessionCreated = "SessionCreated".info
-  val UserSessionExpired = "UserSessionExpired".info
-  val AuthRequest = "AuthRequest".info
-  val SuccessfulCredentialsAuth = "SuccessfulCredentialsAuth".info
-  val SuccessfulTokenAuth = "SuccessfulTokenAuth".info
-  val FailedCredentialsAuth = "FailedCredentialsAuth".info
-  val FailedTokenAuth = "FailedTokenAuth".info
-
-  override def componentId: String = "Service.Auth"
-
-}
-
-object UserAuthenticationSysevents extends UserAuthenticationSysevents
-
-object UserAuthenticationActor {
+object BaseAuthActor {
 
   case class User(login: String, hash: String, permissions: Set[String])
 
@@ -58,18 +36,13 @@ object UserAuthenticationActor {
 
 }
 
-abstract class UserAuthenticationActor(id: String)
-  extends ServiceCell(id)
-  with StringStreamPublisher
-  with SetStreamPublisher
-  with UserAuthenticationSysevents
-  with ActorWithTicks {
+abstract class BaseAuthActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
 
   implicit val specs = SetSpecs(allowPartialUpdates = true)
 
-
   val TokenPrefix = "t"
-  val PermissionsPrefix = "p"
+  val TopicPermissionsPrefix = "tp"
+  val DomainPermissionsPrefix = "dp"
   val InfoPrefix = "i"
 
   private val SessionTimeout = 5 minutes
@@ -90,7 +63,7 @@ abstract class UserAuthenticationActor(id: String)
   }
 
   onSubscription {
-    case s@Subject(_, TopicKey("token"), UserToken(ut)) => Some(tokenStream(ut))
+    case Subject(_, TopicKey("token"), UserToken(ut)) => Some(tokenStream(ut))
     case Subject(_, TopicKey("permissions"), UserToken(ut)) => Some(permissionsStream(ut))
     case Subject(_, TopicKey("info"), UserToken(ut)) => Some(infoStream(ut))
   }
@@ -98,7 +71,7 @@ abstract class UserAuthenticationActor(id: String)
   onStreamActive {
     case StreamId(TokenPrefix, Some(ut: String)) => publishToken(ut)
     case StreamId(InfoPrefix, Some(ut: String)) => publishInfo(ut)
-    case StreamId(PermissionsPrefix, Some(ut: String)) => publishPermissions(ut)
+    case StreamId(TopicPermissionsPrefix, Some(ut: String)) => publishPermissions(ut)
   }
 
   onTick {
@@ -108,7 +81,7 @@ abstract class UserAuthenticationActor(id: String)
 
   def tokenStream(ut: String) = StreamId(TokenPrefix, Some(ut))
 
-  def permissionsStream(ut: String) = StreamId(PermissionsPrefix, Some(ut))
+  def permissionsStream(ut: String) = StreamId(TopicPermissionsPrefix, Some(ut))
 
   def infoStream(ut: String) = StreamId(InfoPrefix, Some(ut))
 
@@ -151,6 +124,7 @@ abstract class UserAuthenticationActor(id: String)
     }
 
 
+  /*
   def removeUserToken(userToken: String): Unit = {
     sessions map {
       case s if s.userTokens.contains(userToken) => s.copy(userTokens = s.userTokens - userToken)
@@ -158,6 +132,7 @@ abstract class UserAuthenticationActor(id: String)
     }
     UserTokenInvalidated('token -> userToken)
   }
+  */
 
   def invalidateSessions() = sessions = sessions filter {
     case Session(ut, uid, at, Some(t)) if now - t > SessionTimeout.toMillis =>
