@@ -94,7 +94,7 @@ class CounterService(id: String) extends FSMServiceCell[CounterValue](id) with C
       cancelTimer("ticker")
   }
 
-  onSubscription {
+  onSubjectMapping {
     case Subject(_, TopicKey("counter"), _) => Some(CounterTopic)
   }
 

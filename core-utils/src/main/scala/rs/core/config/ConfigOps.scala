@@ -15,6 +15,7 @@
  */
 package rs.core.config
 
+import akka.actor.Props
 import com.typesafe.config.{Config, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 
@@ -24,6 +25,7 @@ import scalaz.Scalaz._
 
 object ConfigOps {
   implicit def wrap(cfg: Config): ConfigOps = new ConfigOps(cfg)
+
   implicit def wrap(cfg: WithConfig): ConfigOps = new ConfigOps(cfg.config)
 }
 
@@ -77,5 +79,10 @@ class ConfigOps(cfg: Config) {
 
   def asOptClass(key: String) = cfg.as[Option[String]](fieldFor(key)).map(Class.forName)
 
+  def asOptProps(key: String, args: Any*) = asOptClass(key).map(Props(_, args: _*))
+
+  def asRequiredProps(key: String, args: Any*)  = required(asOptClass(key).map(Props(_, args: _*)), key)
+
+  private def required[T](o: Option[T], key: String) = o.getOrElse(throw new RuntimeException(s"$key not provided"))
 
 }

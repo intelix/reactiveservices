@@ -25,10 +25,13 @@ import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
 import rs.core.stream.{StreamPublishers, StreamState, StreamStateTransition}
+import rs.core.utils.NanoTimer
 import rs.core.{ServiceKey, Subject}
 
+import scala.concurrent.Future
 import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
+import scala.util.{Failure, Success}
 
 object BaseServiceCell {
 
@@ -95,6 +98,7 @@ trait BaseServiceCell
   type SubjectToStreamKeyMapper = PartialFunction[Subject, Option[StreamId]]
   type StreamKeyToUnit = PartialFunction[StreamId, Unit]
   type SignalHandler = PartialFunction[(Subject, Any), Option[SignalResponse]]
+  type SignalHandlerAsync = PartialFunction[(Subject, Any), Option[Future[SignalResponse]]]
 
   val nodeRoles: Set[String] = Set.empty
   private var subjectToStreamKeyMapperFunc: SubjectToStreamKeyMapper = {
@@ -106,19 +110,20 @@ trait BaseServiceCell
   private var streamPassiveFunc: StreamKeyToUnit = {
     case _ =>
   }
-  private var signalHandlerFunc: SignalHandler = {
+  private var signalHandlerFunc: PartialFunction[(Subject, Any), Option[Any]] = {
     case _ => None
   }
   private var activeStreams: Set[StreamId] = Set.empty
   private var activeAgents: Map[Address, AgentView] = Map.empty
 
-  final def onSubscription(f: SubjectToStreamKeyMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
+  final def onSubjectMapping(f: SubjectToStreamKeyMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
 
   final def onStreamActive(f: StreamKeyToUnit): Unit = streamActiveFunc = f orElse streamActiveFunc
 
   final def onStreamPassive(f: StreamKeyToUnit): Unit = streamPassiveFunc = f orElse streamPassiveFunc
 
   final def onSignal(f: SignalHandler): Unit = signalHandlerFunc = f orElse signalHandlerFunc
+  final def onSignalAsync(f: SignalHandlerAsync): Unit = signalHandlerFunc = f orElse signalHandlerFunc
 
   final def isStreamActive(streamKey: StreamId) = activeStreams.contains(streamKey)
 
@@ -129,9 +134,12 @@ trait BaseServiceCell
   final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
 
   implicit def signalResponseToOptionWrapper(x: SignalResponse): Option[SignalResponse] = Some(x)
+  implicit def futureOfSignalResponseToOptionWrapper(x: Future[SignalResponse]): Option[Future[SignalResponse]] = Some(x)
+  implicit def streamIdToOptionWrapper(x: StreamId): Option[StreamId] = Some(x)
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
 
+  implicit val execCtx = context.dispatcher
 
   onClusterMemberUp {
     case (address, roles) if nodeRoles.isEmpty || roles.exists(nodeRoles.contains) =>
@@ -141,22 +149,37 @@ trait BaseServiceCell
   }
 
   onMessage {
-    case m: SignalPayload => SignalProcessed { ctx =>
-      ctx +('correlation -> m.correlationId, 'subj -> m.subj)
+    case m: SignalPayload =>
+      val timer = NanoTimer()
       SignalPayload('correlation -> m.correlationId, 'payload -> m.payload)
       if (m.expireAt > now) {
+        val origin = sender()
         signalHandlerFunc(m.subj, m.payload) match {
           case Some(SignalOk(p)) =>
-            sender() ! SignalAckOk(m.correlationId, m.subj, p)
-            ctx + ('result -> "success")
+            origin ! SignalAckOk(m.correlationId, m.subj, p)
+            SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
           case Some(SignalFailed(p)) =>
-            sender() ! SignalAckFailed(m.correlationId, m.subj, p)
-            ctx + ('result -> "failure")
+            origin ! SignalAckFailed(m.correlationId, m.subj, p)
+            SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+          case Some(f: Future[_]) =>
+            f.onComplete {
+              case Success(SignalOk(p)) =>
+                origin ! SignalAckOk(m.correlationId, m.subj, p)
+                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
+              case Success(SignalFailed(p)) =>
+                origin ! SignalAckFailed(m.correlationId, m.subj, p)
+                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+              case Success(_) =>
+                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+              case Failure(t) =>
+                origin ! SignalAckFailed(m.correlationId, m.subj, None)
+                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'reason -> t, 'ms -> timer.toMillis)
+            }
           case None =>
-            ctx + ('result -> "ignored")
+            SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
         }
-      } else ctx + ('expired -> true)
-    }
+      } else SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
+
     case ServiceEndpoint(ref, address) => addEndpointAddress(address, ref)
     case OpenAgentAt(address) => if (isAddressReachable(address)) ensureAgentIsRunningAt(address)
     case GetMappingFor(subj) =>
@@ -273,11 +296,27 @@ trait BaseServiceCell
     }
   }
 
+  protected def terminate(reason: String) = throw new RuntimeException(reason)
+
   sealed trait SignalResponse
 
   case class SignalOk(payload: Option[Any] = None) extends SignalResponse
+  object SignalOk {
+    def apply(): SignalOk = SignalOk(None)
+    def apply(any: Any): SignalOk = any match {
+      case x: Option[_] => SignalOk(x)
+      case x => SignalOk(Some(x))
+    }
+  }
 
   case class SignalFailed(payload: Option[Any] = None) extends SignalResponse
+  object SignalFailed {
+    def apply(): SignalFailed = SignalFailed(None)
+    def apply(any: Any): SignalFailed = any match {
+      case x: Option[_] => SignalFailed(x)
+      case x => SignalFailed(Some(x))
+    }
+  }
 
   private class AgentView(val agent: ActorRef) {
 

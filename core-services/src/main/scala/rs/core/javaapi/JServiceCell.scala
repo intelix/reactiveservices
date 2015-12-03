@@ -47,11 +47,11 @@ abstract class JServiceCell(id: String)
 
 
   abstract class SignalCallback {
-    def success(): Option[SignalResponse] = Some(SignalOk())
+    def success(): Option[SignalResponse] = Some(SignalOk(None))
 
     def success(payload: Any): Option[SignalResponse] = Some(SignalOk(Some(payload)))
 
-    def failure(): Option[SignalResponse] = Some(SignalFailed())
+    def failure(): Option[SignalResponse] = Some(SignalFailed(None))
 
     def failure(payload: Any): Option[SignalResponse] = Some(SignalFailed(Some(payload)))
 
@@ -95,24 +95,24 @@ abstract class JServiceCell(id: String)
   }
 
   final def onTopicSubscription(topic: String, streamRef: StreamId): Unit = {
-    onSubscription {
+    onSubjectMapping {
       case s if s.topic.id == topic => Some(streamRef)
     }
   }
 
   final def onTopicSubscription(topic: String, streamRef: String): Unit = {
-    onSubscription {
+    onSubjectMapping {
       case s if s.topic.id == topic => Some(streamRef)
     }
   }
 
   final def onTopicSubscription(topic: String, mapper: SubjectMapper): Unit = {
-    onSubscription {
+    onSubjectMapping {
       case s if s.topic.id == topic => Some(mapper.map(s))
     }
   }
   final def onSubjectSubscription(subject: SubjectMatcher, mapper: SubjectMapper): Unit = {
-    onSubscription {
+    onSubjectMapping {
       case s if subject.isMatch(s) => Some(mapper.map(s))
     }
   }

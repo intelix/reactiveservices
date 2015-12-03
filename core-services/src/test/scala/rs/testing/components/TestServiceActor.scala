@@ -103,7 +103,7 @@ class TestServiceActor(id: String) extends ServiceCell(id) with Evt with Cluster
     case s@StreamId("list3", x) => StreamPassive('stream -> s)
   }
 
-  onSubscription {
+  onSubjectMapping {
     case Subject(_, TopicKey("string"), _) => Some("string")
     case Subject(_, TopicKey("string1"), _) => Some("string")
     case Subject(_, TopicKey("string2"), _) => Some("string")

@@ -24,7 +24,7 @@ import rs.core.services.{ServiceCell, ServiceCellSysevents, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromTail, ListSpecs}
 import rs.core.stream.SetStreamState.SetSpecs
-import rs.core.tools.Tools.configHelper
+import rs.core.tools.JsonTools.jsToExtractorOps
 import rs.core.{CompositeTopicKey, ServiceKey, Subject, TopicKey}
 
 import scala.language.postfixOps
@@ -51,7 +51,7 @@ class TradingEngineService(id: String) extends ServiceCell(id) with Terminal wit
 
   var trades: List[Trade] = List.empty
 
-  onSubscription {
+  onSubjectMapping {
     case Subject(_, TopicKey("symbols"), _) => Some("symbols")
     case Subject(_, CompositeTopicKey("symbol", sym), _) => Some(("symbol", sym))
     case Subject(_, TopicKey("trades"), _) => Some("trades")

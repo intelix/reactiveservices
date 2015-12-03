@@ -40,6 +40,7 @@ trait ActorWithTicks extends BaseActor {
   def internalProcessTick(): Unit = {}
   def processTick(): Unit = {}
 
+  def onTick(interval: FiniteDuration)(callback: => Unit): Unit = onTick(interval.toMillis)(callback)
   def onTick(intervalMs: Long)(callback: => Unit): Unit = callbacks = callbacks :+ CallbackRequest(() => callback, intervalMs, 0)
   def onTick(callback: => Unit): Unit = callbacksOnEveryTick = callbacksOnEveryTick :+ (() => callback)
 

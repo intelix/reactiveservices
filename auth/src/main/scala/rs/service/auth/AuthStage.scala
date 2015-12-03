@@ -22,7 +22,7 @@ import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
-import rs.core.stream.StringStreamState
+import rs.core.stream.{DictionaryMapStreamState, StringStreamState}
 import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.{ServiceKey, Subject, TopicKey}
@@ -59,13 +59,15 @@ class AuthStage extends ServiceDialectStageBuilder {
         val authServiceKey: ServiceKey = serviceCfg.asString("auth.service-key", "auth")
 
         val tokenTopic: TopicKey = serviceCfg.asString("auth.topic-token", "token")
-        val permissionsTopic: TopicKey = serviceCfg.asString("auth.topic-permissions", "permissions")
+        val topicsPermissionsTopic: TopicKey = serviceCfg.asString("auth.topic-topics-permissions", "topics")
+        val domainsPermissionsTopic: TopicKey = serviceCfg.asString("auth.topic-domains-permissions", "domains")
         val infoTopic: TopicKey = serviceCfg.asString("auth.topic-info", "info")
 
         val closeOnServiceDown = serviceCfg.asBoolean("auth.close-when-auth-unavailable", defaultValue = true)
 
         val AuthSubSubject = Subject(authServiceKey, tokenTopic, UserToken(sessionId) + SecretToken(privateKey))
-        val PermissionsSubSubject = Subject(authServiceKey, permissionsTopic, UserToken(sessionId) + SecretToken(privateKey))
+        val DomainPermissionsSubSubject = Subject(authServiceKey, domainsPermissionsTopic, UserToken(sessionId) + SecretToken(privateKey))
+        val TopicPermissionsSubSubject = Subject(authServiceKey, topicsPermissionsTopic, UserToken(sessionId) + SecretToken(privateKey))
         val InfoSubSubject = Subject(authServiceKey, infoTopic, UserToken(sessionId) + SecretToken(privateKey))
 
 
@@ -85,14 +87,17 @@ class AuthStage extends ServiceDialectStageBuilder {
             Events.AuthServiceDown('service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
             if (closeOnServiceDown) userId = None
             true
-          case StreamStateUpdate(InfoSubSubject, StringStreamState(id)) =>
-            id match {
-              case "" =>
-                Events.UserIdReset('token -> sessionId)
-                userId = None
-              case v =>
-                Events.UserIdProvided('token -> sessionId, 'id -> v)
-                userId = Some(v)
+          case StreamStateUpdate(InfoSubSubject, DictionaryMapStreamState(_, _, values, d)) =>
+            d.locateIdx(AuthServiceActor.InfoUserId) match {
+              case -1 =>
+              case i => values(i) match {
+                case v: String if v != "" =>
+                  Events.UserIdProvided('token -> sessionId, 'id -> v)
+                  userId = Some(v)
+                case _ =>
+                  Events.UserIdReset('token -> sessionId)
+                  userId = None
+              }
             }
             false
           case StreamStateUpdate(subj@Subject(_, _, SecretToken(k)), state) if k == privateKey =>
@@ -111,7 +116,8 @@ class AuthStage extends ServiceDialectStageBuilder {
           Events.SubscribingToAuth('token -> sessionId, 'service -> authServiceKey)
           List(
             OpenSubscription(AuthSubSubject),
-            OpenSubscription(PermissionsSubSubject),
+            OpenSubscription(TopicPermissionsSubSubject),
+            OpenSubscription(DomainPermissionsSubSubject),
             OpenSubscription(InfoSubSubject))
         })
         val concat = b.add(Concat[ServiceInbound])

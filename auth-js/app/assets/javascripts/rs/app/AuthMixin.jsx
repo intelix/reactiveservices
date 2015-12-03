@@ -31,7 +31,7 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
                 },
                 {
                     service: "auth",
-                    topic: 'permissions',
+                    topic: 'domains',
                     onUpdate: this.onPermissions
                 }
             ];
@@ -81,7 +81,7 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
         initiateLogin: function() {
             if (Auth.hasToken()) {
                 this.logInfo("Authenticating with token: " + Auth.getToken());
-                this.sendSignal("auth", "authenticate", {t: Auth.getToken()}, false, 5, this.onAuthSuccess, this.onAuthFailure);
+                this.sendSignal("auth", "tauth", Auth.getToken(), false, 5, this.onAuthSuccess, this.onAuthFailure);
                 Auth.setAuthenticationPending();
             } else {
                 Auth.resetSession();
@@ -92,7 +92,7 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
             Auth.resetToken();
             Auth.setAuthenticationPending();
             this.logInfo("Authenticating with credentials, as " + user);
-            this.sendSignal("auth", "authenticate", {l: user, p: passw}, false, 5, this.onAuthSuccess, this.onAuthFailure);
+            this.sendSignal("auth", "cauth", {u: user, p: passw}, false, 5, this.onAuthSuccess, this.onAuthFailure);
         },
 
         onConnected: function () {

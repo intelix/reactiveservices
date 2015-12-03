@@ -8,10 +8,13 @@ trait BaseAuthEvt extends BaseActorSysevents {
   val AuthToken = "AuthToken".trace
   val UserInfo = "UserInfo".trace
   val UserPermissions = "UserPermissions".trace
+  val UserDomainPermissions = "UserDomainPermissions".trace
+  val UserTopicPermissions = "UserTopicPermissions".trace
   val UserTokenInvalidated = "UserTokenInvalidated".info
   val UserTokenAdded = "UserTokenAdded".info
   val SessionCreated = "SessionCreated".info
   val UserSessionExpired = "UserSessionExpired".info
+  val UserSessionInvalidated = "UserSessionInvalidated".info
   val AuthRequest = "AuthRequest".info
   val SuccessfulCredentialsAuth = "SuccessfulCredentialsAuth".info
   val SuccessfulTokenAuth = "SuccessfulTokenAuth".info
