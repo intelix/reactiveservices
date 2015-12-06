@@ -24,7 +24,8 @@ define(['logging', 'signals', 'cookies'], function (Log, Signal, Cookies) {
 
     var validToken = false;
     var authPending = false;
-    var permissions = false;
+    var domainPermissions = false;
+    var subjectPermissions = false;
 
     var signals = {
         accessChanged: new Signal(),
@@ -46,7 +47,8 @@ define(['logging', 'signals', 'cookies'], function (Log, Signal, Cookies) {
     function resetSession() {
         validToken = false;
         authPending = false;
-        permissions = false;
+        domainPermissions = false;
+        subjectPermissions = false;
         raiseAuthAccessChanged();
     }
     function resetToken() {
@@ -57,7 +59,8 @@ define(['logging', 'signals', 'cookies'], function (Log, Signal, Cookies) {
     function setAuthenticationPending() {
         authPending = true;
         validToken = false;
-        permissions = false;
+        domainPermissions = false;
+        subjectPermissions = false;
         raiseAuthAccessChanged();
     }
 
@@ -65,19 +68,49 @@ define(['logging', 'signals', 'cookies'], function (Log, Signal, Cookies) {
         return false;
     }
 
-    function setPermissions(permSet) {
-        signals.permissionsChanged.dispatch(permSet);
-        permissions = permSet;
-        authPending = false;
+    function setDomainPermissions(permSet) {
+        domainPermissions = permSet;
+        authPending = !domainPermissions || !subjectPermissions;
+        raisePermissionsChanged();
         raiseAuthAccessChanged();
     }
 
+    function setSubjectPermissions(permSet) {
+        var sorted = _.sortBy(permSet, function(next) {
+            return -next.length * (_.startsWith(next, "-") ? 100 : 1);
+        });
+        subjectPermissions = _.map(sorted, function(next) {
+            return {
+                allow: !_.startsWith(next, "-"),
+                pattern: _.startsWith(next, "-") || _.startsWith(next, "+") ? next.substring(1) : next
+            };
+        });
+        authPending = !domainPermissions || !subjectPermissions;
+        raisePermissionsChanged();
+        raiseAuthAccessChanged();
+    }
+
+    function raisePermissionsChanged() {
+        signals.permissionsChanged.dispatch({domain: domainPermissions, subjects: subjectPermissions});
+    }
+
     function isSessionValid() {
-        return !authPending && validToken && permissions;
+        return !authPending && validToken && domainPermissions && subjectPermissions;
     }
 
     function raiseAuthAccessChanged() {
         signals.accessChanged.dispatch(isSessionValid());
+    }
+
+    function hasDomainPermission(domain) {
+        return $.inArray(domain, domainPermissions) > -1;
+    }
+    function hasSubjectPermission(service, topic) {
+        var key = service + "/" + topic;
+        var found = _.find(subjectPermissions, function(next) {
+           return !next.pattern || 0 === next.pattern.length || key.indexOf(next.pattern) > -1;
+        });
+        return found && found.allow;
     }
 
     return {
@@ -87,7 +120,10 @@ define(['logging', 'signals', 'cookies'], function (Log, Signal, Cookies) {
         setToken: updateToken,
         hasToken: getCachedToken,
         getToken: getCachedToken,
-        setPermissions: setPermissions,
+        setDomainPermissions: setDomainPermissions,
+        setSubjectPermissions: setSubjectPermissions,
+        hasDomainPermission: hasDomainPermission,
+        hasSubjectPermission: hasSubjectPermission,
         resetSession: resetSession,
         resetToken: resetToken,
         setAuthenticationPending: setAuthenticationPending,

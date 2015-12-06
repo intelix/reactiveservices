@@ -19,7 +19,7 @@ import akka.actor.{ActorRef, FSM, Props, Stash}
 import akka.io.IO
 import akka.util.{ByteIterator, ByteString}
 import rs.core.Subject
-import rs.core.actors.{ActorState, FSMActor, WithGlobalConfig}
+import rs.core.actors.{ActorState, FSMActor}
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.services.endpoint.StreamConsumer
 import rs.core.services.{ServiceCell, ServiceCellSysevents}
@@ -86,10 +86,10 @@ class WebsocketClientStubService(serviceId: String) extends ServiceCell(serviceI
 
 trait Consumer
   extends StreamConsumer
-  with StringStreamConsumer
-  with DictionaryMapStreamConsumer
-  with SetStreamConsumer
-  with ListStreamConsumer
+    with StringStreamConsumer
+    with DictionaryMapStreamConsumer
+    with SetStreamConsumer
+    with ListStreamConsumer
 
 object WebSocketClient {
 
@@ -103,11 +103,9 @@ object WebSocketClient {
 
 class WebSocketClient(id: String, endpoint: String, port: Int)
   extends FSMActor[WebsocketConnection]
-  with WithGlobalConfig
-  with Consumer
-  with Stash
-  with Evt
-  with WithSysevents {
+    with Consumer
+    with Stash
+    with Evt {
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('id -> id)
 
@@ -198,8 +196,7 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
               states += s -> x
             case None => states -= s
           }
-      }
-
+    }
 
 
   private def translate(alias: Int, state: StreamState) = {

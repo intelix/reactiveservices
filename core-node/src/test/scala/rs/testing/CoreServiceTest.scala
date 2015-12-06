@@ -23,7 +23,6 @@ import rs.core.services.StreamId
 import rs.core.stream.ListStreamState.{ListSpecs, RejectAdd}
 import rs.node.core.ServiceNodeActor
 import rs.node.core.discovery.UdpClusterManagerActor
-import rs.testing.components.ClusterAwareServiceEvt._
 import rs.testing.components.TestServiceActor._
 import rs.testing.components.TestServiceConsumer.{Close, Open, SendSignal}
 import rs.testing.components.{ClusterAwareService, ClusterAwareServiceEvt, TestServiceActor, TestServiceConsumer}
@@ -138,10 +137,10 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
   it should "not conflict with another service with the same name started on some other node" in new With4NodesAndTestOn1 {
     override def node2Services = super.node2Services ++ Map("test" -> classOf[TestServiceActor])
 
-    on node1 expectOne of ServiceRegistrySysevents.ServiceRegistered + ('key -> "test", 'locations -> 2)
-    on node2 expectOne of ServiceRegistrySysevents.ServiceRegistered + ('key -> "test", 'locations -> 2)
-    on node3 expectOne of ServiceRegistrySysevents.ServiceRegistered + ('key -> "test", 'locations -> 2)
-    on node4 expectOne of ServiceRegistrySysevents.ServiceRegistered + ('key -> "test", 'locations -> 2)
+    on node1 expectOne of ServiceRegistrySysevents.ServiceRegistered +('key -> "test", 'locations -> 2)
+    on node2 expectOne of ServiceRegistrySysevents.ServiceRegistered +('key -> "test", 'locations -> 2)
+    on node3 expectOne of ServiceRegistrySysevents.ServiceRegistered +('key -> "test", 'locations -> 2)
+    on node4 expectOne of ServiceRegistrySysevents.ServiceRegistered +('key -> "test", 'locations -> 2)
 
     on node1 expectOne of ServiceRegistrySysevents.PublishingNewServiceLocation + ('key -> "test")
     on node2 expectOne of ServiceRegistrySysevents.PublishingNewServiceLocation + ('key -> "test")
@@ -159,38 +158,38 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
     serviceOnNode1("test") ! StopRequest
 
-    on node1 expectOne of ServiceRegistrySysevents.ServiceUnregistered + ('key -> "test", 'remainingLocations -> 0)
-    on node2 expectOne of ServiceRegistrySysevents.ServiceUnregistered + ('key -> "test", 'remainingLocations -> 0)
-    on node3 expectOne of ServiceRegistrySysevents.ServiceUnregistered + ('key -> "test", 'remainingLocations -> 0)
-    on node4 expectOne of ServiceRegistrySysevents.ServiceUnregistered + ('key -> "test", 'remainingLocations -> 0)
+    on node1 expectOne of ServiceRegistrySysevents.ServiceUnregistered +('key -> "test", 'remainingLocations -> 0)
+    on node2 expectOne of ServiceRegistrySysevents.ServiceUnregistered +('key -> "test", 'remainingLocations -> 0)
+    on node3 expectOne of ServiceRegistrySysevents.ServiceUnregistered +('key -> "test", 'remainingLocations -> 0)
+    on node4 expectOne of ServiceRegistrySysevents.ServiceUnregistered +('key -> "test", 'remainingLocations -> 0)
   }
 
   it should "be able to register for other service location updates, and get update when service become available" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
   }
 
   it should "be able to register for other service location updates, and get update when service become unavailable" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     clearEvents()
     stopNode2()
-    on node1 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "None", 'service -> "test1")
+    on node1 expectOne of Evt.OtherServiceLocationChanged +('addr -> "None", 'service -> "test1")
   }
 
   it should "not receive other service location updates if previously selected location is still active, even when new locations become available" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     clearEvents()
     new WithNode5 {
       override def node5Services: Map[String, Class[_]] = super.node5Services + ("test1" -> classOf[TestServiceActor])
 
-      on node5 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
-     within (3 seconds) {
-        on node1 expectNone of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
+      on node5 expectOne of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+      within(3 seconds) {
+        on node1 expectNone of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
       }
     }
   }
@@ -198,18 +197,18 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
   it should "receive other service location updates if previously selected location becomes unavailable and other service locations are available" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     clearEvents()
     new WithNode5 {
       override def node5Services: Map[String, Class[_]] = super.node5Services + ("test1" -> classOf[TestServiceActor])
 
-      on node5 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
-     within (3 seconds) {
-        on node1 expectNone of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
+      on node5 expectOne of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+      within(3 seconds) {
+        on node1 expectNone of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
       }
 
       stopNode2()
-      on node1 expectOne of Evt.OtherServiceLocationChanged + ('addr -> "Some".r, 'service -> "test1")
+      on node1 expectOne of Evt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     }
   }
 
@@ -221,7 +220,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "consumer")
     clearEvents()
     serviceOnNode1("consumer") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
   }
   it should "be able to open stream and receive an update when started on another node" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("consumer" -> classOf[TestServiceConsumer])
@@ -229,7 +228,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     on node2 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "consumer")
     //    clearEvents()
     serviceOnNode2("consumer") ! Open("test", "string")
-    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate + ('sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate +('sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
   }
   "Multiple service consumers" should "be able to open stream and receive an update when started on the same node" in new With4NodesAndTestOn1 {
     override def node1Services: Map[String, Class[_]] = super.node1Services +("consumer1" -> classOf[TestServiceConsumer], "consumer2" -> classOf[TestServiceConsumer])
@@ -239,8 +238,8 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     clearEvents()
     serviceOnNode1("consumer1") ! Open("test", "string")
     serviceOnNode1("consumer2") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
   }
 
   it should "be able to open stream and receive an update when started on different hosts" in new With4NodesAndTestOn1 {
@@ -257,10 +256,10 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode1("consumer2") ! Open("test", "string")
     serviceOnNode2("consumer3") ! Open("test", "string")
     serviceOnNode2("consumer4") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer4", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer4", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
   }
 
 
@@ -280,13 +279,13 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
     on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "consumer1")
     serviceOnNode1("consumer1") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
 
     on node1 expectOne of TestServiceActor.Evt.SubjectMapped + ('subj -> "test|string")
 
     clearEvents()
     serviceOnNode1("consumer2") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
 
     on node1 expectNone of TestServiceActor.Evt.SubjectMapped + ('subj -> "test|string")
   }
@@ -299,16 +298,16 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode1("consumer1") ! Open("test", "string")
     serviceOnNode1("consumer1") ! Open("test", "string1")
     serviceOnNode1("consumer2") ! Open("test", "string2")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string1", 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string2", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string1", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string2", 'value -> TestServiceActor.AutoStringReply)
 
     clearEvents()
 
     serviceOnNode1("test") ! PublishString("string", "latest")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> "latest")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string1", 'value -> "latest")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string2", 'value -> "latest")
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> "latest")
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string1", 'value -> "latest")
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string2", 'value -> "latest")
 
   }
 
@@ -319,16 +318,16 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode1("consumer1") ! Open("test", "string")
     serviceOnNode1("consumer1") ! Open("test", "string1")
     serviceOnNode1("consumer2") ! Open("test", "string2")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string1", 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string2", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string1", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string2", 'value -> TestServiceActor.AutoStringReply)
 
     clearEvents()
 
     serviceOnNode1("consumer1") ! Close("test", "string")
     serviceOnNode1("consumer1") ! Close("test", "string1")
 
-   within (5 seconds) {
+    within(5 seconds) {
       on node1 expectNone of TestServiceActor.Evt.IdleStream
     }
     clearEvents()
@@ -344,16 +343,16 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "consumer1")
     serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id1"))
     serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id2"))
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id2"), 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id2"), 'value -> TestServiceActor.AutoStringReply)
 
     clearEvents()
 
     serviceOnNode1("test") ! PublishString(StreamId("string", Some("id1")), "latest")
 
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> "latest")
-   within (3 seconds) {
-      on node1 expectNone of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id2"), 'value -> "latest")
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> "latest")
+    within(3 seconds) {
+      on node1 expectNone of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id2"), 'value -> "latest")
 
     }
 
@@ -376,7 +375,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id1"))
 
 
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> TestServiceActor.AutoStringReply)
     clearEvents()
 
     serviceOnNode1("consumer1") ! Close("test", "stringWithId", UserId("id1"))
@@ -400,10 +399,10 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode2("consumer3") ! Open("test", "string")
     serviceOnNode2("consumer4") ! Open("test", "string")
 
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
-    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer4", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer4", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
     clearEvents()
   }
 
@@ -416,11 +415,11 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "shut down stream when all consumers are gone" in new ServiceWith4ActiveConsumers {
     stopNode2()
-   within (5 seconds) {
+    within(5 seconds) {
       on node1 expectNone of TestServiceActor.Evt.IdleStream
     }
     serviceOnNode1("consumer1") ! StopRequest
-   within (5 seconds) {
+    within(5 seconds) {
       on node1 expectNone of TestServiceActor.Evt.IdleStream
     }
     serviceOnNode1("consumer2") ! StopRequest
@@ -429,16 +428,16 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "reopen stream when new consumer arrives" in new ServiceWith4ActiveConsumers {
     stopNode2()
-   within (5 seconds) {
+    within(5 seconds) {
       on node1 expectNone of TestServiceActor.Evt.IdleStream
     }
     serviceOnNode1("consumer1") ! StopRequest
-   within (5 seconds) {
+    within(5 seconds) {
       on node1 expectNone of TestServiceActor.Evt.IdleStream
     }
 
     serviceOnNode1("test") ! PublishString("string", "latest")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> "latest")
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> "latest")
 
 
     serviceOnNode1("consumer2") ! Close("test", "string")
@@ -447,8 +446,8 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     clearEvents()
 
     serviceOnNode1("consumer2") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> "latest")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> "latest")
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer2", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
 
   }
 
@@ -468,24 +467,24 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
   it should "receive a signal with payload" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! SendSignal("test", "signal", payload = "payload")
-    on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckOk + ('payload -> "Some(payload1)", 'path -> "/user/node/consumer1")
+    on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckOk +('payload -> "Some(payload1)", 'path -> "/user/node/consumer1")
   }
   it should "receive a signal with payload and correlationId" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! SendSignal("test", "signal", payload = "payload", correlationId = Some("correlationId"))
-    on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckOk + ('payload -> "Some(payload1)", 'correlationId -> "Some(correlationId)", 'path -> "/user/node/consumer1")
+    on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckOk +('payload -> "Some(payload1)", 'correlationId -> "Some(correlationId)", 'path -> "/user/node/consumer1")
   }
   it should "receive a signal with payload and correlationId, ordered group" in new With2Consumers1Service {
     for (i <- 1 to 100) serviceOnNode1("consumer1") ! SendSignal("test", "signal", payload = s"payload$i:", correlationId = Some(s"correlation$i"), orderingGroup = Some("grp"))
-    for (i <- 1 to 100) on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckOk + ('payload -> s"Some(payload$i:$i)", 'correlationId -> s"Some(correlation$i)", 'path -> "/user/node/consumer1")
+    for (i <- 1 to 100) on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckOk +('payload -> s"Some(payload$i:$i)", 'correlationId -> s"Some(correlation$i)", 'path -> "/user/node/consumer1")
   }
   it should "receive a signal and respond with a failure" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! SendSignal("test", "signal_failure", payload = "payload")
-    on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckFailed + ('payload -> "Some(failure)", 'path -> "/user/node/consumer1")
+    on node1 expectOne of TestServiceConsumer.Evt.SignalResponseReceivedAckFailed +('payload -> "Some(failure)", 'path -> "/user/node/consumer1")
   }
   it should "receive a signal and do not respond" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! SendSignal("test", "signal_no_response", payload = "payload")
     on node1 expectOne of Evt.SignalReceived + ('subj -> "test|signal_no_response")
-   within (3 seconds) {
+    within(3 seconds) {
       on node1 expectNone of TestServiceConsumer.Evt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer1")
       on node1 expectNone of TestServiceConsumer.Evt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer1")
     }
@@ -494,7 +493,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
   it should "receive a signal and do not respond, client should timeout" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! SendSignal("test", "signal_no_response", payload = "payload", expiry = 2 seconds)
     on node1 expectOne of Evt.SignalReceived + ('subj -> "test|signal_no_response")
-   within (3 seconds) {
+    within(3 seconds) {
       on node1 expectNone of TestServiceConsumer.Evt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer1")
       on node1 expectNone of TestServiceConsumer.Evt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer1")
     }
@@ -520,10 +519,10 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     clearEvents()
 
     serviceOnNode3("consumer3") ! Open("test", "string")
-    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
 
     serviceOnNode1("test") ! PublishString("string", "update1")
-    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update1")
+    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update1")
 
     atNode1BlockNode(3, 4)
     atNode2BlockNode(3, 4)
@@ -531,7 +530,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode3BlockNode(1, 2)
     atNode4BlockNode(1, 2)
 
-   within (5 seconds) {
+    within(5 seconds) {
       on node1 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
       on node2 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
       on node3 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
@@ -540,14 +539,14 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
     serviceOnNode1("test") ! PublishString("string", "update2")
 
-   within (5 seconds) {}
+    within(5 seconds) {}
 
     atNode1UnblockNode(3, 4)
     atNode2UnblockNode(3, 4)
     atNode3UnblockNode(1, 2)
     atNode4UnblockNode(1, 2)
 
-   within (10 seconds) {
+    within(10 seconds) {
       on node1 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
       on node2 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
       on node3 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
@@ -562,7 +561,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     on node4 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node2Address)
     on node4 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node1Address)
 
-    on node3 expectSome of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update2")
+    on node3 expectSome of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update2")
 
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
@@ -576,10 +575,10 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     clearEvents()
 
     serviceOnNode3("consumer3") ! Open("test", "string")
-    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
 
     serviceOnNode1("test") ! PublishString("string", "update1")
-    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update1")
+    on node3 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update1")
 
     atNode1BlockNode(3, 4)
     atNode2BlockNode(3, 4)
@@ -587,7 +586,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode3BlockNode(1, 2)
     atNode4BlockNode(1, 2)
 
-   within (5 seconds) {
+    within(5 seconds) {
       on node1 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
       on node2 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
       on node3 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
@@ -599,7 +598,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode1("test") ! PublishString("string", "update4")
     serviceOnNode1("test") ! PublishString("string", "update5")
 
-   within (5 seconds) {}
+    within(5 seconds) {}
 
 
     atNode1UnblockNode(3, 4)
@@ -607,7 +606,7 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     atNode3UnblockNode(1, 2)
     atNode4UnblockNode(1, 2)
 
-   within (10 seconds) {
+    within(10 seconds) {
       on node1 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
       on node2 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
       on node3 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
@@ -622,10 +621,10 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     on node4 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node2Address)
     on node4 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node1Address)
 
-    on node3 expectSome of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update5")
-    on node3 expectNone of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update2")
-    on node3 expectNone of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update3")
-    on node3 expectNone of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update4")
+    on node3 expectSome of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update5")
+    on node3 expectNone of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update2")
+    on node3 expectNone of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update3")
+    on node3 expectNone of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update4")
 
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
@@ -639,49 +638,49 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   "String stream subscriber" should "receive an initial update when subscribed" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
   }
 
   it should "may or may not receive all updates, but must receive the very last one" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
 
     serviceOnNode1("test") ! PublishString("string", "update1")
     serviceOnNode1("test") ! PublishString("string", "update2")
     serviceOnNode1("test") ! PublishString("string", "update3")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> "update3")
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> "update3")
 
   }
 
   "Set stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! Open("test", "set")
-    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
+    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
     clearEvents()
 
     serviceOnNode1("test") ! PublishSet("set", Set("c", "d"))
-    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
+    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
     clearEvents()
 
     serviceOnNode1("test") ! PublishSetAdd("set", Set("c", "x"))
-    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d,x")
+    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d,x")
     clearEvents()
 
     serviceOnNode1("test") ! PublishSetRemove("set", Set("c", "a"))
-    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "d,x")
+    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "d,x")
 
   }
 
   it should "not conflict with string subscription" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! Open("test", "set")
-    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
+    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
     clearEvents()
 
     serviceOnNode1("consumer1") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.Evt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
     clearEvents()
 
     serviceOnNode1("test") ! PublishSet("set", Set("c", "d"))
-    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
+    on node1 expectSome of TestServiceConsumer.Evt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
 
     on node1 expectNone of TestServiceConsumer.Evt.StringUpdate
 
@@ -689,19 +688,19 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   "Map stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With2Consumers1Service {
     serviceOnNode1("consumer1") ! Open("test", "map")
-    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> a, i -> 1, b -> true)")
+    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> a, i -> 1, b -> true)")
     clearEvents()
 
     serviceOnNode1("test") ! PublishMap("map", Array("c", 123, false))
-    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> false)")
+    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> false)")
     clearEvents()
 
     serviceOnNode1("test") ! PublishMap("map", Array("c", 123, true))
-    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> true)")
+    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> true)")
     clearEvents()
 
     serviceOnNode1("test") ! PublishMapAdd("map", "s" -> "bla")
-    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> bla, i -> 123, b -> true)")
+    on node1 expectSome of TestServiceConsumer.Evt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> bla, i -> 123, b -> true)")
     clearEvents()
 
   }
@@ -710,81 +709,81 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode1("consumer1") ! Open("test", "list1") // reject add when reached 5 items
     serviceOnNode1("consumer1") ! Open("test", "list2") // remove from head when reached 5 items
     serviceOnNode1("consumer1") ! Open("test", "list3") // remove from tail when reached 5 items
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "1,2,3,4")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "1,2,3,4")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4")
     clearEvents()
 
     serviceOnNode1("test") ! PublishList("list1", List("a", "b"), ListSpecs(5, RejectAdd))
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", -1, "5")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", 0, "6")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,b,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", 2, "7")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", 2, "8")
     serviceOnNode1("test") ! PublishListAdd("list1", 0, "8")
     serviceOnNode1("test") ! PublishListAdd("list1", -1, "8")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishList("list1", List("a", "b", "c", "d", "e"), ListSpecs(6, RejectAdd))
     serviceOnNode1("test") ! PublishListAdd("list1", 2, "8")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,8,c,d,e")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,8,c,d,e")
     clearEvents()
 
 
     serviceOnNode1("test") ! PublishListAdd("list2", -1, "5")
     serviceOnNode1("test") ! PublishListAdd("list3", -1, "5")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list2", 0, "6")
     serviceOnNode1("test") ! PublishListAdd("list3", 0, "6")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,2,3,4")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,2,3,4")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list2", 2, "7")
     serviceOnNode1("test") ! PublishListAdd("list3", 2, "7")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,3,4,5")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,7,2,3")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,3,4,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,7,2,3")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListRemove("list2", 2)
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,4,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,4,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListReplace("list2", -2, "x")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,x,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,x,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindReplace("list2", "7", "x")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,x,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,x,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindReplace("list2", "x", "a")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,a,x,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,a,x,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindRemove("list2", "z")
-   within (1 seconds) {
-      on node1 expectNone of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2")
+    within(1 seconds) {
+      on node1 expectNone of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2")
     }
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindRemove("list2", "a")
-    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate + ('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,5")
+    on node1 expectSome of TestServiceConsumer.Evt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,5")
     clearEvents()
 
   }

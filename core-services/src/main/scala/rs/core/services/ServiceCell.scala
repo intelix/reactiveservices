@@ -89,8 +89,7 @@ trait BaseServiceCell
     with RemoteStreamsBroadcaster
     with MessageAcknowledging
     with StreamPublishers
-    with ServiceCellSysevents
-    with WithGlobalConfig {
+    with ServiceCellSysevents {
 
   implicit lazy val serviceCfg = ServiceConfig(config.asConfig(id))
   lazy val serviceKey: ServiceKey = id
@@ -177,6 +176,7 @@ trait BaseServiceCell
             }
           case None =>
             SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+          case _ =>
         }
       } else SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
 

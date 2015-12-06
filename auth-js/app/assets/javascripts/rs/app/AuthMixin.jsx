@@ -27,12 +27,20 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
                     service: "auth",
                     topic: 'token',
                     onUpdate: this.onAuthKey,
-                    onUnavailable: this.onAuthServiceUnavailable
+                    onUnavailable: this.onAuthServiceUnavailable,
+                    priority: '1'
                 },
                 {
                     service: "auth",
                     topic: 'domains',
-                    onUpdate: this.onPermissions
+                    onUpdate: this.onDomainPermissions,
+                    priority: '1'
+                },
+                {
+                    service: "auth",
+                    topic: 'subjects',
+                    onUpdate: this.onSubjectPermissions,
+                    priority: '1'
                 }
             ];
         },
@@ -55,28 +63,21 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
                 Auth.resetToken();
             }
         },
-        onPermissions: function (data) {
-            Auth.setPermissions(data);
-            this.logDebug("Permissions received: " + data);
+        onDomainPermissions: function (data) {
+            Auth.setDomainPermissions(data);
+            this.logInfo("Domain permissions received: " + data);
         },
+        onSubjectPermissions: function (data) {
+            Auth.setSubjectPermissions(data);
+            this.logInfo("Subject permissions received: " + data);
+        },
+
         onAuthSuccess: function (data) {
-            this.logInfo("!>>> onAuthSuccess : " + JSON.stringify(data));
-            //if (data && data.success) {
-            //    this.logInfo("Successfully authenticated, server response: " + data.msg);
-            //} else {
-            //    this.logInfo("Authentication failed, server response: " + (data && data.msg ? data.msg : "n/a"));
-            //    Auth.resetToken();
-            //}
+            this.logInfo("Authentication successful");
         },
         onAuthFailure: function (data) {
-            this.logInfo("!>>> onAuthFailure : " + JSON.stringify(data));
+            this.logInfo("Authentication unsuccessful");
             Auth.resetToken();
-            //if (data && data.success) {
-            //    this.logInfo("Successfully authenticated, server response: " + data.msg);
-            //} else {
-            //    this.logInfo("Authentication failed, server response: " + (data && data.msg ? data.msg : "n/a"));
-            //    Auth.resetToken();
-            //}
         },
         initiateLogin: function() {
             if (Auth.hasToken()) {

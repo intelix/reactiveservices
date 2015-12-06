@@ -16,17 +16,27 @@
 package rs.core.sysevents
 
 import rs.core.config.ConfigOps.wrap
+import rs.core.config.{WithConfig, GlobalConfig}
 import rs.core.sysevents.log.LoggerSyseventPublisher
 
 trait WithSysevents {
 
-  implicit val evtPublisher = WithSysevents.ref
+  implicit val evtPublisher = WithSysevents.publisher
   implicit val evtPublisherContext = this
 
-  def commonFields: Seq[FieldAndValue] = Seq()
+  def commonFields: Seq[(Symbol, Any)] = Seq()
 }
 
-object WithSysevents extends WithSyseventsConfig {
-  private val ref = syseventsConfig.asClass("sysevents.publisher-provider", classOf[LoggerSyseventPublisher]).newInstance().asInstanceOf[SyseventPublisher]
+trait WithNodeSysevents extends WithSysevents with WithConfig {
 
+  override implicit val evtPublisherContext = this
+
+  lazy val nodeId = config.asString("node.id", "n/a")
+
+  override def commonFields: Seq[(Symbol, Any)] = Seq('nodeid -> nodeId)
+}
+
+
+object WithSysevents extends WithSyseventsConfig {
+  val publisher = syseventsConfig.asClass("sysevents.publisher-provider", classOf[LoggerSyseventPublisher]).newInstance().asInstanceOf[SyseventPublisher]
 }

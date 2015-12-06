@@ -9,7 +9,7 @@ trait BaseAuthEvt extends BaseActorSysevents {
   val UserInfo = "UserInfo".trace
   val UserPermissions = "UserPermissions".trace
   val UserDomainPermissions = "UserDomainPermissions".trace
-  val UserTopicPermissions = "UserTopicPermissions".trace
+  val UserSubjectsPermissions = "UserSubjectsPermissions".trace
   val UserTokenInvalidated = "UserTokenInvalidated".info
   val UserTokenAdded = "UserTokenAdded".info
   val SessionCreated = "SessionCreated".info

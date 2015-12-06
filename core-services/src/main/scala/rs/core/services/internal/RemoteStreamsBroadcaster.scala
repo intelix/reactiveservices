@@ -19,10 +19,12 @@ import java.util
 
 import akka.actor.ActorRef
 import rs.core.actors.BaseActor
+import rs.core.config.GlobalConfig
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.stream.{StreamState, StreamStateTransition}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import com.typesafe.config._
 
 import scala.collection.mutable
 
@@ -105,7 +107,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
   }
 
 
-  private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentComponentId: String) extends ConsumerDemandTracker {
+  private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentComponentId: String)(implicit val config: Config) extends ConsumerDemandTracker {
     private val streamKeyToSink: mutable.Map[StreamId, StreamSink] = mutable.HashMap()
     private val streams: util.ArrayList[StreamSink] = new util.ArrayList[StreamSink]()
     private val canUpdate = () => hasDemand

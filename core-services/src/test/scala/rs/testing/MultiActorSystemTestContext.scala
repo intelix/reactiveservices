@@ -5,7 +5,7 @@ import com.typesafe.config._
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import org.slf4j.LoggerFactory
 import rs.core.actors.SingleStateActor
-import rs.core.sysevents.WithSysevents
+import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.sysevents.support.{WithSyseventsCollector, EventAssertions}
 import rs.core.tools.UUIDTools
@@ -55,7 +55,7 @@ private object WatcherActor extends WatcherSysevents {
   def props(componentId: String) = Props(new WatcherActor(componentId))
 }
 
-private class WatcherActor(id: String) extends SingleStateActor with WatcherSysevents with WithSysevents {
+private class WatcherActor(id: String) extends SingleStateActor with WatcherSysevents  {
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('InstanceId -> id)
 
   var watched = Set[ActorRef]()

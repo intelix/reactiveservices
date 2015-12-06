@@ -18,7 +18,7 @@ package rs.core.actors
 
 import akka.actor.{Actor, ActorRef, FSM, Terminated}
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.sysevents.WithSysevents
+import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.tools.NowProvider
 
@@ -97,9 +97,8 @@ trait BaseActor
   extends ActorUtils
     with StrictLogging
     with BaseActorSysevents
-    with WithSysevents
-    with NowProvider
-    with WithGlobalConfig {
+    with WithNodeSysevents
+    with NowProvider {
 
 
   protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty

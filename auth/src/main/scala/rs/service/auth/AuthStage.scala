@@ -17,29 +17,33 @@ package rs.service.auth
 
 import akka.stream.scaladsl._
 import akka.stream.{BidiShape, FlowShape}
+import com.typesafe.config.Config
 import rs.core.SubjectKeys.{KeyOps, UserId, UserToken}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
-import rs.core.stream.{DictionaryMapStreamState, StringStreamState}
-import rs.core.sysevents.WithSysevents
+import rs.core.stream.{DictionaryMapStreamState, SetStreamState}
+import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.{ServiceKey, Subject, TopicKey}
 
-trait AuthStageSysevents extends ComponentWithBaseSysevents {
+trait AuthStageEvt extends ComponentWithBaseSysevents {
 
   val SubscribingToAuth = "SubscribingToAuth".info
   val UserIdReset = "UserIdReset".info
   val UserIdProvided = "UserIdProvided".info
+  val SubjectPermissionsProvided = "SubjectPermissionsProvided".info
+  val SubjectPermissionsReset = "SubjectPermissionsReset".info
   val AuthServiceDown = "AuthServiceDown".warn
 
+  val AccessDenied = "AccessDenied".warn
+
+
+  override def componentId: String = "AuthStage"
 }
 
-class AuthStageSyseventsAt(parentComponentId: String) extends AuthStageSysevents {
-  override def componentId: String = parentComponentId + ".AuthStage"
-}
-
+object AuthStageEvt extends AuthStageEvt
 
 private object SecretToken extends KeyOps {
   override val token: String = "secret"
@@ -47,55 +51,76 @@ private object SecretToken extends KeyOps {
 
 class AuthStage extends ServiceDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSysevents) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig) =
     if (serviceCfg.asBoolean("auth.enabled", defaultValue = true))
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
 
-        val Events = new AuthStageSyseventsAt(componentId)
+        implicit val evtPub = new WithNodeSysevents {
+          override val commonFields: Seq[(Symbol, Any)] = super.commonFields :+ ('token -> sessionId)
+
+          override def config: Config = globalConfig.config
+        }
 
         val privateKey = sessionId + "_private"
 
         val authServiceKey: ServiceKey = serviceCfg.asString("auth.service-key", "auth")
 
         val tokenTopic: TopicKey = serviceCfg.asString("auth.topic-token", "token")
-        val topicsPermissionsTopic: TopicKey = serviceCfg.asString("auth.topic-topics-permissions", "topics")
-        val domainsPermissionsTopic: TopicKey = serviceCfg.asString("auth.topic-domains-permissions", "domains")
+        val subjectsPermissionsTopic: TopicKey = serviceCfg.asString("auth.topic-subjects-permissions", "subjects")
         val infoTopic: TopicKey = serviceCfg.asString("auth.topic-info", "info")
 
         val closeOnServiceDown = serviceCfg.asBoolean("auth.close-when-auth-unavailable", defaultValue = true)
 
         val AuthSubSubject = Subject(authServiceKey, tokenTopic, UserToken(sessionId) + SecretToken(privateKey))
-        val DomainPermissionsSubSubject = Subject(authServiceKey, domainsPermissionsTopic, UserToken(sessionId) + SecretToken(privateKey))
-        val TopicPermissionsSubSubject = Subject(authServiceKey, topicsPermissionsTopic, UserToken(sessionId) + SecretToken(privateKey))
+        val SubjectPermissionsSubSubject = Subject(authServiceKey, subjectsPermissionsTopic, UserToken(sessionId) + SecretToken(privateKey))
         val InfoSubSubject = Subject(authServiceKey, infoTopic, UserToken(sessionId) + SecretToken(privateKey))
 
 
         @volatile var userId: Option[String] = None
+        @volatile var permissions = Array[SubjectPermission]()
 
-        val in = b.add(Flow[ServiceInbound].map {
-          case s: OpenSubscription =>
-            s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
-          case s: CloseSubscription =>
-            s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
-          case s: Signal =>
-            s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
-        })
+        def isAllowed(s: Subject) = authServiceKey == s.service || permissions.find(_.isMatching(s.service.id + "/" + s.topic.id)).exists(_.allow)
+
+        val in = b.add(Flow[ServiceInbound]
+          .filter {
+            case s: OpenSubscription =>
+              val allow = isAllowed(s.subj)
+              if (!allow) AuthStageEvt.AccessDenied('subj -> s.subj, 'userid -> userId)
+              allow
+            case s: CloseSubscription => true
+            case s: Signal =>
+              val allow = isAllowed(s.subj)
+              if (!allow) AuthStageEvt.AccessDenied('subj -> s.subj, 'userid -> userId)
+              allow
+          }
+          .map {
+            case s: OpenSubscription =>
+              s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
+            case s: CloseSubscription =>
+              s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
+            case s: Signal =>
+              s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
+          })
 
         val out = b.add(Flow[ServiceOutbound].filter {
           case ServiceNotAvailable(a) if a == authServiceKey =>
-            Events.AuthServiceDown('service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
+            AuthStageEvt.AuthServiceDown('service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
             if (closeOnServiceDown) userId = None
             true
+          case StreamStateUpdate(SubjectPermissionsSubSubject, SetStreamState(_, _, set, _)) =>
+            permissions = convertPermissions(set)
+            if (permissions.isEmpty) AuthStageEvt.SubjectPermissionsReset() else AuthStageEvt.SubjectPermissionsProvided()
+            false
           case StreamStateUpdate(InfoSubSubject, DictionaryMapStreamState(_, _, values, d)) =>
             d.locateIdx(AuthServiceActor.InfoUserId) match {
               case -1 =>
               case i => values(i) match {
                 case v: String if v != "" =>
-                  Events.UserIdProvided('token -> sessionId, 'id -> v)
+                  AuthStageEvt.UserIdProvided('id -> v)
                   userId = Some(v)
                 case _ =>
-                  Events.UserIdReset('token -> sessionId)
+                  AuthStageEvt.UserIdReset()
                   userId = None
               }
             }
@@ -113,11 +138,10 @@ class AuthStage extends ServiceDialectStageBuilder {
         })
 
         val s = Source({
-          Events.SubscribingToAuth('token -> sessionId, 'service -> authServiceKey)
+          AuthStageEvt.SubscribingToAuth('service -> authServiceKey)
           List(
             OpenSubscription(AuthSubSubject),
-            OpenSubscription(TopicPermissionsSubSubject),
-            OpenSubscription(DomainPermissionsSubSubject),
+            OpenSubscription(SubjectPermissionsSubSubject),
             OpenSubscription(InfoSubSubject))
         })
         val concat = b.add(Concat[ServiceInbound])
@@ -128,5 +152,14 @@ class AuthStage extends ServiceDialectStageBuilder {
         BidiShape(FlowShape(in.inlet, concat.out), out)
       }))
     else None
+
+  private def convertPermissions(set: Set[String]) = set.map(SubjectPermission).toArray.sortBy { x => -x.s.length * (if (!x.allow) 100 else 1) }
+
+  private case class SubjectPermission(s: String) {
+    val allow = !s.startsWith("-")
+    val pattern = if (s.startsWith("+") || s.startsWith("-")) s.substring(1) else s
+
+    def isMatching(key: String) = key == pattern || key.contains(pattern)
+  }
 
 }

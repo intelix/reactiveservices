@@ -17,6 +17,7 @@
 package rs.core.actors
 
 import akka.actor.{Actor, ActorRef}
+import rs.core.config.GlobalConfig
 import rs.core.tools.UUIDTools
 
 import scala.concurrent.duration.FiniteDuration
@@ -27,7 +28,10 @@ trait ActorUtils extends Actor {
 
   def shortUUID: String = UUIDTools.generateShortUUID
 
-  lazy val config = context.system.settings.config
+  lazy implicit val config = context.system.settings.config
+
+  implicit val globalCfg = GlobalConfig(config)
+
 
   def scheduleOnce(in: FiniteDuration, msg: Any, to: ActorRef = self, from: ActorRef = self) = context.system.scheduler.scheduleOnce(in, to, msg)(context.system.dispatcher, from)
 

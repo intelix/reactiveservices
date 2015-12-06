@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-define(['react', 'logging', 'appevents', 'socket', 'subscriptions'],
-    function (React, Log, AppEvents, Socket, Subscriptions) {
+define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
+    function (React, Log, AppEvents, Socket, Subscriptions, Auth) {
 
         function _subId2String(config) {
             return config ? config.service + "#" + config.topic : "Nil";
@@ -56,9 +56,8 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions'],
 
             /* permissions */
 
-            // TODO
-            //hasTopicPermission: Permissions.hasTopicPermission,
-            //hasDomainPermission: Permissions.hasDomainPermission,
+            hasSubjectPermission: Auth.hasSubjectPermission,
+            hasDomainPermission: Auth.hasDomainPermission,
 
             /* misc */
 
@@ -66,7 +65,6 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions'],
                 var cx = React.addons.classSet;
                 return cx(v);
             },
-
 
             sendSignal: function (service, topic, data, orderingGroup, expireInSeconds, onSuccess, onFailure) {
                 if (_.isObject(this.handle) && this.handle.signal) this.handle.signal(service, topic, data, orderingGroup, expireInSeconds, onSuccess, onFailure);

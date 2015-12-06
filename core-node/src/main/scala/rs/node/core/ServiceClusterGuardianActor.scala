@@ -20,10 +20,10 @@ import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
 import net.ceedubs.ficus.Ficus._
-import rs.core.actors.{SingleStateActor, BaseActorSysevents, WithGlobalConfig}
+import rs.core.actors.{BaseActorSysevents, SingleStateActor}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.GlobalConfig
-import rs.core.sysevents.WithSysevents
+import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceClusterGuardianActor.RestartRequestException
 
@@ -52,10 +52,8 @@ object ServiceClusterGuardianActor {
 
 class ServiceClusterGuardianActor(config: Config)
   extends SingleStateActor
-  with ServiceClusterGuardianSysevents
-  with StrictLogging
-  with WithSysevents
-  with WithGlobalConfig {
+    with ServiceClusterGuardianSysevents
+    with StrictLogging {
 
   private val maxRetries = config.as[Option[Int]]("node.cluster.max-retries") | -1
   private val maxRetriesTimewindow: Duration = config.as[Option[FiniteDuration]]("node.cluster.max-retries-window") match {
@@ -74,7 +72,7 @@ class ServiceClusterGuardianActor(config: Config)
       case _ => Escalate
     }
 
-  onActorTerminated{
+  onActorTerminated {
     case _ => throw new Error("Unable to bootstrap the cluster system")
   }
 

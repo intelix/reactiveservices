@@ -11,7 +11,7 @@ import rs.core.tools.JsonTools.jsToExtractorOps
 import rs.core.{Subject, TopicKey}
 import rs.service.auth.AuthServiceActor.InfoUserId
 import rs.service.auth.api.AuthenticationMessages.{Authenticate, AuthenticationResponse, Invalidate}
-import rs.service.auth.api.AuthorisationMessages.{TopicPermissions, DomainPermissions, PermissionsRequest, PermissionsRequestCancel}
+import rs.service.auth.api.AuthorisationMessages.{DomainPermissions, PermissionsRequest, PermissionsRequestCancel, SubjectPermissions}
 
 import scala.concurrent.Future
 import scala.concurrent.duration.DurationInt
@@ -40,20 +40,20 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
   val TokenPrefix = "t"
   val InfoPrefix = "i"
   val DomainsPermPrefix = "d"
-  val TopicPatternsPermPrefix = "p"
+  val SubjectsPermPrefix = "s"
 
   onSubjectMapping {
     case Subject(_, TopicKey("token"), UserToken(ut)) => tokenStream(ut)
     case Subject(_, TopicKey("info"), UserToken(ut)) => infoStream(ut)
     case Subject(_, TopicKey("domains"), UserToken(ut)) => domainPermissionsStream(ut)
-    case Subject(_, TopicKey("topics"), UserToken(ut)) => topicPermissionsStream(ut)
+    case Subject(_, TopicKey("subjects"), UserToken(ut)) => subjectPermissionsStream(ut)
   }
 
   onStreamActive {
     case StreamId(TokenPrefix, Some(ut: String)) => publishToken(ut)
     case StreamId(InfoPrefix, Some(ut: String)) => publishInfo(ut)
     case StreamId(DomainsPermPrefix, Some(ut: String)) => publishDomainPermissions(ut)
-    case StreamId(TopicPatternsPermPrefix, Some(ut: String)) => publishTopicPermissions(ut)
+    case StreamId(SubjectsPermPrefix, Some(ut: String)) => publishSubjectPermissions(ut)
   }
 
   onSignalAsync {
@@ -67,12 +67,9 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
           case Some((user, pass)) =>
             authenticateWithCredentials(user, pass, ut) map {
               case true =>
-                val sess = createSession(ut, user)
-                SuccessfulCredentialsAuth('token -> ut, 'authkey -> sess.securityToken, 'userid -> user)
-                publishAllForUserToken(ut)
+                self ! AuthOk(ut, user)
                 SignalOk(true)
-              case _ =>
-                FailedCredentialsAuth('token -> ut, 'userid -> user, 'reason -> "access denied")
+              case _ => self ! AuthFailed(ut, user)
                 SignalOk(false)
             }
         }
@@ -103,12 +100,22 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
         sessions += user -> sess.copy(domains = set)
         sess.userTokens foreach publishDomainPermissions
       }
-    case TopicPermissions(user, set) =>
+    case SubjectPermissions(user, set) =>
       sessions get user foreach { sess =>
-        sessions += user -> sess.copy(topicPatterns = set)
-        sess.userTokens foreach publishTopicPermissions
+        sessions += user -> sess.copy(subjectPatterns = set)
+        sess.userTokens foreach publishSubjectPermissions
       }
+    case AuthOk(ut, user) =>
+      val sess = createSession(ut, user)
+      SuccessfulCredentialsAuth('token -> ut, 'authkey -> sess.securityToken, 'userid -> user)
+      publishAllForUserToken(ut)
+      SignalOk(true)
+    case AuthFailed(ut, user) =>
+      FailedCredentialsAuth('token -> ut, 'userid -> user, 'reason -> "access denied")
+      SignalOk(false)
+
   }
+
 
   onTick {
     sessionsHousekeeping()
@@ -140,13 +147,13 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
 
   def domainPermissionsStream(ut: String) = StreamId(DomainsPermPrefix, Some(ut))
 
-  def topicPermissionsStream(ut: String) = StreamId(TopicPatternsPermPrefix, Some(ut))
+  def subjectPermissionsStream(ut: String) = StreamId(SubjectsPermPrefix, Some(ut))
 
   def publishAllForUserToken(ut: String) = {
     publishInfo(ut)
     publishToken(ut)
     publishDomainPermissions(ut)
-    publishTopicPermissions(ut)
+    publishSubjectPermissions(ut)
   }
 
   def publishToken(userToken: String): Unit = {
@@ -167,10 +174,10 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
     UserDomainPermissions('token -> userToken, 'userid -> id, 'set -> set)
   }
 
-  def publishTopicPermissions(userToken: String): Unit = {
-    val set = sessionByUserToken(userToken).map(_.topicPatterns).getOrElse(Set())
-    topicPermissionsStream(userToken) !% set
-    UserTopicPermissions('token -> userToken, 'userid -> id, 'set -> set)
+  def publishSubjectPermissions(userToken: String): Unit = {
+    val set = sessionByUserToken(userToken).map(_.subjectPatterns).getOrElse(Set())
+    subjectPermissionsStream(userToken) !% set
+    UserSubjectsPermissions('token -> userToken, 'userid -> id, 'set -> set)
   }
 
   def sessionByUserToken(userToken: String) = sessions.values.find(_.userTokens.contains(userToken))
@@ -223,6 +230,9 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
                       securityToken: String,
                       idleSince: Option[Long],
                       domains: Set[String] = Set(),
-                      topicPatterns: Set[String] = Set())
+                      subjectPatterns: Set[String] = Set())
+
+  case class AuthOk(ut: String, user: String)
+  case class AuthFailed(ut: String, user: String)
 
 }

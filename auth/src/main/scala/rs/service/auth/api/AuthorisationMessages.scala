@@ -6,6 +6,6 @@ object AuthorisationMessages {
   case class PermissionsRequestCancel(user: String)
 
   case class DomainPermissions(user: String, domains: Set[String])
-  case class TopicPermissions(user: String, patterns: Set[String])
+  case class SubjectPermissions(user: String, patterns: Set[String])
 
 }

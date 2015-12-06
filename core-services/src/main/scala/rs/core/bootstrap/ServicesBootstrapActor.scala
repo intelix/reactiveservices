@@ -16,8 +16,7 @@
 package rs.core.bootstrap
 
 import akka.actor.Props
-import rs.core.ServiceKey
-import rs.core.actors.{WithGlobalConfig, SingleStateActor, BaseActorSysevents}
+import rs.core.actors.{BaseActorSysevents, SingleStateActor}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 
 import scala.collection.JavaConversions
@@ -32,9 +31,12 @@ trait ServicesBootstrapEvents extends BaseActorSysevents {
 object ServicesBootstrapEvents extends ServicesBootstrapEvents
 
 object ServicesBootstrapActor {
+
   case class ForwardToService(id: String, m: Any)
+
 }
-class ServicesBootstrapActor extends SingleStateActor with ServicesBootstrapEvents with WithGlobalConfig {
+
+class ServicesBootstrapActor extends SingleStateActor with ServicesBootstrapEvents {
 
   case class ServiceMeta(id: String, cl: String)
 

@@ -15,7 +15,7 @@
  */
 package rs.core.services.internal
 
-import rs.core.sysevents.WithSysevents
+import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 trait ConsumerDemandTrackerSysevents extends ComponentWithBaseSysevents {
@@ -24,7 +24,7 @@ trait ConsumerDemandTrackerSysevents extends ComponentWithBaseSysevents {
   val UnableToFulfillNoDemand = "UnableToFulfillNoDemand".trace
 }
 
-trait ConsumerDemandTracker extends ConsumerDemandTrackerSysevents with WithSysevents {
+trait ConsumerDemandTracker extends ConsumerDemandTrackerSysevents with WithNodeSysevents {
 
   var currentDemand = 0L
 

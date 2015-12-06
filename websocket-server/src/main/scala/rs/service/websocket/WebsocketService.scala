@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger
 import akka.http.javadsl.model.HttpMethods
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{Message, UpgradeToWebsocket}
-import akka.http.scaladsl.model.{HttpRequest, HttpResponse, Uri}
+import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, Uri}
 import akka.stream.scaladsl.BidiFlow
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import akka.util.ByteString
@@ -77,8 +77,8 @@ class WebsocketService(id: String) extends ServiceCell(id) with WebsocketService
 
   var connectionCounter = new AtomicInteger(0)
 
-  def handleWebsocket(upgrade: UpgradeToWebsocket, id: String) = NewConnection { ctx =>
-    ctx + ('token -> id)
+  def handleWebsocket(upgrade: UpgradeToWebsocket, headers: Seq[HttpHeader], id: String) = NewConnection { ctx =>
+    ctx + ('token -> id, 'headers -> headers.map(_.toString))
     upgrade.handleMessages(buildFlow(id))
   }
 
@@ -111,10 +111,10 @@ class WebsocketService(id: String) extends ServiceCell(id) with WebsocketService
 
 
   Http().bindAndHandleSync(handler = {
-    case WSRequest(upgrade, HttpRequest(HttpMethods.GET, Uri.Path("/"), _, _, _)) =>
+    case WSRequest(upgrade, HttpRequest(HttpMethods.GET, Uri.Path("/"), headers, entity, proto)) =>
       val count = connectionCounter.incrementAndGet()
       val id = count + "_" + shortUUID
-      handleWebsocket(upgrade, id)
+      handleWebsocket(upgrade, headers, id)
 
     case r: HttpRequest =>
       Invalid('uri -> r.uri.path.toString(), 'method -> r.method.name)

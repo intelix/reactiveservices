@@ -21,13 +21,12 @@ import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.stream.StreamState
-import rs.core.sysevents.WithSysevents
 
 import scala.collection.mutable
 
 class PartialUpdatesProducer extends BinaryDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig, pub: WithSysevents) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig) =
     if (serviceCfg.asBoolean("partials.enabled", defaultValue = true))
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
