@@ -234,7 +234,7 @@ final class StreamAggregatorActor(consumerId: String)
       }
     case CloseSubscription(subj) =>
       subjectClosed(subj)
-      remove(subj) //TODO check that upstream stream is closed
+      remove(subj) //TODO check that upstream stream is closed.    7 Dec: Review if still needs to be done?
       serviceLocations.get(subj.service).flatten foreach { loc =>
         loc ! CloseLocalStreamFor(subj)
       }

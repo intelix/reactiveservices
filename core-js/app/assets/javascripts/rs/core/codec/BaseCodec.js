@@ -196,16 +196,17 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
     });
 
 
-    var outboutBufferSize = 1024 * 64;
+    var outboundBufferSize = 1024 * 64;
     var flushThresholdFactor = 0.8;
-    var _internalBuffer = JDataView(outboutBufferSize);
+    var _internalBuffer = JDataView(outboundBufferSize);
 
     function _allocBuffer(bytesRequired) {
-        if (outboutBufferSize - _internalBuffer.tell() < bytesRequired + 1) {
-            outboutBufferSize = outboutBufferSize * 2;
-            // TODO later limitation
+        if (outboundBufferSize - _internalBuffer.tell() < bytesRequired + 1) {
+            Log.logDebug("Outbound buffer increased: " + outboundBufferSize + " to " + (outboundBufferSize * 2));
+            outboundBufferSize = outboundBufferSize * 2;
+            // TODO later: limitation
             var bytes = _internalBuffer.getBytes(_internalBuffer.tell(), 0);
-            _internalBuffer = JDataView(outboutBufferSize);
+            _internalBuffer = JDataView(outboundBufferSize);
             _internalBuffer.setBytes(0, bytes);
         }
         return _internalBuffer;
@@ -237,7 +238,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
     }
 
     function _shouldFlushNow() {
-        return _usedBufferSize() > outboutBufferSize * flushThresholdFactor;
+        return _usedBufferSize() > outboundBufferSize * flushThresholdFactor;
     }
 
     var flushTimer = false;

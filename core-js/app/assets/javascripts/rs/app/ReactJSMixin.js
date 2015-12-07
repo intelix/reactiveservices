@@ -46,14 +46,6 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 Log.logError(this.componentNamePrefix(), msg);
             },
 
-            /* eventing */
-
-            // TODO review all these, replace with signals
-            //addEventListener: eventing.addEventListener,
-            //removeEventListener: eventing.removeEventListener,
-            //raiseEvent: eventing.raiseEvent,
-            //bindToRaise: eventing.bindToRaise,
-
             /* permissions */
 
             hasSubjectPermission: Auth.hasSubjectPermission,
@@ -78,8 +70,7 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 if (self.subscribeToEvents) {
                     var eventslist = self.subscribeToEvents();
                     eventslist.forEach(function (el) {
-                        // TODO some basic validation and error reporting here
-                        el[0].add(el[1]);
+                        if (el[0] && el[1]) el[0].add(el[1]);
                     });
                 }
             },
@@ -89,35 +80,10 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 self.componentMounted = true;
                 self._addSubscriptionConfigBuilder(self.subscriptionConfig);
 
-                this.handle = Subscriptions.createHandle();
+                self.handle = Subscriptions.createHandle();
 
-                function _onConnected() {
-                    if (!self._visibilityMonitorEnabled() || (self.state && (self.state.visibility === true))) {
-                        if (self.isDebug()) {
-                            self.logDebug("Received ws connected event, re-subscribing");
-                        }
-                        self._reopenAllSubscriptions();
-                    }
-                    if (!self.state || !self.state.connected) {
-                        if (self.componentMounted) self.setState({connected: true});
-                        if (self.onConnected) self.onConnected();
-                    }
-                }
-
-                function _onDisconnected() {
-                    if (self.isDebug()) {
-                        self.logDebug("Received ws disconnected event");
-                    }
-                    self._closeAllSubscriptions();
-                    if (self.state && self.state.connected) {
-                        if (self.componentMounted) self.setState({connected: false});
-                        if (self.onDisconnected) self.onDisconnected();
-                    }
-                }
-
-                // TODO remove listeners when component removed
-                Socket.signals.connected.add(_onConnected);
-                Socket.signals.disconnected.add(_onDisconnected);
+                Socket.signals.connected.add(self._onConnected);
+                Socket.signals.disconnected.add(self._onDisconnected);
 
                 if (Socket.isConnected()) {
                     _onConnected();
@@ -126,11 +92,11 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 }
 
                 if (self._visibilityMonitorEnabled()) {
-                    AppEvents.signals.ElementVisibilityChanged.add(self._checkVisibility);
+                    AppEvents.signals.ApplicationVisibilityChanged.add(self._checkVisibility);
                     self._checkVisibility();
                 }
 
-                AppEvents.signals.CoreDataChanged.add(self._refresh);
+                AppEvents.signals.ApplicationRefreshRequest.add(self._refresh);
 
                 function _scheduleVisibilityCheck() {
                     self.visibilityCheckTimeout = setTimeout(_performVisibilityCheck, 500);
@@ -155,6 +121,9 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 self.componentMounted = false;
                 self.configBuilders = [];
 
+                Socket.signals.connected.remove(self._onConnected);
+                Socket.signals.disconnected.remove(self._onDisconnected);
+
                 if (self.visibilityCheckTimeout) {
                     clearTimeout(self.visibilityCheckTimeout);
                     self.visibilityCheckTimeout = false;
@@ -169,15 +138,15 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 if (self.subscribeToEvents) {
                     var eventslist = self.subscribeToEvents();
                     eventslist.forEach(function (el) {
-                        el[0].remove(el[1]);
+                        if (el[0] && el[1]) el[0].remove(el[1]);
                     });
                 }
 
                 if (self._visibilityMonitorEnabled()) {
-                    AppEvents.signals.ElementVisibilityChanged.remove(self._checkVisibility);
+                    AppEvents.signals.ApplicationVisibilityChanged.remove(self._checkVisibility);
                 }
 
-                AppEvents.signals.CoreDataChanged.remove(self._refresh);
+                AppEvents.signals.ApplicationRefreshRequest.remove(self._refresh);
 
             },
 
@@ -213,6 +182,34 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
 
             /* internal */
 
+
+            _onConnected: function () {
+                var self = this;
+                if (!self._visibilityMonitorEnabled() || (self.state && (self.state.visibility === true))) {
+                    if (self.isDebug()) {
+                        self.logDebug("Received ws connected event, re-subscribing");
+                    }
+                    self._reopenAllSubscriptions();
+                }
+                if (!self.state || !self.state.connected) {
+                    if (self.componentMounted) self.setState({connected: true});
+                    if (self.onConnected) self.onConnected();
+                }
+            },
+
+            _onDisconnected: function () {
+                var self = this;
+                if (self.isDebug()) {
+                    self.logDebug("Received ws disconnected event");
+                }
+                self._closeAllSubscriptions();
+                if (self.state && self.state.connected) {
+                    if (self.componentMounted) self.setState({connected: false});
+                    if (self.onDisconnected) self.onDisconnected();
+                }
+            },
+
+
             _addSubscriptionConfigBuilder: function (configBuilderFunc) {
                 var a = this._getSubscriptionConfigBuilders();
                 a.push(configBuilderFunc);
@@ -237,7 +234,7 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                     self.handle.unsubscribe(config.service, config.topic);
                 }
                 if (self.isDebug()) {
-                    self.logDebug("Closed subscription for " + _subId2String(config)); // TODO should say 'dropped interest' or something like that
+                    self.logDebug("Dropped interest for " + _subId2String(config));
                 }
             },
 
@@ -246,24 +243,30 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 var self = this;
 
                 var onUpdate = (!_.isUndefined(config.onUpdate) && _.isFunction(config.onUpdate)) ? config.onUpdate : false;
+                var onError = (!_.isUndefined(config.onError) && _.isFunction(config.onError)) ? config.onError : false;
                 var onUnavailable = config.onUnavailable;
                 var stateKey = config.stateKey;
 
-                var callback = function (data) {
-                    if (self.componentMounted) {
-                        if (stateKey) {
-                            var partialStateUpdate = {};
-                            var existing = self.state[stateKey];
-                            partialStateUpdate[stateKey] = data;
-                            self.setState(partialStateUpdate);
+                var callbacks = {
+                    onUpdate: function (data) {
+                        if (self.componentMounted) {
+                            if (stateKey) {
+                                var partialStateUpdate = {};
+                                var existing = self.state[stateKey];
+                                partialStateUpdate[stateKey] = data;
+                                self.setState(partialStateUpdate);
+                            }
+                            if (onUpdate) onUpdate(data);
                         }
-                        if (onUpdate) onUpdate(data);
+                    },
+                    onError: function() {
+                        if (onError) onError();
                     }
                 };
 
-                self.handle.subscribe(config.service, config.topic, config.priority, config.throttling, callback, onUnavailable);
+                self.handle.subscribe(config.service, config.topic, config.priority, config.throttling, callbacks, onUnavailable);
                 if (self.isDebug()) {
-                    self.logDebug("Opened subscription for " + _subId2String(config));  // TODO should say opened interest or something
+                    self.logDebug("Added interest for " + _subId2String(config));
                 }
 
             },

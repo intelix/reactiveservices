@@ -18,7 +18,7 @@ package rs.examples.stocks
 import java.util.Date
 
 import play.api.libs.json.Json
-import rs.core.SubjectKeys.UserId
+import rs.core.SubjectTags.UserId
 import rs.core.services.endpoint.Terminal
 import rs.core.services.{ServiceCell, ServiceCellSysevents, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary

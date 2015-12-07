@@ -17,12 +17,22 @@ package rs.core.codec.binary
 
 import akka.stream.scaladsl._
 import akka.stream.{BidiShape, FlowShape}
+import com.typesafe.config.Config
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
+import rs.core.sysevents.WithNodeSysevents
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+
+trait PingInjectorEvt extends ComponentWithBaseSysevents {
+  val ServerClientPing = "ServerClientPing".trace
+  override def componentId: String = "PingInjector"
+}
+
+object PingInjectorEvt extends PingInjectorEvt
 
 class PingInjector extends BinaryDialectStageBuilder {
 
@@ -31,13 +41,20 @@ class PingInjector extends BinaryDialectStageBuilder {
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
 
+        import PingInjectorEvt._
+        implicit val publisher = new WithNodeSysevents {
+          override def config: Config = globalConfig.config
+
+          override val commonFields: Seq[(Symbol, Any)] = super.commonFields :+ ('token -> sessionId)
+        }
+
         val interval = serviceCfg.asFiniteDuration("ping.interval", 30 seconds)
 
         val top = b.add(Flow[BinaryDialectInbound].filter {
           case BinaryDialectPong(ts) =>
             val now = System.currentTimeMillis() % Int.MaxValue
-            val latency = (now - ts) / 2
-            // TODO handle latency
+            val diff = now - ts
+            ServerClientPing('ms -> diff)
             false
           case t => true
         })

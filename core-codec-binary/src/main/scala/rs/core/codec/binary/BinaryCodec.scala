@@ -20,14 +20,16 @@ import java.nio.ByteOrder
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.util.{ByteIterator, ByteString, ByteStringBuilder}
+import com.typesafe.config.Config
 import rs.core.codec.binary.BinaryCodec.Codecs._
 import rs.core.codec.binary.BinaryProtocolMessages._
-import rs.core.config.ServiceConfig
+import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.services.Messages._
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
 import rs.core.stream.SetStreamState.{Add, Remove, SetOp, SetSpecs}
 import rs.core.stream._
+import rs.core.sysevents.WithNodeSysevents
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 import scala.annotation.tailrec
@@ -129,8 +131,14 @@ object BinaryCodec {
       BidiShape(FlowShape(inboundRouter.in, inboundRouter.out0), FlowShape(outboundMerger.in1, outboundMerger.out))
     })
 
-    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
+    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, globalConfig: GlobalConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
+
+      import BinaryCodecEvt._
+      implicit val publisher = new WithNodeSysevents {
+        override def config: Config = globalConfig.config
+      }
+
       val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
 
         @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = {
@@ -139,13 +147,15 @@ object BinaryCodec {
 
         val i = x.iterator
         val decoded = dec(List.empty, i)
+        MessageDecoded('original -> x, 'decoded -> decoded)
+
         decoded
       }
       val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
         val b = ByteString.newBuilder
         codec.encode(x, b)
         val encoded = b.result()
-        // TODO debug events here
+        MessageEncoded('original -> x, 'encoded -> encoded)
         encoded
       }
       BidiShape(top, bottom)

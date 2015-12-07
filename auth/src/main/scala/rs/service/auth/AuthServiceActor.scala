@@ -2,7 +2,7 @@ package rs.service.auth
 
 import akka.pattern.Patterns.ask
 import play.api.libs.json.Json
-import rs.core.SubjectKeys.UserToken
+import rs.core.SubjectTags.UserToken
 import rs.core.config.ConfigOps.wrap
 import rs.core.services.{ServiceCell, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary

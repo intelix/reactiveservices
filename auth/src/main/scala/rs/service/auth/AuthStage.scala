@@ -18,7 +18,7 @@ package rs.service.auth
 import akka.stream.scaladsl._
 import akka.stream.{BidiShape, FlowShape}
 import com.typesafe.config.Config
-import rs.core.SubjectKeys.{KeyOps, UserId, UserToken}
+import rs.core.SubjectTags.{TagOps, UserId, UserToken}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{GlobalConfig, ServiceConfig}
 import rs.core.services.Messages._
@@ -45,8 +45,8 @@ trait AuthStageEvt extends ComponentWithBaseSysevents {
 
 object AuthStageEvt extends AuthStageEvt
 
-private object SecretToken extends KeyOps {
-  override val token: String = "secret"
+private object SecretToken extends TagOps {
+  override val tagId: String = "secret"
 }
 
 class AuthStage extends ServiceDialectStageBuilder {
@@ -129,11 +129,11 @@ class AuthStage extends ServiceDialectStageBuilder {
             false
           case _ => true
         }.map {
-          case s: SubscriptionClosed => s.copy(subj = s.subj.removeKeys())
-          case s: InvalidRequest => s.copy(subj = s.subj.removeKeys())
-          case s: StreamStateUpdate => s.copy(subject = s.subject.removeKeys())
-          case s: SignalAckOk => s.copy(subj = s.subj.removeKeys())
-          case s: SignalAckFailed => s.copy(subj = s.subj.removeKeys())
+          case s: SubscriptionClosed => s.copy(subj = s.subj.removeTags())
+          case s: InvalidRequest => s.copy(subj = s.subj.removeTags())
+          case s: StreamStateUpdate => s.copy(subject = s.subject.removeTags())
+          case s: SignalAckOk => s.copy(subj = s.subj.removeTags())
+          case s: SignalAckFailed => s.copy(subj = s.subj.removeTags())
           case s: ServiceNotAvailable => s
         })
 

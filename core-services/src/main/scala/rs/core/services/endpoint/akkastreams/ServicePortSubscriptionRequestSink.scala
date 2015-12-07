@@ -20,6 +20,7 @@ import akka.stream.actor.ActorSubscriberMessage.{OnComplete, OnError, OnNext}
 import akka.stream.actor.{ActorSubscriber, RequestStrategy, WatermarkRequestStrategy}
 import rs.core.ServiceKey
 import rs.core.actors.SingleStateActor
+import rs.core.config.ConfigOps.wrap
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages._
 import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
@@ -62,10 +63,8 @@ trait ServicePortSubscriptionRequestSink
     registerServiceLocationInterest(serviceKey) // this call is idempotent
   }
 
-  def removeSubscription(m: CloseSubscription): Unit = {
-    streamAggregator ! m
-    // TODO - optimisation - consider closing interest with registry if all requests for the service are closed
-  }
+  def removeSubscription(m: CloseSubscription): Unit = streamAggregator ! m
+
 
 
 }
@@ -79,8 +78,10 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
   extends ServicePortSubscriptionRequestSink
   with ActorSubscriber {
 
-  // TODO config - 5000/1000 make it configurable
-  override protected def requestStrategy: RequestStrategy = new WatermarkRequestStrategy(5000, 1000)
+  val HighWatermark = config.asInt("service-port.backpressure.high-watermark", 5000)
+  val LowWatermark = config.asInt("service-port.backpressure.low-watermark", 1000)
+
+  override protected def requestStrategy: RequestStrategy = new WatermarkRequestStrategy(HighWatermark, LowWatermark)
 
 
   onMessage {

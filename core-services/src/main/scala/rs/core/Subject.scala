@@ -15,22 +15,21 @@
  */
 package rs.core
 
-// TODO refactor keys into Tags
-case class Subject(service: ServiceKey, topic: TopicKey, keys: String = "") {
-  @transient private lazy val asString = service.toString + "|" + topic.toString + (if (keys == "") "" else "|" + keys)
+case class Subject(service: ServiceKey, topic: TopicKey, tags: String = "") {
+  @transient private lazy val asString = service.toString + "|" + topic.toString + (if (tags == "") "" else "|" + tags)
 
   override def toString: String = asString
 
-  def +(otherKeys: String): Subject = withKeys(otherKeys)
-  def +(otherKeys: Option[String]): Subject = withKeys(otherKeys)
+  def +(otherTags: String): Subject = withTags(otherTags)
+  def +(otherTags: Option[String]): Subject = withTags(otherTags)
 
-  def withKeys(otherKeys: String): Subject = this.copy(keys = keys + otherKeys)
-  def withKeys(otherKeys: Option[String]): Subject = otherKeys match {
-    case Some(k) => this.copy(keys = keys + k)
+  def withTags(otherTags: String): Subject = this.copy(tags = tags + otherTags)
+  def withTags(otherTags: Option[String]): Subject = otherTags match {
+    case Some(k) => this.copy(tags = tags + k)
     case None => this
   }
 
-  def removeKeys() = this.copy(keys = "")
+  def removeTags() = this.copy(tags = "")
 
 }
 

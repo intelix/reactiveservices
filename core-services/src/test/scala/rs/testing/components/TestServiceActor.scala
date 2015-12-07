@@ -1,6 +1,6 @@
 package rs.testing.components
 
-import rs.core.SubjectKeys.{UserToken, UserId}
+import rs.core.SubjectTags.{UserToken, UserId}
 import rs.core.actors.ClusterAwareness
 import rs.core.config.ConfigOps.wrap
 import rs.core.registry.RegistryRef

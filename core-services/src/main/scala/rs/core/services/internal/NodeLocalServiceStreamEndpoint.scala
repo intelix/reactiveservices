@@ -19,22 +19,25 @@ import java.util
 
 import akka.actor.{ActorRef, Props}
 import akka.cluster.Cluster
-import rs.core.actors.{ClusterAwareness, SingleStateActor, ActorWithTicks}
-import rs.core.config.GlobalConfig
+import com.typesafe.config._
+import rs.core.actors.{ActorWithTicks, SingleStateActor}
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.ServiceConfig
 import rs.core.registry.RegistryRef
-import rs.core.services.Messages.{InvalidRequest, StreamStateUpdate}
 import rs.core.services.BaseServiceCell._
+import rs.core.services.Messages.{InvalidRequest, StreamStateUpdate}
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
 import rs.core.services.internal.acks.Acknowledgeable
 import rs.core.stream.{StreamState, StreamStateTransition}
-import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
+import rs.core.sysevents.WithNodeSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.tools.NowProvider
 import rs.core.{ServiceKey, Subject}
-import com.typesafe.config._
 
 import scala.collection.mutable
+import scala.concurrent.duration._
 import scala.language.postfixOps
 
 
@@ -76,12 +79,14 @@ object NodeLocalServiceStreamEndpoint {
 
 class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, serviceRef: ActorRef)
   extends SingleStateActor
-  with StreamDemandBinding
-  with DemandProducerContract
-  with LocalStreamsBroadcaster
-  with ActorWithTicks
-  with RegistryRef
-  with NodeLocalServiceStreamEndpointSysevents {
+    with StreamDemandBinding
+    with DemandProducerContract
+    with LocalStreamsBroadcaster
+    with ActorWithTicks
+    with RegistryRef
+    with NodeLocalServiceStreamEndpointSysevents {
+
+  implicit lazy val serviceCfg = ServiceConfig(config.asConfig(serviceKey.id))
 
   private var pendingMappings: Map[Subject, Long] = Map.empty
   private var mappings: Map[Subject, Option[StreamId]] = Map.empty
@@ -241,7 +246,7 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     closeAllFor(ref)
   }
 
-
+  override val idleThreshold: FiniteDuration = serviceCfg.asFiniteDuration("idle-stream-threshold", 10 seconds)
 }
 
 
@@ -322,17 +327,23 @@ private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: Str
 }
 
 
-private class LocalStreamBroadcaster {
+private class LocalStreamBroadcaster(timeout: FiniteDuration) extends NowProvider {
 
+  private val idleThreshold = timeout.toMillis
   private val sinks: util.ArrayList[LocalSubjectStreamSink] = new util.ArrayList[LocalSubjectStreamSink]()
   private var latestState: Option[StreamState] = None
+  private var idleSince: Option[Long] = None
 
   def state = latestState
 
-  // TODO introduce cooling down period
-  def isIdle = sinks.isEmpty
+  def isIdle = idleSince match {
+    case None => false
+    case Some(time) => idleThreshold < 1 || now - time > idleThreshold
+  }
 
-  def removeLocalSink(existingSink: LocalSubjectStreamSink) = sinks remove existingSink
+  def removeLocalSink(existingSink: LocalSubjectStreamSink) = {
+    if (sinks.remove(existingSink) && sinks.isEmpty) idleSince = Some(now)
+  }
 
   def onStateTransition(state: StreamStateTransition): Boolean = {
     state.toNewStateFrom(latestState) match {
@@ -353,6 +364,7 @@ private class LocalStreamBroadcaster {
 
   def addLocalSink(streamSink: LocalSubjectStreamSink) = {
     sinks add streamSink
+    if (idleSince isDefined) idleSince = None
     latestState foreach { state => streamSink.onNewState(state) }
   }
 
@@ -361,6 +373,8 @@ private class LocalStreamBroadcaster {
 
 
 trait LocalStreamsBroadcaster extends SingleStateActor with ActorWithTicks {
+
+  def idleThreshold: FiniteDuration
 
   private val targets: mutable.Map[ActorRef, LocalTargetWithSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, LocalStreamBroadcaster] = mutable.HashMap()
@@ -427,7 +441,7 @@ trait LocalStreamsBroadcaster extends SingleStateActor with ActorWithTicks {
   }
 
   private def newStreamBroadcaster(streamKey: StreamId) = {
-    val sb = new LocalStreamBroadcaster()
+    val sb = new LocalStreamBroadcaster(idleThreshold)
     streams += streamKey -> sb
     onActiveStream(streamKey)
     sb
@@ -459,9 +473,9 @@ object AgentActor {
 
 class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String)
   extends SingleStateActor
-  with MessageAcknowledging
-  with SimpleInMemoryAcknowledgedDelivery
-  with NodeLocalServiceAgentSysevents {
+    with MessageAcknowledging
+    with SimpleInMemoryAcknowledgedDelivery
+    with NodeLocalServiceAgentSysevents {
 
   var actor: Option[ActorRef] = None
 

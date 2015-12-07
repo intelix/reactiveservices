@@ -16,7 +16,7 @@
 package rs.testing
 
 import org.scalatest.FlatSpec
-import rs.core.SubjectKeys.UserId
+import rs.core.SubjectTags.UserId
 import rs.core.registry.ServiceRegistrySysevents
 import rs.core.services.BaseServiceCell.StopRequest
 import rs.core.services.StreamId
@@ -38,6 +38,8 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor])
+
+    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("test.idle-stream-threshold=1s")
   }
 
   trait WithClusterAwareServiceOn1 extends WithNode1 {
@@ -381,6 +383,8 @@ class CoreServiceTest extends FlatSpec with ManagedNodeTestContext with Isolated
     serviceOnNode1("consumer1") ! Close("test", "stringWithId", UserId("id1"))
 
     on node1 expectOne of TestServiceActor.Evt.StreamPassive + ('stream -> "string#id1")
+
+    collectAndPrintEvents()
   }
 
 

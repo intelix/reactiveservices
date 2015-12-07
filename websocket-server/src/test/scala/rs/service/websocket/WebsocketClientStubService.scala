@@ -256,19 +256,19 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
   }
 
   onStringRecord {
-    case (s, str) => StringUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> str)
+    case (s, str) => StringUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> str)
   }
 
   onSetRecord {
-    case (s, set) => SetUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> set.toList.sorted.mkString(","))
+    case (s, set) => SetUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> set.toList.sorted.mkString(","))
   }
 
   onDictMapRecord {
-    case (s, map) => MapUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> map.asMap)
+    case (s, map) => MapUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> map.asMap)
   }
 
   onListRecord {
-    case (s, list) => ListUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.keys, 'value -> list.mkString(","))
+    case (s, list) => ListUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> list.mkString(","))
   }
 
 

@@ -3,11 +3,10 @@ package rs.testing
 import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import com.typesafe.config._
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
-import org.slf4j.LoggerFactory
 import rs.core.actors.SingleStateActor
-import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
+import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
-import rs.core.sysevents.support.{WithSyseventsCollector, EventAssertions}
+import rs.core.sysevents.support.{EventAssertions, WithSyseventsCollector}
 import rs.core.tools.UUIDTools
 
 import scala.concurrent.Await
@@ -55,7 +54,7 @@ private object WatcherActor extends WatcherSysevents {
   def props(componentId: String) = Props(new WatcherActor(componentId))
 }
 
-private class WatcherActor(id: String) extends SingleStateActor with WatcherSysevents  {
+private class WatcherActor(id: String) extends SingleStateActor with WatcherSysevents {
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('InstanceId -> id)
 
   var watched = Set[ActorRef]()
@@ -95,11 +94,18 @@ trait ConfigReference {
 case class ConfigFromFile(name: String) extends ConfigReference {
   override def toConfig: String = s"""include "$name"\n"""
 }
+
 case class ConfigFromContents(contents: String) extends ConfigReference {
   override def toConfig: String = contents + "\n"
 }
 
-trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSystemTestContextSysevents with WithSyseventsCollector with WithSysevents {
+trait MultiActorSystemTestContext
+  extends BeforeAndAfterEach
+    with MultiActorSystemTestContextSysevents
+    with WithSyseventsCollector
+    with WithSysevents
+    with WithTestSeparator {
+
   self: Suite with ActorSystemManagement with EventAssertions =>
 
   object OnlyThisTest extends Tag("OnlyThisTest")
@@ -119,19 +125,19 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
       val actor = Await.result(futureActor, 5.seconds)
       DestroyingActor('Actor -> actor)
       underlyingSystem.stop(actor)
-      on anyNode expectSome of WatcherActor.WatchedActorGone + ('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
+      on anyNode expectSome of WatcherActor.WatchedActorGone +('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
       clearComponentEvents(watcherComponentId)
     }
 
     def stop() = {
       TerminatingActorSystem('Name -> configName)
       val startCheckpoint = System.nanoTime()
-//      try {
-//        stopActors()
-//      } catch {
-//        case x: Throwable => x.printStackTrace()
-//      }
-//      underlyingSystem.stop(watcher)
+      //      try {
+      //        stopActors()
+      //      } catch {
+      //        case x: Throwable => x.printStackTrace()
+      //      }
+      //      underlyingSystem.stop(watcher)
       underlyingSystem.shutdown()
       underlyingSystem.awaitTermination(60.seconds)
       ActorSystemTerminated('Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
@@ -150,14 +156,13 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
   }
 
 
-
   private var systems = Map[String, Wrapper]()
 
   val akkaSystemId = "cluster"
 
   private def getSystem(instanceId: String, configs: ConfigReference*) = systems.get(instanceId) match {
     case None =>
-      val config: Config = buildConfig(configs:_*)
+      val config: Config = buildConfig(configs: _*)
       val sys = Wrapper(config, ActorSystem(akkaSystemId, config), akkaSystemId, instanceId)
       ActorSystemCreated('instanceId -> instanceId, 'system -> akkaSystemId)
       systems = systems + (instanceId -> sys)
@@ -167,16 +172,16 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
 
   def buildConfig(configs: ConfigReference*): Config = {
     val config = configs.foldLeft[String]("") {
-        case (cfg, next) =>
+      case (cfg, next) =>
         logger.debug(s"Adding config: $next")
         cfg + next.toConfig
-      }
+    }
     ConfigFactory.parseString(config).resolve()
   }
 
   def locateExistingSystem(instanceId: String) = systems.get(instanceId).get
 
-  def withSystem[T](instanceId: String, configs: ConfigReference*)(f: ActorSystemWrapper => T): T = f(getSystem(instanceId, configs:_*))
+  def withSystem[T](instanceId: String, configs: ConfigReference*)(f: ActorSystemWrapper => T): T = f(getSystem(instanceId, configs: _*))
 
   def destroySystem(name: String) = {
     systems.get(name).foreach(_.stop())
@@ -197,17 +202,4 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with MultiActorSyst
   }
 
 
-
-
-  // TODO consider extracting these
-
-  override protected def beforeEach(): Unit = {
-    LoggerFactory.getLogger("testseparator").debug("\n" * 3 + "-" * 120)
-    super.beforeEach()
-  }
-
-  override protected def afterEach(): Unit = {
-    LoggerFactory.getLogger("testseparator").debug(" " * 10 + "~" * 40 + " test finished " + "~" * 40)
-    super.afterEach()
-  }
 }

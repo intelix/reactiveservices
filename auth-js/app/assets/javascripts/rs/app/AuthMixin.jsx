@@ -17,7 +17,7 @@
 define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
 
     Auth.signals.accessChanged.add(function() {
-        Appevents.signals.CoreDataChanged.dispatch();
+        Appevents.signals.ApplicationRefreshRequest.dispatch();
     });
 
     return {

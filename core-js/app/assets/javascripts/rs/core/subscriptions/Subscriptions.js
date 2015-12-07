@@ -109,7 +109,7 @@ define([
             serviceUnavailableNotificationSubscribers[service] = subscribers;
         }
 
-        function _subscribeToSharedStream(service, topic, priority, throttling, callback) {
+        function _subscribeToSharedStream(service, topic, priority, throttling, callbacks) {
             var key = service + "|" + topic;
             var alias = _aliasFor(service, topic, true);
             var subscribers = globalSubscribers[key];
@@ -125,8 +125,8 @@ define([
                     pendingDataRequestsTimer = setTimeout(_processPendingDataRequests, 1);
                 }
             }
-            if ($.inArray(callback, subscribers) < 0) {
-                subscribers.push(callback);
+            if ($.inArray(callbacks, subscribers) < 0) {
+                subscribers.push(callbacks);
                 globalSubscribers[key] = subscribers;
                 if (Log.isDebug()) {
                     Log.logDebug(componentId, "New interest for: " + key + ", total listeners: " + subscribers.length);
@@ -136,14 +136,14 @@ define([
         }
 
 
-        function _unsubscribeFromSharedStream(service, topic, callback) {
+        function _unsubscribeFromSharedStream(service, topic, callbacks) {
             var key = service + "|" + topic;
             var subscribers = globalSubscribers[key];
             if (!subscribers) {
                 return;
             }
             subscribers = subscribers.filter(function (el) {
-                return el != callback;
+                return el != callbacks;
             });
 
             if (Log.isDebug()) {
@@ -176,18 +176,25 @@ define([
 
                 if (subscribers && subscribers.length > 0) {
                     subscribers.forEach(function (next) {
-                        next(data);
+                        next.onUpdate(data);
                     });
                 }
             } else {
-                // TODO debug
+                Log.logError(componentId, "Unrecognised alias: " + alias);
             }
         }
 
         function _onInvalidRequest(alias) {
             var subjectKey = _keyFromAlias(alias);
-            Log.logError(componentId, "Invalid subject: " + subjectKey);
-            // TODO later - expose as onError callback for the client
+            Log.logDebug(componentId, "Invalid subject: " + subjectKey);
+            if (subjectKey) {
+                var subscribers = globalSubscribers[subjectKey];
+                if (subscribers && subscribers.length > 0) {
+                    subscribers.forEach(function (next) {
+                        next.onError();
+                    });
+                }
+            }
         }
 
         function _onServiceUnavailable(service) {
@@ -264,7 +271,7 @@ define([
                         var isDifferent = next.service != service || next.topic != topic;
                         if (!isDifferent) {
                             _unsubscribeToServiceUnavailableNotifications(next.service, next.serviceUnavailableCallback);
-                            _unsubscribeFromSharedStream(next.service, next.topic, next.callback);
+                            _unsubscribeFromSharedStream(next.service, next.topic, next.callbacks);
                         }
                         return isDifferent;
                     });
@@ -273,23 +280,23 @@ define([
                 var handle = {
                     terminate: function () {
                         localSubscriptions.forEach(function (next) {
-                            _unsubscribeFromSharedStream(next.service, next.topic, next.callback);
+                            _unsubscribeFromSharedStream(next.service, next.topic, next.callbacks);
                         });
                         localSubscriptions = [];
                         listeners = listeners.filter(function (next) {
                             return next != handle;
                         });
                     },
-                    subscribe: function (service, topic, priority, throttling, callback, serviceUnavailableCallback) {
+                    subscribe: function (service, topic, priority, throttling, callbacks, serviceUnavailableCallback) {
                         _removeLocalSubscription(service, topic);
 
                         localSubscriptions.push({
                             service: service,
                             topic: topic,
-                            callback: callback,
+                            callbacks: callbacks,
                             serviceUnavailableCallback: serviceUnavailableCallback
                         });
-                        _subscribeToSharedStream(service, topic, priority, throttling, callback);
+                        _subscribeToSharedStream(service, topic, priority, throttling, callbacks);
                         if (serviceUnavailableCallback && _.isFunction(serviceUnavailableCallback))
                             _subscribeToServiceUnavailableNotifications(service, serviceUnavailableCallback);
                     },

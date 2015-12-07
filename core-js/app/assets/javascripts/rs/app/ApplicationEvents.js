@@ -18,13 +18,13 @@ define(['logging', 'signals'], function (Log, Signal) {
 
 
     var signals = {
-        ElementVisibilityChanged: new Signal(),
-        CoreDataChanged: new Signal()
+        ApplicationVisibilityChanged: new Signal(),
+        ApplicationRefreshRequest: new Signal()
     };
 
 
     window.onscroll = function (event) {
-        signals.ElementVisibilityChanged.dispatch();
+        signals.ApplicationVisibilityChanged.dispatch();
     };
 
 

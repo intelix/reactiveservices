@@ -19,9 +19,13 @@ import java.util
 
 import akka.actor.ActorRef
 import rs.core.actors.ActorWithTicks
+import rs.core.config.ConfigOps.wrap
 import rs.core.services.internal.acks.{AcknowledgeableWithSpecificId, Acknowledgeable, Acknowledgement}
 import rs.core.services.{Expirable, MessageId, SequentialMessageIdGenerator}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
+
+import scala.concurrent.duration._
+import scala.language.postfixOps
 
 
 trait DestinationRoute
@@ -57,6 +61,8 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
   private var groupsMap: Map[GroupId, OrderedGroup] = Map()
   private var pendingOrderedDeliveries: Map[MessageId, OrderedGroup] = Map.empty
   private var pendingUnorderedDeliveries: Map[MessageId, DeliveryInfo] = Map.empty
+
+  private val RedeliveryInterval = config.asFiniteDuration("acknowledged-delivery.redelivery-interval", 3 seconds)
 
   def resolveRoute(id: DestinationRoute): Option[ActorRef] = id match {
     case SpecificDestination(ref) => Some(ref)
@@ -178,9 +184,8 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
     pendingUnorderedDeliveries -= id
   }
 
-  // TODO configurable interval
   private def process(info: DeliveryInfo): DeliveryInfo =
-    if (now - info.sent > 3000) {
+    if (now - info.sent > RedeliveryInterval.toMillis) {
       resolveRoute(info.route) match {
         case None if info.sent > 0 => info.copy(sent = 0, sentTo = None)
         case None => info

@@ -15,35 +15,35 @@
  */
 package rs.core
 
-object SubjectKeys {
+object SubjectTags {
 
-  trait KeyOps {
+  trait TagOps {
 
-    val token: String
-    val tokenPrefix = "+"
-    val tokenPostfix = ":"
-    private lazy val completeToken = tokenPrefix + token + tokenPostfix
+    val tagId: String
+    val tagPrefix = "+"
+    val tagPostfix = ":"
+    private lazy val completeTagId = tagPrefix + tagId + tagPostfix
 
-    final def apply(value: String) = completeToken + value
+    final def apply(value: String) = completeTagId + value
 
     final def unapply(value: String): Option[String] = {
-      value.indexOf(completeToken) match {
+      value.indexOf(completeTagId) match {
         case -1 => None
-        case i => value.indexOf(tokenPrefix, i + 1) match {
-          case -1 => Some(value.substring(i + completeToken.length))
-          case j => Some(value.substring(i + completeToken.length, j))
+        case i => value.indexOf(tagPrefix, i + 1) match {
+          case -1 => Some(value.substring(i + completeTagId.length))
+          case j => Some(value.substring(i + completeTagId.length, j))
         }
       }
     }
   }
 
 
-  object UserToken extends KeyOps {
-    override val token: String = "ut"
+  object UserToken extends TagOps {
+    override val tagId: String = "ut"
   }
 
-  object UserId extends KeyOps {
-    override val token: String = "uid"
+  object UserId extends TagOps {
+    override val tagId: String = "uid"
   }
 
 
