@@ -105,7 +105,9 @@ define([
         function _unsubscribeToServiceUnavailableNotifications(service, callback) {
             var subscribers = serviceUnavailableNotificationSubscribers[service];
             if (!subscribers) subscribers = [];
-            subscribers = subscribers.filter(function(next) { return next != callback; });
+            subscribers = subscribers.filter(function (next) {
+                return next != callback;
+            });
             serviceUnavailableNotificationSubscribers[service] = subscribers;
         }
 
@@ -115,9 +117,7 @@ define([
             var subscribers = globalSubscribers[key];
             if (!subscribers) {
                 subscribers = [];
-                if (Log.isDebug()) {
-                    Log.logDebug(componentId, "Server subscription for: " + key);
-                }
+                if (Log.isDebug()) Log.logDebug(componentId, "Server subscription for: " + key);
                 Codec.subscribe(alias, priority, throttling);
             } else {
                 pendingDataRequests.push(alias);
@@ -128,9 +128,7 @@ define([
             if ($.inArray(callbacks, subscribers) < 0) {
                 subscribers.push(callbacks);
                 globalSubscribers[key] = subscribers;
-                if (Log.isDebug()) {
-                    Log.logDebug(componentId, "New interest for: " + key + ", total listeners: " + subscribers.length);
-                }
+                if (Log.isDebug()) Log.logDebug(componentId, "New interest for: " + key + ", total listeners: " + subscribers.length);
             }
 
         }
@@ -146,15 +144,11 @@ define([
                 return el != callbacks;
             });
 
-            if (Log.isDebug()) {
-                Log.logDebug(componentId, "Listener gone for: " + key + ", remaining " + subscribers.length);
-            }
+            if (Log.isDebug()) Log.logDebug(componentId, "Removed listener for: " + key + ", remaining " + subscribers.length);
 
             if (!subscribers || subscribers.length === 0) {
 
-                if (Log.isDebug()) {
-                    Log.logDebug(componentId, "Scheduled for removal: " + key + ", remaining " + subscribers.length);
-                }
+                if (Log.isDebug()) Log.logDebug(componentId, "Scheduled for server unsubscribe: " + key);
 
                 subscriptionsForHousekeeping[key] = {
                     ts: Date.now(),
@@ -186,7 +180,7 @@ define([
 
         function _onInvalidRequest(alias) {
             var subjectKey = _keyFromAlias(alias);
-            Log.logDebug(componentId, "Invalid subject: " + subjectKey);
+            if (Log.isDebug()) Log.logDebug(componentId, "Invalid subject: " + subjectKey);
             if (subjectKey) {
                 var subscribers = globalSubscribers[subjectKey];
                 if (subscribers && subscribers.length > 0) {
@@ -209,9 +203,7 @@ define([
 
 
         function _subscriptionMaintenance() {
-            if (Log.isDebug()) {
-                Log.logDebug(componentId, "Subscription maintenance...");
-            }
+            if (Log.isDebug()) Log.logDebug(componentId, "Subscription maintenance...");
             var reschedule = false;
             subscriptionMaintenanceTimer = false;
             if (subscriptionsForHousekeeping) {
@@ -223,9 +215,7 @@ define([
                     if (unsubTime < threshold) {
                         var subscribers = globalSubscribers[key];
                         if (!subscribers || subscribers.length === 0) {
-                            if (Log.isDebug()) {
-                                Log.logDebug(componentId, "Unsubscribing from server: " + el.service + "#" + el.topic);
-                            }
+                            if (Log.isDebug()) Log.logDebug(componentId, "Unsubscribing from server: " + el.service + "#" + el.topic);
 
                             var alias = _aliasFor(el.service, el.topic, false);
                             if (!_.isUndefined(alias) && alias > -1) {
@@ -237,9 +227,7 @@ define([
 
 
                         } else {
-                            if (Log.isDebug()) {
-                                Log.logDebug(componentId, "Subscription " + key + " is live again and no longer queued for removal");
-                            }
+                            if (Log.isDebug()) Log.logDebug(componentId, "Subscription " + key + " is live again and no longer queued for removal");
                         }
                     } else {
                         reschedule = true;
@@ -310,6 +298,7 @@ define([
 
                         var handler = false;
                         var timer = false;
+
                         function _timeout() {
                             if (handler) {
                                 handler(alias, correlationId, false, {error: "timeout"});
@@ -329,13 +318,10 @@ define([
 
                             correlationId = _nextCorrelationId();
 
-                            handler = function(alias, correlation, result, payload) {
+                            handler = function (alias, correlation, result, payload) {
                                 if (correlation == correlationId) {
-                                    if (!result && _.isFunction(onFailure))
-                                        onFailure(payload);
-                                    else if (result && _.isFunction(onSuccess))
-                                        onSuccess(payload);
-
+                                    if (!result && _.isFunction(onFailure)) onFailure(payload);
+                                    else if (result && _.isFunction(onSuccess)) onSuccess(payload);
                                     _removeHandler();
                                 }
                             };

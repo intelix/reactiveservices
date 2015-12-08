@@ -17,16 +17,34 @@ package rs.core.services
 
 import scala.language.implicitConversions
 
+trait StreamId
 
-case class StreamId(id: String, subId: Option[Any] = None) {
-  override def toString: String = if (subId.isDefined) id + "#" + subId.get else id
+case class SimpleStreamId(id: String) extends StreamId {
+  override lazy val toString: String = id
+}
+case class CompoundStreamId[T](id: String, v: T) extends StreamId {
+  override lazy val toString: String = id + "#" + v
 }
 
 object StreamId {
-  implicit def toStreamId(id: String): StreamId = StreamId(id, None)
+  implicit def toStreamId(id: String): StreamId = SimpleStreamId(id)
 
-  implicit def toStreamId(id: (String, Any)): StreamId = StreamId(id._1, Some(id._2))
+  implicit def toStreamId(id: (String, Any)): StreamId = CompoundStreamId(id._1, id._2)
 }
 
+abstract class CompoundStreamIdTemplate[T](id: String) {
+  def apply(v: T) = CompoundStreamId(id, v)
+  def unapply(s: StreamId): Option[T] = s match {
+    case CompoundStreamId(i, v) if i == id  => Some(v.asInstanceOf[T])
+    case _ => None
+  }
+}
 
+abstract class SimpleStreamIdPattern(id: String) {
+  def apply() = SimpleStreamId(id)
+  def unapply(s: StreamId): Boolean = s match {
+    case SimpleStreamId(i) => i == id
+    case _ => false
+  }
+}
 

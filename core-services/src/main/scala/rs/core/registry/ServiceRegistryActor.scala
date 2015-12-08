@@ -17,11 +17,11 @@ package rs.core.registry
 
 import akka.actor._
 import rs.core.ServiceKey
-import rs.core.actors.{BaseActorSysevents, SingleStateActor}
+import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.{RegistryLocation, RegistryLocationRequest}
 
-trait ServiceRegistrySysevents extends BaseActorSysevents {
+trait ServiceRegistrySysevents extends CommonActorEvt {
 
   val ServiceRegistered = "ServiceRegistered".info
   val ServiceUnregistered = "ServiceUnregistered".info
@@ -42,7 +42,7 @@ object ServiceRegistryActor {
 }
 
 class ServiceRegistryActor(id: String)
-  extends SingleStateActor
+  extends StatelessActor
   with ServiceRegistrySysevents {
 
   private var services: Map[ServiceKey, List[ActorRef]] = Map.empty

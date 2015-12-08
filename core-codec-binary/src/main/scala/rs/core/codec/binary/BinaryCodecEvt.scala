@@ -9,7 +9,7 @@ trait BinaryCodecEvt extends ComponentWithBaseSysevents {
   val MessageDecoded = "MessageDecoded".trace
 
 
-  override def componentId: String = "BinaryCodec"
+  override def componentId: String = "Endpoint.BinaryCodec"
 }
 
 object BinaryCodecEvt extends BinaryCodecEvt

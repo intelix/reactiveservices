@@ -17,11 +17,10 @@ package rs.core.codec.binary
 
 import akka.stream.scaladsl._
 import akka.stream.{BidiShape, FlowShape}
-import com.typesafe.config.Config
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{GlobalConfig, ServiceConfig}
-import rs.core.sysevents.WithNodeSysevents
+import rs.core.config.{NodeConfig, ServiceConfig}
+import rs.core.sysevents.SyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 import scala.concurrent.duration._
@@ -29,24 +28,20 @@ import scala.language.postfixOps
 
 trait PingInjectorEvt extends ComponentWithBaseSysevents {
   val ServerClientPing = "ServerClientPing".trace
-  override def componentId: String = "PingInjector"
+
+  override def componentId: String = "Endpoint.PingInjector"
 }
 
 object PingInjectorEvt extends PingInjectorEvt
 
-class PingInjector extends BinaryDialectStageBuilder {
+class PingInjectorStage extends BinaryDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig) =
     if (serviceCfg.asBoolean("ping.enabled", defaultValue = true))
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
-
         import PingInjectorEvt._
-        implicit val publisher = new WithNodeSysevents {
-          override def config: Config = globalConfig.config
-
-          override val commonFields: Seq[(Symbol, Any)] = super.commonFields :+ ('token -> sessionId)
-        }
+        implicit val publisher = SyseventPublisher(nodeCfg, 'token -> sessionId)
 
         val interval = serviceCfg.asFiniteDuration("ping.interval", 30 seconds)
 

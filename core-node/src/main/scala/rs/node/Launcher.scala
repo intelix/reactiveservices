@@ -17,19 +17,19 @@ package rs.node
 
 import akka.actor.ActorSystem
 import com.typesafe.config.ConfigFactory
-import rs.core.config.GlobalConfig
+import rs.core.config.NodeConfig
 import rs.node.core.ServiceClusterGuardianActor
 
 object Launcher extends App {
 
   private val configName: String = java.lang.System.getProperty("config", "node.conf")
   private val config = if (configName == null) ConfigFactory.empty() else ConfigFactory.load(configName)
-  implicit val globalConfig: GlobalConfig = GlobalConfig(config)
+  implicit val nodeCfg: NodeConfig = NodeConfig(config)
 
   private val localSystemConfigName: String = java.lang.System.getProperty("local-config", "node-local.conf")
   private val localSystemName: String = java.lang.System.getProperty("local-system", "local")
   implicit val system = ActorSystem(localSystemName, ConfigFactory.load(localSystemConfigName))
 
-  ServiceClusterGuardianActor.start(globalConfig.config)
+  ServiceClusterGuardianActor.start(nodeCfg)
 
 }

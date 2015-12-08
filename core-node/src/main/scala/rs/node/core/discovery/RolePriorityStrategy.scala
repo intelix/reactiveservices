@@ -16,17 +16,17 @@
 package rs.node.core.discovery
 
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.GlobalConfig
+import rs.core.config.NodeConfig
 
 class RolePriorityStrategy extends JoinStrategy {
 
-  def roleWeights(implicit cfg: GlobalConfig) = cfg.asConfig("node.cluster.join.role-weights")
+  def roleWeights(implicit nodeCfg: NodeConfig) = nodeCfg.asConfig("node.cluster.join.role-weights")
 
-  def roleWeight(role: String)(implicit cfg: GlobalConfig) = roleWeights.asInt(role, 0)
+  def roleWeight(role: String)(implicit nodeCfg: NodeConfig) = roleWeights.asInt(role, 0)
 
-  def sumOfRoleWeights(roles: Set[String])(implicit cfg: GlobalConfig) = roles.map(roleWeight).sum
+  def sumOfRoleWeights(roles: Set[String])(implicit nodeCfg: NodeConfig) = roles.map(roleWeight).sum
 
-  override protected def pickFrom(a: ReachableCluster, b: ReachableCluster)(implicit cfg: GlobalConfig): ReachableCluster =
+  override protected def pickFrom(a: ReachableCluster, b: ReachableCluster)(implicit nodeCfg: NodeConfig): ReachableCluster =
     (sumOfRoleWeights(a.roles), sumOfRoleWeights(b.roles)) match {
       case (aW, bW) if aW > bW => a
       case (aW, bW) if aW < bW => b

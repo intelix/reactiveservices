@@ -15,6 +15,8 @@
  */
 package rs.core.sysevents
 
+import rs.core.config.NodeConfig
+
 trait SyseventPublisherContext {
   def isMute: Boolean = false
 
@@ -71,4 +73,16 @@ trait SyseventPublisher {
   def contextFor(event: Sysevent, values: => Seq[FieldAndValue]): SyseventPublisherContext
 
   def publish(ctx: SyseventPublisherContext)
+}
+
+
+object SyseventPublisher {
+  def apply(cfg: NodeConfig, staticFields: (Symbol, Any)*) = new WithNodeSysevents {
+    override val nodeCfg: NodeConfig = cfg
+
+    override val commonFields: Seq[(Symbol, Any)] = super.commonFields ++ staticFields
+  }
+  def apply(staticFields: (Symbol, Any)*) = new WithSysevents {
+    override val commonFields: Seq[(Symbol, Any)] = super.commonFields ++ staticFields
+  }
 }

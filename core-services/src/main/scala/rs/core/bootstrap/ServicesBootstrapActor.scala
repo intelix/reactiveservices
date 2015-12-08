@@ -16,19 +16,19 @@
 package rs.core.bootstrap
 
 import akka.actor.Props
-import rs.core.actors.{BaseActorSysevents, SingleStateActor}
+import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 
 import scala.collection.JavaConversions
 
-trait ServicesBootstrapEvents extends BaseActorSysevents {
+trait ServicesBootstrapEvt extends CommonActorEvt {
 
   val StartingService = "StartingService".trace
 
   override def componentId: String = "ServiceBootstrap"
 }
 
-object ServicesBootstrapEvents extends ServicesBootstrapEvents
+object ServicesBootstrapEvt extends ServicesBootstrapEvt
 
 object ServicesBootstrapActor {
 
@@ -36,7 +36,7 @@ object ServicesBootstrapActor {
 
 }
 
-class ServicesBootstrapActor extends SingleStateActor with ServicesBootstrapEvents {
+class ServicesBootstrapActor extends StatelessActor with ServicesBootstrapEvt {
 
   case class ServiceMeta(id: String, cl: String)
 

@@ -20,11 +20,11 @@ import java.util
 import akka.actor.{ActorRef, Props}
 import akka.cluster.Cluster
 import com.typesafe.config._
-import rs.core.actors.{ActorWithTicks, SingleStateActor}
+import rs.core.actors.{ActorWithTicks, StatelessActor}
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.ServiceConfig
+import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.registry.RegistryRef
-import rs.core.services.BaseServiceCell._
+import rs.core.services.BaseServiceActor._
 import rs.core.services.Messages.{InvalidRequest, StreamStateUpdate}
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
@@ -41,7 +41,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 
-trait NodeLocalServiceStreamEndpointSysevents extends ComponentWithBaseSysevents {
+trait NodeLocalServiceStreamEndpointEvt extends ComponentWithBaseSysevents {
 
   val EndpointStarted = "EndpointStarted".info
   val EndpointStopped = "EndpointStopped".info
@@ -78,42 +78,20 @@ object NodeLocalServiceStreamEndpoint {
 
 
 class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, serviceRef: ActorRef)
-  extends SingleStateActor
+  extends StatelessActor
     with StreamDemandBinding
     with DemandProducerContract
     with LocalStreamsBroadcaster
     with ActorWithTicks
     with RegistryRef
-    with NodeLocalServiceStreamEndpointSysevents {
+    with NodeLocalServiceStreamEndpointEvt {
 
   implicit lazy val serviceCfg = ServiceConfig(config.asConfig(serviceKey.id))
-
+  override val idleThreshold: FiniteDuration = serviceCfg.asFiniteDuration("idle-stream-threshold", 10 seconds)
   private var pendingMappings: Map[Subject, Long] = Map.empty
   private var mappings: Map[Subject, Option[StreamId]] = Map.empty
+
   private var interests: Map[ActorRef, Set[Subject]] = Map.empty
-
-  onTick {
-    checkPendingMappings()
-  }
-
-  override def componentId: String = super.componentId + "." + serviceKey.id
-
-  override def onIdleStream(key: StreamId): Unit = {
-    acknowledgedDelivery(key, CloseStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
-    mappings = mappings filter {
-      case (k, Some(v)) if v == key =>
-        pendingMappings -= k
-        false
-      case _ => true
-    }
-  }
-
-  override def onActiveStream(key: StreamId): Unit = {
-    acknowledgedDelivery(key, OpenStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
-  }
-
-  override def shouldProcessAcknowledgeable(sender: ActorRef, m: Acknowledgeable): Boolean =
-    if (sender == serviceRef) true else super.shouldProcessAcknowledgeable(sender, m)
 
   override def preStart(): Unit = {
     super.preStart()
@@ -129,7 +107,48 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     EndpointStopped('service -> serviceKey, 'ref -> serviceRef)
   }
 
+  override def componentId: String = super.componentId + "." + serviceKey.id
+
+  override def onIdleStream(key: StreamId): Unit = {
+    acknowledgedDelivery(key, CloseStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
+    mappings = mappings filter {
+      case (k, Some(v)) if v == key =>
+        pendingMappings -= k
+        false
+      case _ => true
+    }
+  }
+
+  override def onActiveStream(key: StreamId): Unit =
+    acknowledgedDelivery(key, OpenStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
+
+
+  override def shouldProcessAcknowledgeable(sender: ActorRef, m: Acknowledgeable): Boolean =
+    if (sender == serviceRef) true else super.shouldProcessAcknowledgeable(sender, m)
+
   override def onConsumerDemand(sender: ActorRef, demand: Long): Unit = newConsumerDemand(sender, demand)
+
+  onTick {
+    checkPendingMappings()
+  }
+
+  onMessage {
+    case m: Acknowledgeable =>
+      serviceRef forward m
+      AcknowledgeableForwarded('id -> m.messageId)
+    case OpenLocalStreamFor(subj) => openLocalStream(sender(), subj)
+    case OpenLocalStreamsForAll(list) => list foreach { subj => openLocalStream(sender(), subj) }
+    case CloseLocalStreamFor(subj) => closeLocalStream(sender(), subj)
+    case CloseAllLocalStreams => closeAllFor(sender())
+    case StreamMapping(subj, maybeKey) => onReceivedStreamMapping(subj, maybeKey)
+    case StreamUpdate(key, tran) => updateLocalStream(key, tran)
+  }
+
+  onActorTerminated { ref =>
+    closeAllFor(ref)
+  }
+
+
 
   private def openLocalStream(subscriber: ActorRef, subj: Subject): Unit = OpenedLocalStream { ctx =>
     ctx +('subj -> subj, 'subscriber -> subscriber)
@@ -148,23 +167,6 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     }
   }
 
-  private def closeLocalStream(subscriber: ActorRef, subj: Subject): Unit = ClosedLocalStream { ctx =>
-    ctx +('subj -> subj, 'subscriber -> subscriber)
-    interests.get(subscriber) foreach { currentInterestsForSubscriber =>
-      val remainingInterests = currentInterestsForSubscriber - subj
-      closeStreamFor(subscriber, subj)
-      if (remainingInterests.isEmpty) {
-        context.unwatch(subscriber)
-        interests -= subscriber
-        ctx + ('subscribers -> 0)
-      } else {
-        interests += subscriber -> remainingInterests
-        val remaining = remainingInterests.size
-        ctx + ('subscribers -> remaining)
-      }
-    }
-  }
-
   private def checkPendingMappings() = {
     if (pendingMappings.nonEmpty) {
       pendingMappings collect {
@@ -177,26 +179,6 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     serviceRef ! GetMappingFor(subj)
     pendingMappings += subj -> now
     ctx +('subj -> subj, 'pending -> pendingMappings.size)
-  }
-
-  private def publishNotAvailable(subscriber: ActorRef, subj: Subject): Unit = subscriber ! InvalidRequest(subj)
-
-
-  onMessage {
-    case m: Acknowledgeable =>
-      serviceRef forward m
-      AcknowledgeableForwarded('id -> m.messageId)
-    case OpenLocalStreamFor(subj) => openLocalStream(sender(), subj)
-    case OpenLocalStreamsForAll(list) => list foreach { subj => openLocalStream(sender(), subj) }
-    case CloseLocalStreamFor(subj) => closeLocalStream(sender(), subj)
-    case CloseAllLocalStreams => closeAllFor(sender())
-    case StreamMapping(subj, maybeKey) => onReceivedStreamMapping(subj, maybeKey)
-    case StreamUpdate(key, tran) => updateLocalStream(key, tran)
-  }
-
-  private def publishNotAvailable(subj: Subject): Unit = interests foreach {
-    case (ref, set) if set.contains(subj) => publishNotAvailable(ref, subj)
-    case _ =>
   }
 
   private def onReceivedStreamMapping(subj: Subject, maybeKey: Option[StreamId]): Unit = SubjectMappingReceived { ctx =>
@@ -227,6 +209,13 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     }
   }
 
+  private def publishNotAvailable(subj: Subject): Unit = interests foreach {
+    case (ref, set) if set.contains(subj) => publishNotAvailable(ref, subj)
+    case _ =>
+  }
+
+  private def publishNotAvailable(subscriber: ActorRef, subj: Subject): Unit = subscriber ! InvalidRequest(subj)
+
   private def updateLocalStream(key: StreamId, tran: StreamStateTransition): Unit = StreamUpdateReceived { ctx =>
     ctx +('stream -> key, 'payload -> tran)
     upstreamDemandFulfilled(serviceRef, 1)
@@ -242,11 +231,24 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   }
 
 
-  onActorTerminated { ref =>
-    closeAllFor(ref)
+  private def closeLocalStream(subscriber: ActorRef, subj: Subject): Unit = ClosedLocalStream { ctx =>
+    ctx +('subj -> subj, 'subscriber -> subscriber)
+    interests.get(subscriber) foreach { currentInterestsForSubscriber =>
+      val remainingInterests = currentInterestsForSubscriber - subj
+      closeStreamFor(subscriber, subj)
+      if (remainingInterests.isEmpty) {
+        context.unwatch(subscriber)
+        interests -= subscriber
+        ctx + ('subscribers -> 0)
+      } else {
+        interests += subscriber -> remainingInterests
+        val remaining = remainingInterests.size
+        ctx + ('subscribers -> remaining)
+      }
+    }
   }
 
-  override val idleThreshold: FiniteDuration = serviceCfg.asFiniteDuration("idle-stream-threshold", 10 seconds)
+
 }
 
 
@@ -274,7 +276,8 @@ private class LocalSubjectStreamSink(val streamKey: StreamId, subj: Subject, can
 }
 
 
-private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String)(implicit val config: Config) extends ConsumerDemandTracker with WithNodeSysevents with NodeLocalServiceStreamEndpointSysevents {
+private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String)(implicit val config: Config) extends ConsumerDemandTracker with WithNodeSysevents with NodeLocalServiceStreamEndpointEvt {
+  override val nodeCfg: NodeConfig = NodeConfig(config)
   private val subjectToSink: mutable.Map[Subject, LocalSubjectStreamSink] = mutable.HashMap()
   private val streams: util.ArrayList[LocalSubjectStreamSink] = new util.ArrayList[LocalSubjectStreamSink]()
   private val canUpdate = () => hasDemand
@@ -286,13 +289,6 @@ private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: Str
 
   def allSinks = subjectToSink.values
 
-  def closeStream(subj: Subject) = {
-    subjectToSink get subj foreach { existingSink =>
-      subjectToSink -= subj
-      streams remove existingSink
-    }
-  }
-
   def addStream(key: StreamId, subj: Subject): LocalSubjectStreamSink = {
     closeStream(subj)
     val newSink = new LocalSubjectStreamSink(key, subj, canUpdate, updateForTarget(subj))
@@ -301,11 +297,17 @@ private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: Str
     newSink
   }
 
+  def closeStream(subj: Subject) = {
+    subjectToSink get subj foreach { existingSink =>
+      subjectToSink -= subj
+      streams remove existingSink
+    }
+  }
+
   def addDemand(demand: Long): Unit = {
     addConsumerDemand(demand)
     publishToAll()
   }
-
 
   private def updateForTarget(subj: Subject)(state: StreamState) = fulfillDownstreamDemandWith {
     ref.tell(StreamStateUpdate(subj, state), self)
@@ -372,12 +374,13 @@ private class LocalStreamBroadcaster(timeout: FiniteDuration) extends NowProvide
 }
 
 
-trait LocalStreamsBroadcaster extends SingleStateActor with ActorWithTicks {
+trait LocalStreamsBroadcaster extends StatelessActor with ActorWithTicks {
 
-  def idleThreshold: FiniteDuration
-
+  val serviceKey: ServiceKey
   private val targets: mutable.Map[ActorRef, LocalTargetWithSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, LocalStreamBroadcaster] = mutable.HashMap()
+
+  def idleThreshold: FiniteDuration
 
   def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = {
     targets get consumer foreach (_.addDemand(demand))
@@ -401,6 +404,30 @@ trait LocalStreamsBroadcaster extends SingleStateActor with ActorWithTicks {
     stream.addLocalSink(newSink)
   }
 
+  def closeStreamFor(ref: ActorRef, subj: Subject) = {
+    targets get ref foreach { target =>
+      target locateExistingSinkFor subj foreach { existingSink =>
+        target.closeStream(subj)
+        streams get existingSink.streamKey foreach { stream =>
+          stream removeLocalSink existingSink
+        }
+      }
+    }
+  }
+
+  private def newStreamBroadcaster(streamKey: StreamId) = {
+    val sb = new LocalStreamBroadcaster(idleThreshold)
+    streams += streamKey -> sb
+    onActiveStream(streamKey)
+    sb
+  }
+
+  private def newTarget(ref: ActorRef) = {
+    val target = new LocalTargetWithSinks(ref, self, serviceKey.id)
+    targets += ref -> target
+    target
+  }
+
   def terminateTarget(ref: ActorRef) = {
     targets.get(ref) foreach { l =>
       l.allSinks.foreach { sink =>
@@ -417,48 +444,19 @@ trait LocalStreamsBroadcaster extends SingleStateActor with ActorWithTicks {
 
   def onActiveStream(key: StreamId)
 
-
-  def closeStreamFor(ref: ActorRef, subj: Subject) = {
-    targets get ref foreach { target =>
-      target locateExistingSinkFor subj foreach { existingSink =>
-        target.closeStream(subj)
-        streams get existingSink.streamKey foreach { stream =>
-          stream removeLocalSink existingSink
-        }
-      }
-    }
-  }
-
-
-  override def processTick(): Unit = {
+  onTick {
     streams.collect {
       case (s, v) if v.isIdle => s
     } foreach { key =>
       streams.remove(key)
       onIdleStream(key)
     }
-    super.processTick()
   }
-
-  private def newStreamBroadcaster(streamKey: StreamId) = {
-    val sb = new LocalStreamBroadcaster(idleThreshold)
-    streams += streamKey -> sb
-    onActiveStream(streamKey)
-    sb
-  }
-
-  private def newTarget(ref: ActorRef) = {
-    val target = new LocalTargetWithSinks(ref, self, serviceKey.id)
-    targets += ref -> target
-    target
-  }
-
-  val serviceKey: ServiceKey
 
 }
 
 
-trait NodeLocalServiceAgentSysevents extends ComponentWithBaseSysevents {
+trait NodeLocalServiceAgentEvt extends ComponentWithBaseSysevents {
 
   val AgentStarted = "AgentStarted".info
   val AgentStopped = "AgentStopped".warn
@@ -472,10 +470,10 @@ object AgentActor {
 }
 
 class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String)
-  extends SingleStateActor
+  extends StatelessActor
     with MessageAcknowledging
     with SimpleInMemoryAcknowledgedDelivery
-    with NodeLocalServiceAgentSysevents {
+    with NodeLocalServiceAgentEvt {
 
   var actor: Option[ActorRef] = None
 

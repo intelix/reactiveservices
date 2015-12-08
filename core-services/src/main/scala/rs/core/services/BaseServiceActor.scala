@@ -20,7 +20,7 @@ import akka.remote.RemoteScope
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.ServiceConfig
-import rs.core.services.BaseServiceCell._
+import rs.core.services.BaseServiceActor._
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
@@ -33,9 +33,7 @@ import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
 import scala.util.{Failure, Success}
 
-object BaseServiceCell {
-
-  case object StopRequest
+object BaseServiceActor {
 
   case class CloseStreamFor(streamKey: StreamId)
 
@@ -51,9 +49,11 @@ object BaseServiceCell {
 
   private case class OpenAgentAt(address: Address)
 
+  case object StopRequest
+
 }
 
-trait ServiceCellSysevents extends BaseActorSysevents with RemoteStreamsBroadcasterSysevents {
+trait ServiceEvt extends CommonActorEvt with RemoteStreamsBroadcasterEvt {
   val ServiceRunning = "ServiceRunning".info
   val NodeAvailable = "NodeAvailable".info
   val StartingRemoveAgent = "StartingRemoveAgent".info
@@ -74,13 +74,13 @@ trait WithId {
   def id: String
 }
 
-abstract class ServiceCell(id: String) extends ServiceWithId(id) with SingleStateActor with BaseServiceCell
+abstract class StatelessServiceActor(id: String) extends ServiceActorWithId(id) with StatelessActor with BaseServiceActor
 
-abstract class FSMServiceCell[T](id: String) extends ServiceWithId(id) with FSMActor[T] with BaseServiceCell
+abstract class StatefulServiceActor[T](id: String) extends ServiceActorWithId(id) with StatefulActor[T] with BaseServiceActor
 
-abstract class ServiceWithId(override val id: String) extends Actor with WithId
+abstract class ServiceActorWithId(override val id: String) extends Actor with WithId
 
-trait BaseServiceCell
+trait BaseServiceActor
   extends BaseActor
     with WithId
     with ClusterAwareness
@@ -89,24 +89,28 @@ trait BaseServiceCell
     with RemoteStreamsBroadcaster
     with MessageAcknowledging
     with StreamPublishers
-    with ServiceCellSysevents {
+    with ServiceEvt {
 
-  implicit lazy val serviceCfg = ServiceConfig(config.asConfig(id))
-  lazy val serviceKey: ServiceKey = id
-
-  type SubjectToStreamKeyMapper = PartialFunction[Subject, Option[StreamId]]
-  type StreamKeyToUnit = PartialFunction[StreamId, Unit]
+  type SubjectToStreamIdMapper = PartialFunction[Subject, Option[StreamId]]
+  type StreamEventCallback = PartialFunction[StreamId, Unit]
   type SignalHandler = PartialFunction[(Subject, Any), Option[SignalResponse]]
   type SignalHandlerAsync = PartialFunction[(Subject, Any), Option[Future[SignalResponse]]]
 
+  implicit lazy val serviceCfg = ServiceConfig(config.asConfig(id))
+
+  implicit lazy val serviceKey: ServiceKey = id
+
+  implicit val execCtx = context.dispatcher
+
   val nodeRoles: Set[String] = Set.empty
-  private var subjectToStreamKeyMapperFunc: SubjectToStreamKeyMapper = {
+
+  private var subjectToStreamKeyMapperFunc: SubjectToStreamIdMapper = {
     case _ => None
   }
-  private var streamActiveFunc: StreamKeyToUnit = {
+  private var streamActiveFunc: StreamEventCallback = {
     case _ =>
   }
-  private var streamPassiveFunc: StreamKeyToUnit = {
+  private var streamPassiveFunc: StreamEventCallback = {
     case _ =>
   }
   private var signalHandlerFunc: PartialFunction[(Subject, Any), Option[Any]] = {
@@ -115,30 +119,35 @@ trait BaseServiceCell
   private var activeStreams: Set[StreamId] = Set.empty
   private var activeAgents: Map[Address, AgentView] = Map.empty
 
-  final def onSubjectMapping(f: SubjectToStreamKeyMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
+  final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
 
-  final def onStreamActive(f: StreamKeyToUnit): Unit = streamActiveFunc = f orElse streamActiveFunc
+  final def onSubjectMapping(f: SubjectToStreamIdMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
 
-  final def onStreamPassive(f: StreamKeyToUnit): Unit = streamPassiveFunc = f orElse streamPassiveFunc
+  final def onStreamActive(f: StreamEventCallback): Unit = streamActiveFunc = f orElse streamActiveFunc
+
+  final def onStreamPassive(f: StreamEventCallback): Unit = streamPassiveFunc = f orElse streamPassiveFunc
 
   final def onSignal(f: SignalHandler): Unit = signalHandlerFunc = f orElse signalHandlerFunc
-  final def onSignalAsync(f: SignalHandlerAsync): Unit = signalHandlerFunc = f orElse signalHandlerFunc
 
-  final def isStreamActive(streamKey: StreamId) = activeStreams.contains(streamKey)
+  final def onSignalAsync(f: SignalHandlerAsync): Unit = signalHandlerFunc = f orElse signalHandlerFunc
 
   final def performStateTransition(key: StreamId, transition: => StreamStateTransition) = stateTransitionFor(key, transition)
 
   final def currentStreamState(key: StreamId): Option[StreamState] = stateOf(key)
 
-  final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
-
   implicit def signalResponseToOptionWrapper(x: SignalResponse): Option[SignalResponse] = Some(x)
+
   implicit def futureOfSignalResponseToOptionWrapper(x: Future[SignalResponse]): Option[Future[SignalResponse]] = Some(x)
+
   implicit def streamIdToOptionWrapper(x: StreamId): Option[StreamId] = Some(x)
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
 
-  implicit val execCtx = context.dispatcher
+  @throws[Exception](classOf[Exception])
+  override def preStart(): Unit = {
+    super.preStart()
+    ServiceRunning()
+  }
 
   onClusterMemberUp {
     case (address, roles) if nodeRoles.isEmpty || roles.exists(nodeRoles.contains) =>
@@ -202,11 +211,7 @@ trait BaseServiceCell
 
   }
 
-
-  private def reopenStream(endpointRef: ActorRef, key: StreamId) = {
-    closeStreamFor(endpointRef, key)
-    initiateStreamFor(endpointRef, key)
-  }
+  override def componentId: String = "Service." + id
 
   onActorTerminated { ref =>
     activeAgents get ref.path.address foreach { loc =>
@@ -217,28 +222,27 @@ trait BaseServiceCell
         loc.endpoint foreach { epRef =>
           loc.currentStreams foreach { streamKey => closeStreamAt(epRef, streamKey) }
         }
-        scheduleOnce(1 seconds, OpenAgentAt(ref.path.address))
+        scheduleOnce(100 millis, OpenAgentAt(ref.path.address))
       }
     }
   }
 
-  @throws[Exception](classOf[Exception])
-  override def preStart(): Unit = {
-    super.preStart()
-    ServiceRunning()
-  }
-
-  override def componentId: String = "Service." + id
+  protected def terminate(reason: String) = throw new RuntimeException(reason)
 
   private def ensureAgentIsRunningAt(address: Address) =
     if (!activeAgents.contains(address))
       StartingRemoveAgent { ctx =>
-        ctx +('address -> address, 'host -> address.host)
 
-        val id = shortUUID
+        val id = randomUUID
+
+        val name = s"agt-$serviceKey-$id"
+
+        ctx +('address -> address, 'host -> address.host, 'name -> name)
 
         val newAgent = context.watch(
-          context.actorOf(NodeLocalServiceStreamEndpoint.remoteStreamAgentProps(serviceKey, self, id).withDeploy(Deploy(scope = RemoteScope(address))), s"agt-$serviceKey-$id")
+          context.actorOf(NodeLocalServiceStreamEndpoint
+            .remoteStreamAgentProps(serviceKey, self, id)
+            .withDeploy(Deploy(scope = RemoteScope(address))), name)
         )
 
         ctx + ('remotePath -> newAgent.path)
@@ -253,6 +257,10 @@ trait BaseServiceCell
       endpoint <- agent.endpoint
     ) agent.currentStreams.foreach { streamId => reopenStream(endpoint, streamId) }
 
+  private def reopenStream(endpointRef: ActorRef, key: StreamId) = {
+    closeStreamFor(endpointRef, key)
+    initiateStreamFor(endpointRef, key)
+  }
 
   private def closeStreamAt(endpoint: ActorRef, streamKey: StreamId) = {
     agentWithEndpointAt(endpoint) foreach { loc =>
@@ -288,6 +296,8 @@ trait BaseServiceCell
       }
     }
 
+  final def isStreamActive(streamKey: StreamId) = activeStreams.contains(streamKey)
+
   private def addEndpointAddress(address: Address, endpoint: ActorRef): Unit = RemoteEndpointRegistered { ctx =>
     ctx +('location -> address, 'ref -> endpoint)
     activeAgents get address foreach { agentView =>
@@ -296,27 +306,30 @@ trait BaseServiceCell
     }
   }
 
-  protected def terminate(reason: String) = throw new RuntimeException(reason)
-
   sealed trait SignalResponse
 
   case class SignalOk(payload: Option[Any] = None) extends SignalResponse
+
+  case class SignalFailed(payload: Option[Any] = None) extends SignalResponse
+
   object SignalOk {
     def apply(): SignalOk = SignalOk(None)
+
     def apply(any: Any): SignalOk = any match {
       case x: Option[_] => SignalOk(x)
       case x => SignalOk(Some(x))
     }
   }
 
-  case class SignalFailed(payload: Option[Any] = None) extends SignalResponse
   object SignalFailed {
     def apply(): SignalFailed = SignalFailed(None)
+
     def apply(any: Any): SignalFailed = any match {
       case x: Option[_] => SignalFailed(x)
       case x => SignalFailed(Some(x))
     }
   }
+
 
   private class AgentView(val agent: ActorRef) {
 
@@ -334,5 +347,6 @@ trait BaseServiceCell
     def hasInterestIn(s: StreamId) = streams contains s
 
   }
+
 
 }

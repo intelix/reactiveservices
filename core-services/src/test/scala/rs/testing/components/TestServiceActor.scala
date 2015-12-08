@@ -4,8 +4,8 @@ import rs.core.SubjectTags.{UserToken, UserId}
 import rs.core.actors.ClusterAwareness
 import rs.core.config.ConfigOps.wrap
 import rs.core.registry.RegistryRef
-import rs.core.services.BaseServiceCell.StopRequest
-import rs.core.services.{ServiceCell, ServiceCellSysevents, StreamId}
+import rs.core.services.BaseServiceActor.StopRequest
+import rs.core.services.{StatelessServiceActor, ServiceEvt, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromTail, FromHead, RejectAdd, ListSpecs}
 import rs.core.stream.SetStreamState.SetSpecs
@@ -39,7 +39,7 @@ object TestServiceActor {
   case class PublishListFindReplace(streamId: StreamId, original: String, v: String)
 
 
-  trait Evt extends ServiceCellSysevents {
+  trait Evt extends ServiceEvt {
 
     val IntConfigValue = "IntConfigValue".info
     val OtherServiceLocationChanged = "OtherServiceLocationChanged".info
@@ -54,7 +54,7 @@ object TestServiceActor {
 
 }
 
-class TestServiceActor(id: String) extends ServiceCell(id) with Evt with ClusterAwareness with RegistryRef {
+class TestServiceActor(id: String) extends StatelessServiceActor(id) with Evt with ClusterAwareness with RegistryRef {
 
   var signalCounter = 0
 

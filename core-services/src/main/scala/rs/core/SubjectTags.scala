@@ -17,9 +17,8 @@ package rs.core
 
 object SubjectTags {
 
-  trait TagOps {
+  abstract class SubjectTag(tagId: String) {
 
-    val tagId: String
     val tagPrefix = "+"
     val tagPostfix = ":"
     private lazy val completeTagId = tagPrefix + tagId + tagPostfix
@@ -38,13 +37,9 @@ object SubjectTags {
   }
 
 
-  object UserToken extends TagOps {
-    override val tagId: String = "ut"
-  }
+  object UserToken extends SubjectTag("ut")
 
-  object UserId extends TagOps {
-    override val tagId: String = "uid"
-  }
+  object UserId extends SubjectTag("uid")
 
 
 }

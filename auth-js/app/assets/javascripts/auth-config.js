@@ -13,10 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+(function () {
 
-(function() {
-
-    require([], function() {
+    require([], function () {
 
         require.config({
 
@@ -25,13 +24,10 @@
                 auth: "/assets/javascripts/rs/auth/Auth",
                 auth_mixin: "/assets/javascripts/rs/app/AuthMixin"
             },
-            packages: [
-            ]
+            packages: []
         });
 
-        require([
-            "auth"
-        ]);
+        require(["auth"]);
 
     });
 

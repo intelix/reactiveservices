@@ -13,8 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-define(['logging', 'signals'], function (Log, Signal) {
+define(['signals'], function (Signal) {
 
 
     var signals = {

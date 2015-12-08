@@ -18,7 +18,7 @@ package rs.core.services.internal
 import java.util
 
 import akka.actor.ActorRef
-import rs.core.actors.ActorWithTicks
+import rs.core.config.ConfigOps.wrap
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
@@ -26,19 +26,19 @@ import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import scala.collection.mutable
 
 
-trait DemandProducerContractSysevents extends ComponentWithBaseSysevents {
+trait DemandProducerContractEvt extends ComponentWithBaseSysevents {
 
-  val StartedDemandProducer = "StartedDemandProducer".info
-  val StoppedDemandProducer = "StoppedDemandProducer".info
+  val StartedDemandProducer = "StartedDemandProducer".trace
+  val StoppedDemandProducer = "StoppedDemandProducer".trace
 
 }
 
-trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with ActorWithTicks with DemandProducerContractSysevents {
+trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with DemandProducerContractEvt {
 
-  val idGenerator = new SequentialMessageIdGenerator()
+  private val idGenerator = new SequentialMessageIdGenerator()
 
-  val requestAtOnce = 1500
-  val requestMoreAt = 500
+  private val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 5000)
+  private val LowWatermark = nodeCfg.asInt("service-port.backpressure.low-watermark", 1000)
 
   private val targets: Set[ActorRef] = Set.empty
   private val pending: mutable.Map[ActorRef, LocalDemand] = mutable.HashMap()
@@ -67,6 +67,11 @@ trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with Act
     }
   }
 
+  override def preStart(): Unit = {
+    super.preStart()
+    checkDemand()
+  }
+
   def checkDemand() = {
     var idx = 0
     while (idx < pendingList.size()) {
@@ -74,11 +79,6 @@ trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with Act
       nextContract check()
       idx += 1
     }
-  }
-
-  override def preStart(): Unit = {
-    super.preStart()
-    checkDemand()
   }
 
   onTick {
@@ -99,13 +99,13 @@ trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with Act
     def hasDemand = demand > 0
 
     def check() =
-      if (demand <= requestMoreAt) {
-        val newDemand = requestAtOnce - demand
+      if (demand <= LowWatermark) {
+        val newDemand = HighWatermark - demand
         val msg = DownstreamDemandRequest(idGenerator.next(), newDemand)
         if (withAcknowledgedDelivery)
           acknowledgedDelivery(ref, msg, SpecificDestination(ref))
         else ref ! msg
-        demand = requestAtOnce
+        demand = HighWatermark
       }
 
   }

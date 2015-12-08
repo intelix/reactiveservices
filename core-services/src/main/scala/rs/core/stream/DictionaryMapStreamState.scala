@@ -18,9 +18,9 @@ package rs.core.stream
 import java.util
 
 import rs.core.Subject
-import rs.core.javaapi.JServiceCell
+import rs.core.javaapi.JServiceActor
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{BaseServiceCell, StreamId}
+import rs.core.services.{BaseServiceActor, StreamId}
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 
 import scala.language.implicitConversions
@@ -152,7 +152,7 @@ trait DictionaryMapStreamConsumer extends StreamConsumer {
 }
 
 trait JDictionaryMapStreamPublisher extends DictionaryMapStreamPublisher {
-  self: JServiceCell =>
+  self: JServiceActor =>
 
   import scala.collection.JavaConversions._
 
@@ -171,7 +171,7 @@ trait JDictionaryMapStreamPublisher extends DictionaryMapStreamPublisher {
 }
 
 trait DictionaryMapStreamPublisher {
-  self: BaseServiceCell =>
+  self: BaseServiceActor =>
 
   def ?#(s: StreamId): Option[DictionaryMapStreamState] = currentStreamState(s) flatMap {
     case s: DictionaryMapStreamState => Some(s)

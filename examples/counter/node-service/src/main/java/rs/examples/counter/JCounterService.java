@@ -16,10 +16,10 @@
 package rs.examples.counter;
 
 import rs.core.Subject;
-import rs.core.javaapi.JServiceCell;
+import rs.core.javaapi.JServiceActor;
 import scala.Option;
 
-public class JCounterService extends JServiceCell {
+public class JCounterService extends JServiceActor {
 
     public JCounterService(String id) {
         super(id);

@@ -65,6 +65,8 @@ class ConfigOps(cfg: Config) {
 
   def asBoolean(key: String, defaultValue: Boolean) = cfg.as[Option[Boolean]](fieldFor(key)) | defaultValue
 
+  def asOptFiniteDuration(key: String) = cfg.as[Option[FiniteDuration]](fieldFor(key))
+
   def asFiniteDuration(key: String, defaultValue: FiniteDuration) = cfg.as[Option[FiniteDuration]](fieldFor(key)) | defaultValue
 
   def asClass(key: String, defaultValue: Class[_]) = asOptClass(key) | defaultValue

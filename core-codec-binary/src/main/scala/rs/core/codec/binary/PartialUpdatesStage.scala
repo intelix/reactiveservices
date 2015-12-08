@@ -19,14 +19,14 @@ import akka.stream._
 import akka.stream.scaladsl._
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{GlobalConfig, ServiceConfig}
+import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.stream.StreamState
 
 import scala.collection.mutable
 
-class PartialUpdatesProducer extends BinaryDialectStageBuilder {
+class PartialUpdatesStage extends BinaryDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig) =
     if (serviceCfg.asBoolean("partials.enabled", defaultValue = true))
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._

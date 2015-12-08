@@ -1,10 +1,25 @@
+/*
+ * Copyright 2014-15 Intelix Pty Ltd
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package rs.service.auth
 
 import akka.pattern.Patterns.ask
 import play.api.libs.json.Json
 import rs.core.SubjectTags.UserToken
 import rs.core.config.ConfigOps.wrap
-import rs.core.services.{ServiceCell, StreamId}
+import rs.core.services.{CompoundStreamIdTemplate, StatelessServiceActor}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.SetStreamState.SetSpecs
 import rs.core.tools.JsonTools.jsToExtractorOps
@@ -22,38 +37,41 @@ object AuthServiceActor {
   val InfoUserId = "id"
 }
 
-class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
+class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthServiceEvt {
 
   implicit val specs = SetSpecs(allowPartialUpdates = true)
   implicit val infoDict = Dictionary(InfoUserId)
 
 
   val authenticationProviderRef = context.actorOf(serviceCfg.asRequiredProps("authentication-provider"), "authentication-provider")
-  val authenticationProviderTimeout = serviceCfg.asFiniteDuration("authentication-provider-timeout", 30 seconds)
+  val authenticationProviderTimeout = serviceCfg.asFiniteDuration("authentication-provider-timeout", 10 seconds)
 
   val authorisationProviderRef = context.actorOf(serviceCfg.asRequiredProps("authorisation-provider"), "authorisation-provider")
-  val authorisationProviderTimeout = serviceCfg.asFiniteDuration("authorisation-provider-timeout", 30 seconds)
+  val authorisationProviderTimeout = serviceCfg.asFiniteDuration("authorisation-provider-timeout", 10 seconds)
 
-  val SessionTimeout = 5 minutes
+  val SessionTimeout = serviceCfg.asFiniteDuration("idle-session-timeout", 5 seconds)
   var sessions: Map[String, Session] = Map()
 
-  val TokenPrefix = "t"
-  val InfoPrefix = "i"
-  val DomainsPermPrefix = "d"
-  val SubjectsPermPrefix = "s"
+  object TokenStream extends CompoundStreamIdTemplate[String]("t")
+
+  object InfoStream extends CompoundStreamIdTemplate[String]("i")
+
+  object DomainPermissionsStream extends CompoundStreamIdTemplate[String]("d")
+
+  object SubjectPermissionsStream extends CompoundStreamIdTemplate[String]("s")
 
   onSubjectMapping {
-    case Subject(_, TopicKey("token"), UserToken(ut)) => tokenStream(ut)
-    case Subject(_, TopicKey("info"), UserToken(ut)) => infoStream(ut)
-    case Subject(_, TopicKey("domains"), UserToken(ut)) => domainPermissionsStream(ut)
-    case Subject(_, TopicKey("subjects"), UserToken(ut)) => subjectPermissionsStream(ut)
+    case Subject(_, TopicKey("token"), UserToken(ut)) => TokenStream(ut)
+    case Subject(_, TopicKey("info"), UserToken(ut)) => InfoStream(ut)
+    case Subject(_, TopicKey("domains"), UserToken(ut)) => DomainPermissionsStream(ut)
+    case Subject(_, TopicKey("subjects"), UserToken(ut)) => SubjectPermissionsStream(ut)
   }
 
   onStreamActive {
-    case StreamId(TokenPrefix, Some(ut: String)) => publishToken(ut)
-    case StreamId(InfoPrefix, Some(ut: String)) => publishInfo(ut)
-    case StreamId(DomainsPermPrefix, Some(ut: String)) => publishDomainPermissions(ut)
-    case StreamId(SubjectsPermPrefix, Some(ut: String)) => publishSubjectPermissions(ut)
+    case TokenStream(ut) => publishToken(ut)
+    case InfoStream(ut) => publishInfo(ut)
+    case DomainPermissionsStream(ut) => publishDomainPermissions(ut)
+    case SubjectPermissionsStream(ut) => publishSubjectPermissions(ut)
   }
 
   onSignalAsync {
@@ -63,7 +81,7 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
         parseCredentials(body) match {
           case None =>
             FailedCredentialsAuth('reason -> "invalid request")
-            Future.successful(SignalOk(Some(false)))
+            Future.successful(SignalOk(false))
           case Some((user, pass)) =>
             authenticateWithCredentials(user, pass, ut) map {
               case true =>
@@ -109,11 +127,8 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
       val sess = createSession(ut, user)
       SuccessfulCredentialsAuth('token -> ut, 'authkey -> sess.securityToken, 'userid -> user)
       publishAllForUserToken(ut)
-      SignalOk(true)
     case AuthFailed(ut, user) =>
       FailedCredentialsAuth('token -> ut, 'userid -> user, 'reason -> "access denied")
-      SignalOk(false)
-
   }
 
 
@@ -141,13 +156,6 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
     case x => x
   }
 
-  def tokenStream(ut: String) = StreamId(TokenPrefix, Some(ut))
-
-  def infoStream(ut: String) = StreamId(InfoPrefix, Some(ut))
-
-  def domainPermissionsStream(ut: String) = StreamId(DomainsPermPrefix, Some(ut))
-
-  def subjectPermissionsStream(ut: String) = StreamId(SubjectsPermPrefix, Some(ut))
 
   def publishAllForUserToken(ut: String) = {
     publishInfo(ut)
@@ -158,25 +166,25 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
 
   def publishToken(userToken: String): Unit = {
     val securityToken = sessionByUserToken(userToken).map(_.securityToken).getOrElse("")
-    tokenStream(userToken) !~ securityToken
+    TokenStream(userToken) !~ securityToken
     AuthToken('token -> userToken, 'authkey -> securityToken)
   }
 
   def publishInfo(userToken: String): Unit = {
     val id = sessionByUserToken(userToken).map(_.user).getOrElse("")
-    infoStream(userToken) !# (InfoUserId -> id)
+    InfoStream(userToken) !# (InfoUserId -> id)
     UserInfo('token -> userToken, 'userid -> id)
   }
 
   def publishDomainPermissions(userToken: String): Unit = {
     val set = sessionByUserToken(userToken).map(_.domains).getOrElse(Set())
-    domainPermissionsStream(userToken) !% set
+    DomainPermissionsStream(userToken) !% set
     UserDomainPermissions('token -> userToken, 'userid -> id, 'set -> set)
   }
 
   def publishSubjectPermissions(userToken: String): Unit = {
     val set = sessionByUserToken(userToken).map(_.subjectPatterns).getOrElse(Set())
-    subjectPermissionsStream(userToken) !% set
+    SubjectPermissionsStream(userToken) !% set
     UserSubjectsPermissions('token -> userToken, 'userid -> id, 'set -> set)
   }
 
@@ -187,7 +195,7 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
   def createSession(ut: String, user: String): Session =
     sessionByUserToken(ut) orElse sessionByUserId(user) match {
       case None =>
-        val newSess = Session(Set(ut), user, shortUUID, None)
+        val newSess = Session(Set(ut), user, randomUUID, None)
         sessions += user -> newSess
         authorisationProviderRef ! PermissionsRequest(user)
         SessionCreated('token -> ut, 'userid -> user, 'authkey -> newSess.securityToken)
@@ -233,6 +241,7 @@ class AuthServiceActor(id: String) extends ServiceCell(id) with BaseAuthEvt {
                       subjectPatterns: Set[String] = Set())
 
   case class AuthOk(ut: String, user: String)
+
   case class AuthFailed(ut: String, user: String)
 
 }

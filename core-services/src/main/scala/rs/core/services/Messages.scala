@@ -20,6 +20,11 @@ import rs.core.{ServiceKey, Subject}
 
 object Messages {
 
+  sealed trait ServiceDialect
+
+  sealed trait ServiceInbound extends ServiceDialect with InboundMessage
+
+  sealed trait ServiceOutbound extends ServiceDialect with OutboundMessage
 
   trait InboundMessage
 
@@ -28,12 +33,6 @@ object Messages {
   trait InboundSubjectMessage extends InboundMessage {
     val subj: Subject
   }
-
-  sealed trait ServiceDialect
-
-  sealed trait ServiceInbound extends ServiceDialect with InboundMessage
-
-  sealed trait ServiceOutbound extends ServiceDialect with OutboundMessage
 
   case class OpenSubscription(subj: Subject, priorityKey: Option[String] = None, aggregationIntervalMs: Int = 0) extends ServiceInbound with InboundSubjectMessage
 
@@ -50,8 +49,6 @@ object Messages {
 
 
   case class Signal(subj: Subject, payload: Any, expireAt: Long, orderingGroup: Option[Any], correlationId: Option[Any]) extends Expirable with ServiceInbound with InboundSubjectMessage
-
-//  trait SignalAck extends ServiceOutbound
 
   case class SignalAckOk(correlationId: Option[Any], subj: Subject, payload: Option[Any]) extends ServiceOutbound
 

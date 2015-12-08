@@ -16,7 +16,7 @@
 package rs.core.services.internal
 
 import akka.actor.ActorRef
-import rs.core.actors.{BaseActor, SingleStateActor}
+import rs.core.actors.BaseActor
 import rs.core.services.{MessageId, Newer, Unknown}
 
 import scala.collection.mutable
@@ -25,12 +25,8 @@ import scala.language.postfixOps
 
 trait DuplicateMessageTracker extends BaseActor {
 
-  private case object Purge
-
-  private val tracking: mutable.Map[ActorRef, TrackerPerDestination] = mutable.HashMap()
-
   val dupTrackerPurgeStaleLocationsAfterMin = 60
-
+  private val tracking: mutable.Map[ActorRef, TrackerPerDestination] = mutable.HashMap()
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
@@ -39,18 +35,6 @@ trait DuplicateMessageTracker extends BaseActor {
   }
 
   private def schedulePurging() = scheduleOnce(1 minute, Purge)
-
-
-  onMessage {
-    case Purge =>
-      tracking.filter(_._2.isStale).keys.foreach(tracking.remove)
-      schedulePurging()
-  }
-
-  // do not explitly watch, but hook into onTerminated. Let trait user define the rules
-  onActorTerminated { ref =>
-    clearAllFor(ref)
-  }
 
   def clearAllFor(source: ActorRef): Unit = tracking.remove(source)
 
@@ -61,6 +45,18 @@ trait DuplicateMessageTracker extends BaseActor {
       newTracking
     })
     tracker.isValid(groupId, id)
+  }
+
+
+  onMessage {
+    case Purge =>
+      tracking.filter(_._2.isStale).keys.foreach(tracking.remove)
+      schedulePurging()
+  }
+
+  // do not explicitly watch, but hook into onTerminated. Let trait consumer define the rules
+  onActorTerminated { ref =>
+    clearAllFor(ref)
   }
 
   private class TrackerPerDestination {
@@ -83,5 +79,7 @@ trait DuplicateMessageTracker extends BaseActor {
     }
 
   }
+
+  private case object Purge
 
 }

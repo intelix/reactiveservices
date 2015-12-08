@@ -21,13 +21,15 @@ import akka.pattern.Patterns
 import akka.stream.scaladsl._
 import akka.stream.stage._
 import akka.stream.{Attributes, FlowShape, UniformFanOutShape}
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.NodeConfig
 import rs.core.services.Messages._
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
-import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
+import rs.core.sysevents.SyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 
-trait ServicePortSysevents extends ComponentWithBaseSysevents {
+trait ServicePortEvt extends ComponentWithBaseSysevents {
 
   val FlowStarting = "FlowStarting".info
   val FlowStopping = "FlowStopping".info
@@ -40,14 +42,18 @@ trait ServicePortSysevents extends ComponentWithBaseSysevents {
 }
 
 
-object ServicePort extends ServicePortSysevents {
+object ServicePort extends ServicePortEvt {
 
 
-  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, syseventPub: WithNodeSysevents) = Flow.wrap[ServiceInbound, ServiceOutbound, Any](FlowGraph.partial() { implicit b =>
+  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, nodeCfg: NodeConfig) = Flow.wrap[ServiceInbound, ServiceOutbound, Any](FlowGraph.partial() { implicit b =>
 
     import FlowGraph.Implicits._
 
     implicit val ec = context.dispatcher
+
+    implicit val evtPublisher = SyseventPublisher(nodeCfg)
+
+    val signalParallelism = nodeCfg.asInt("signal-parallelism", 100)
 
     class MessageRouter[T] extends FlexiRoute[T, UniformFanOutShape[T, T]](new UniformFanOutShape(2), Attributes.name("Router")) {
 
@@ -67,9 +73,11 @@ object ServicePort extends ServicePortSysevents {
           }
 
         override def initialCompletionHandling: CompletionHandling = CompletionHandling(
-          onUpstreamFailure = (ctx, cause)  => ctx.finish(),
+          onUpstreamFailure = (ctx, cause) => ctx.finish(),
           onUpstreamFinish = ctx => ctx.finish(),
-          onDownstreamFinish = (ctx, _)  => { ctx.finish(); SameState }
+          onDownstreamFinish = (ctx, _) => {
+            ctx.finish(); SameState
+          }
         )
       }
 
@@ -104,7 +112,7 @@ object ServicePort extends ServicePortSysevents {
 
     val requestSink = b.add(Sink.actorSubscriber(ServicePortSubscriptionRequestSinkSubscriber.props(aggregator, tokenId)))
 
-    val signalExecStage = b.add(Flow[ServiceInbound].mapAsyncUnordered[ServiceOutbound](100) {
+    val signalExecStage = b.add(Flow[ServiceInbound].mapAsyncUnordered[ServiceOutbound](signalParallelism) {
       case m: Signal =>
         val start = System.nanoTime()
         val expiredIn = m.expireAt - System.currentTimeMillis()
@@ -128,14 +136,14 @@ object ServicePort extends ServicePortSysevents {
                 SignalFailure('correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t))
                 SignalAckFailed(m.correlationId, m.subj, None)
             }
-            case _ => Futures.successful(SignalAckFailed(m.correlationId, m.subj, None))
+          case _ => Futures.successful(SignalAckFailed(m.correlationId, m.subj, None))
         }
-        case m: CloseSubscription =>
-          Invalid('type -> m.getClass, 'reason -> "Signal expected")
-          Futures.successful(SignalAckFailed(None, m.subj, None))
-        case m: OpenSubscription =>
-          Invalid('type -> m.getClass, 'reason -> "Signal expected")
-          Futures.successful(SignalAckFailed(None, m.subj, None))
+      case m: CloseSubscription =>
+        Invalid('type -> m.getClass, 'reason -> "Signal expected")
+        Futures.successful(SignalAckFailed(None, m.subj, None))
+      case m: OpenSubscription =>
+        Invalid('type -> m.getClass, 'reason -> "Signal expected")
+        Futures.successful(SignalAckFailed(None, m.subj, None))
     })
 
 
@@ -147,10 +155,10 @@ object ServicePort extends ServicePortSysevents {
 
     val monitor = b.add(Flow[ServiceInbound].transform(() => lifecycleMonitor))
 
-    monitor ~>  router.in
-                router.out(0)   ~> requestSink // stream subscriptions
-                router.out(1)   ~> signalExecStage ~> merge.preferred // signals
-                                   publisherSource ~> merge
+    monitor ~> router.in
+    router.out(0) ~> requestSink // stream subscriptions
+    router.out(1) ~> signalExecStage ~> merge.preferred // signals
+    publisherSource ~> merge
 
     FlowShape(monitor.inlet, merge.out)
 

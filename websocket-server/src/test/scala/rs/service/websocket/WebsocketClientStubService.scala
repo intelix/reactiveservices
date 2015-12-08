@@ -19,10 +19,10 @@ import akka.actor.{ActorRef, FSM, Props, Stash}
 import akka.io.IO
 import akka.util.{ByteIterator, ByteString}
 import rs.core.Subject
-import rs.core.actors.{ActorState, FSMActor}
+import rs.core.actors.{ActorState, StatefulActor}
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{ServiceCell, ServiceCellSysevents}
+import rs.core.services.{StatelessServiceActor, ServiceEvt}
 import rs.core.stream._
 import rs.core.sysevents.WithSysevents
 import rs.service.websocket.WebSocketClient.{Connecting, Established, WebsocketConnection}
@@ -38,7 +38,7 @@ import scala.language.postfixOps
 
 object WebsocketClientStubService {
 
-  trait Evt extends ServiceCellSysevents {
+  trait Evt extends ServiceEvt {
     val ConnectionUpgraded = "ConnectionUpgraded".info
     val ConnectionEstablished = "ConnectionEstablished".info
     val ConnectionClosed = "ConnectionClosed".info
@@ -76,7 +76,7 @@ object WebsocketClientStubService {
 
 }
 
-class WebsocketClientStubService(serviceId: String) extends ServiceCell(serviceId) {
+class WebsocketClientStubService(serviceId: String) extends StatelessServiceActor(serviceId) {
 
   onMessage {
     case StartWebsocketClient(id, host, port) => context.actorOf(Props(classOf[WebSocketClient], id, host, port), id)
@@ -102,7 +102,7 @@ object WebSocketClient {
 }
 
 class WebSocketClient(id: String, endpoint: String, port: Int)
-  extends FSMActor[WebsocketConnection]
+  extends StatefulActor[WebsocketConnection]
     with Consumer
     with Stash
     with Evt {
@@ -236,11 +236,11 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
   })
 
 
-  import rs.core.codec.binary.BinaryCodec.DefaultCodecs
+  import rs.core.codec.binary.BinaryCodec.DefaultBinaryCodecImplicits
 
   def decode(bs: ByteString): List[BinaryDialectOutbound] = {
     @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = {
-      if (!i.hasNext) l else dec(l :+ DefaultCodecs.clientBinaryCodec.decode(i), i)
+      if (!i.hasNext) l else dec(l :+ DefaultBinaryCodecImplicits.clientBinaryCodec.decode(i), i)
     }
 
     val i = bs.iterator
@@ -250,7 +250,7 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
 
   def encode(bdi: BinaryDialectInbound): ByteString = {
     val b = ByteString.newBuilder
-    DefaultCodecs.clientBinaryCodec.encode(bdi, b)
+    DefaultBinaryCodecImplicits.clientBinaryCodec.encode(bdi, b)
     val encoded = b.result()
     encoded
   }

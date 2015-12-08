@@ -1,10 +1,10 @@
 package rs.testing.components
 
 import rs.core.actors.ClusterAwareness
-import rs.core.services.{ServiceCell, ServiceCellSysevents}
+import rs.core.services.{StatelessServiceActor, ServiceEvt}
 import rs.core.stream.StringStreamPublisher
 
-object ClusterAwareServiceEvt extends ServiceCellSysevents {
+object ClusterAwareServiceEvt extends ServiceEvt {
 
   val LeaderChanged = "LeaderChanged".info
   val LeaderHandover = "LeaderHandover".info
@@ -17,7 +17,7 @@ object ClusterAwareServiceEvt extends ServiceCellSysevents {
   override def componentId: String = "Test"
 }
 
-class ClusterAwareService(id: String) extends ServiceCell(id) with ClusterAwareness with StringStreamPublisher {
+class ClusterAwareService(id: String) extends StatelessServiceActor(id) with ClusterAwareness with StringStreamPublisher {
 
   import ClusterAwareServiceEvt._
 

@@ -18,14 +18,14 @@ package rs.core.services.endpoint.akkastreams
 import akka.actor.{ActorRef, PoisonPill, Props}
 import akka.stream.actor.ActorPublisher
 import akka.stream.actor.ActorPublisherMessage.{Cancel, Request}
-import rs.core.actors.SingleStateActor
+import rs.core.actors.StatelessActor
 import rs.core.services.Messages.ServiceOutbound
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 
-trait ServicePortStreamSourceSysevents extends ComponentWithBaseSysevents {
+trait ServicePortStreamSourceEvt extends ComponentWithBaseSysevents {
 
   val Cancelled = "Cancelled".info
   val TerminatingOnRequest = "TerminatingOnRequest".info
@@ -40,9 +40,9 @@ object ServicePortStreamSource {
 }
 
 class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
-  extends SingleStateActor
-  with ActorPublisher[Any]
-  with ServicePortStreamSourceSysevents {
+  extends StatelessActor
+    with ActorPublisher[Any]
+    with ServicePortStreamSourceEvt {
 
   private val messageIdGenerator = new SequentialMessageIdGenerator()
 
@@ -58,7 +58,6 @@ class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
       OnNext('demand -> totalDemand)
       onNext(m)
   }
-
 
   onActorTerminated { ref =>
     if (ref == streamAggregator) {

@@ -24,20 +24,20 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
         authSubscriptions:  function (props) {
             return [
                 {
-                    service: "auth",
+                    service: 'auth',
                     topic: 'token',
                     onUpdate: this.onAuthKey,
                     onUnavailable: this.onAuthServiceUnavailable,
                     priority: '1'
                 },
                 {
-                    service: "auth",
+                    service: 'auth',
                     topic: 'domains',
                     onUpdate: this.onDomainPermissions,
                     priority: '1'
                 },
                 {
-                    service: "auth",
+                    service: 'auth',
                     topic: 'subjects',
                     onUpdate: this.onSubjectPermissions,
                     priority: '1'
@@ -56,11 +56,10 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
         onAuthKey: function (data) {
             if (data) {
                 Auth.setToken(data);
-                this.logDebug("Auth token received: " + data);
+                this.logDebug("Auth token received");
             } else {
-                this.logWarn("Blank auth token received: " + data);
-
                 Auth.resetToken();
+                this.logDebug("Auth token invalidated");
             }
         },
         onDomainPermissions: function (data) {
@@ -81,7 +80,7 @@ define(['react', 'auth', 'appevents'], function (React, Auth, Appevents) {
         },
         initiateLogin: function() {
             if (Auth.hasToken()) {
-                this.logInfo("Authenticating with token: " + Auth.getToken());
+                this.logInfo("Authenticating with token");
                 this.sendSignal("auth", "tauth", Auth.getToken(), false, 5, this.onAuthSuccess, this.onAuthFailure);
                 Auth.setAuthenticationPending();
             } else {

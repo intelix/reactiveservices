@@ -15,10 +15,9 @@
  */
 package rs.core.actors
 
-import akka.actor.{Actor, Address}
+import akka.actor.Address
 import akka.cluster.ClusterEvent._
 import akka.cluster.Member
-import rs.core.services.BaseServiceCell
 
 trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription {
 
@@ -34,15 +33,12 @@ trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription
     case (a, m) if m.roles.contains(role) => a
   }
 
-//  private var clusterStateSnapshotChain = List[() => Unit]()
   private var clusterMemberUpChain = List[PartialFunction[(Address, Set[String]), Unit]]()
   private var clusterMemberUnreachableChain = List[PartialFunction[(Address, Set[String]), Unit]]()
   private var clusterMemberRemovedChain = List[PartialFunction[(Address, Set[String]), Unit]]()
   private var clusterLeaderHandoverChain = List[() => Unit]()
   private var clusterLeaderTakeoverChain = List[() => Unit]()
   private var clusterLeaderChangedChain = List[PartialFunction[Option[Address], Unit]]()
-
-//  final def onClusterStateSnapshot(f: => Unit): Unit = clusterStateSnapshotChain :+= (() => f)
 
   final def onClusterMemberUp(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberUpChain :+= f
 
@@ -66,10 +62,6 @@ trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription
     }
 
   onMessage {
-//    case CurrentClusterState(m, u, _, l, _) =>
-//      m.foreach { member => clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ())) }
-//      processLeaderChange(l)
-//      clusterStateSnapshotChain.foreach(_.apply())
     case MemberUp(member) =>
       reachableMembers = reachableMembers + (member.address -> member)
       clusterMemberUpChain.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))

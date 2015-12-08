@@ -17,7 +17,7 @@ package rs.examples.counter
 
 
 import rs.core.actors.ActorState
-import rs.core.services.{ServiceCellSysevents, FSMServiceCell}
+import rs.core.services.{ServiceEvt, StatefulServiceActor}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.{Subject, TopicKey}
 import rs.examples.counter.CounterService.CounterValue
@@ -25,7 +25,7 @@ import rs.examples.counter.CounterService.CounterValue
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait CounterServiceEvt extends ServiceCellSysevents {
+trait CounterServiceEvt extends ServiceEvt {
 
   val CounterReset = "CounterReset".info
   val NowTicking = "NowTicking".info
@@ -54,7 +54,7 @@ object CounterService {
 
 }
 
-class CounterService(id: String) extends FSMServiceCell[CounterValue](id) with CounterServiceEvt {
+class CounterService(id: String) extends StatefulServiceActor[CounterValue](id) with CounterServiceEvt {
 
   import CounterService._
 

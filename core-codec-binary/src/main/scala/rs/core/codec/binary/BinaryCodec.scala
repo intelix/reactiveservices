@@ -23,19 +23,28 @@ import akka.util.{ByteIterator, ByteString, ByteStringBuilder}
 import com.typesafe.config.Config
 import rs.core.codec.binary.BinaryCodec.Codecs._
 import rs.core.codec.binary.BinaryProtocolMessages._
-import rs.core.config.{GlobalConfig, ServiceConfig}
+import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.services.Messages._
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
 import rs.core.stream.SetStreamState.{Add, Remove, SetOp, SetSpecs}
 import rs.core.stream._
-import rs.core.sysevents.WithNodeSysevents
+import rs.core.sysevents.{SyseventPublisher, WithNodeSysevents}
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 import scala.annotation.tailrec
 
 
 object BinaryCodec {
+
+  object DefaultBinaryCodecImplicits {
+    implicit val byteOrder = ByteOrder.BIG_ENDIAN
+    implicit val idCodec = new ByteIdCodec
+    implicit val commonCodec = new DefaultCommonDataBinaryCodec
+    implicit val serverBinaryCodec = new DefaultServerBinaryCodec
+    implicit val clientBinaryCodec: ClientBinaryCodec = new DefaultClientBinaryCodec
+  }
+
 
   trait Codec[I, O] {
     def decode(bytesIterator: ByteIterator): I
@@ -50,14 +59,6 @@ object BinaryCodec {
   trait ClientBinaryCodec extends Codec[BinaryDialectOutbound, BinaryDialectInbound]
 
   trait CommonDataBinaryCodec extends Codec[Any, Any]
-
-  object DefaultCodecs {
-    implicit val byteOrder = ByteOrder.BIG_ENDIAN
-    implicit val idCodec = new ByteIdCodec
-    implicit val commonCodec = new DefaultCommonDataBinaryCodec
-    implicit val serverBinaryCodec = new DefaultServerBinaryCodec
-    implicit val clientBinaryCodec: ClientBinaryCodec = new DefaultClientBinaryCodec
-  }
 
 
   object Streams {
@@ -131,24 +132,17 @@ object BinaryCodec {
       BidiShape(FlowShape(inboundRouter.in, inboundRouter.out0), FlowShape(outboundMerger.in1, outboundMerger.out))
     })
 
-    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, globalConfig: GlobalConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
+    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, nodeCfg: NodeConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
 
       import BinaryCodecEvt._
-      implicit val publisher = new WithNodeSysevents {
-        override def config: Config = globalConfig.config
-      }
+      implicit val publisher = SyseventPublisher(nodeCfg)
 
       val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
-
-        @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = {
-          if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
-        }
-
+        @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
         val i = x.iterator
         val decoded = dec(List.empty, i)
         MessageDecoded('original -> x, 'decoded -> decoded)
-
         decoded
       }
       val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
@@ -164,11 +158,7 @@ object BinaryCodec {
     def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutbound, BinaryDialectInbound, ByteString, Unit] = BidiFlow() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
       val top = b add Flow[ByteString].mapConcat[BinaryDialectOutbound] { x =>
-
-        @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = {
-          if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
-        }
-
+        @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
         val i = x.iterator
         val decoded = dec(List.empty, i)
         decoded

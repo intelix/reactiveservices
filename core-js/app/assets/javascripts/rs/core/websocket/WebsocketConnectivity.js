@@ -85,9 +85,7 @@ define(['logging', 'signals'], function (Log, Signal) {
         socket = new WebSocket(endpoint);
         socket.binaryType = 'arraybuffer';
 
-        if (Log.isInfo()) {
-            Log.logInfo(componentId, "Connection attempt to " + endpoint);
-        }
+        if (Log.isInfo()) Log.logInfo(componentId, "Connection attempt to " + endpoint);
 
         var timeout = setTimeout(function () {
             if (socket) socket.close();
@@ -104,9 +102,7 @@ define(['logging', 'signals'], function (Log, Signal) {
             signals.connected.dispatch(endpoint);
 
             endpointFailureCount = 0;
-            if (Log.isInfo()) {
-                Log.logInfo(componentId, "WebSocket connected to " + endpoint + " after " + attemptsSoFar + " attempt(s)");
-            }
+            if (Log.isInfo()) Log.logInfo(componentId, "WebSocket connected to " + endpoint + " after " + attemptsSoFar + " attempt(s)");
         };
 
         socket.onclose = function (x) {
@@ -142,9 +138,7 @@ define(['logging', 'signals'], function (Log, Signal) {
         if (_connected()) {
             socket.send(msg);
         } else {
-            if (Log.isDebug()) {
-                Log.logDebug(componentId, "Connection is not active, message dropped: " + msg);
-            }
+            if (Log.isDebug()) Log.logDebug(componentId, "Connection is not active, message dropped: " + msg);
         }
     }
 

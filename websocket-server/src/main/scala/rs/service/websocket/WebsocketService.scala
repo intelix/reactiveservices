@@ -24,19 +24,19 @@ import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, Uri}
 import akka.stream.scaladsl.BidiFlow
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import akka.util.ByteString
-import rs.core.actors.BaseActorSysevents
+import rs.core.actors.CommonActorEvt
 import rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound}
 import rs.core.codec.binary._
 import rs.core.config.ConfigOps.wrap
 import rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
-import rs.core.services.ServiceCell
+import rs.core.services.StatelessServiceActor
 import rs.core.services.endpoint.akkastreams._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
-trait WebsocketServiceSysevents extends BaseActorSysevents {
+trait WebsocketServiceSysevents extends CommonActorEvt {
   val ServerOpen = "ServerOpen".info
   val UnableToBind = "UnableToBind".error
   val NewConnection = "NewConnection".info
@@ -45,7 +45,7 @@ trait WebsocketServiceSysevents extends BaseActorSysevents {
   override def componentId: String = "Service.WebsocketServer"
 }
 
-class WebsocketService(id: String) extends ServiceCell(id) with WebsocketServiceSysevents {
+class WebsocketService(id: String) extends StatelessServiceActor(id) with WebsocketServiceSysevents {
 
   private case class SuccessfulBinding(binding: Http.ServerBinding)
 
@@ -73,7 +73,7 @@ class WebsocketService(id: String) extends ServiceCell(id) with WebsocketService
       .withDebugLogging(serviceCfg.asBoolean("log.flow-debug", defaultValue = false))
       .withSupervisionStrategy(decider))
 
-  import rs.core.codec.binary.BinaryCodec.DefaultCodecs._
+  import rs.core.codec.binary.BinaryCodec.DefaultBinaryCodecImplicits._
 
   var connectionCounter = new AtomicInteger(0)
 
@@ -113,7 +113,7 @@ class WebsocketService(id: String) extends ServiceCell(id) with WebsocketService
   Http().bindAndHandleSync(handler = {
     case WSRequest(upgrade, HttpRequest(HttpMethods.GET, Uri.Path("/"), headers, entity, proto)) =>
       val count = connectionCounter.incrementAndGet()
-      val id = count + "_" + shortUUID
+      val id = count + "_" + randomUUID
       handleWebsocket(upgrade, headers, id)
 
     case r: HttpRequest =>

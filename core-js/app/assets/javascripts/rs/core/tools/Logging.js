@@ -22,6 +22,7 @@ define([], function () {
     var WARN = 3;
     var ERROR = 4;
 
+    // TODO later: UI-side config
     var defaultLogLevel = INFO;
 
     function format(prefix, msg) {

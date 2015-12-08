@@ -1,9 +1,9 @@
 package rs.testing.components
 
 import rs.core.Subject
-import rs.core.services.BaseServiceCell.StopRequest
+import rs.core.services.BaseServiceActor.StopRequest
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
-import rs.core.services.ServiceCellSysevents
+import rs.core.services.ServiceEvt
 import rs.core.services.endpoint.Terminal
 import rs.testing.components.TestServiceConsumer.{Close, Evt, Open, SendSignal}
 
@@ -13,7 +13,7 @@ import scala.util.{Failure, Success}
 
 object TestServiceConsumer {
 
-  trait Evt extends ServiceCellSysevents {
+  trait Evt extends ServiceEvt {
     val StringUpdate = "StringUpdate".info
     val SetUpdate = "SetUpdate".info
     val MapUpdate = "MapUpdate".info

@@ -18,7 +18,7 @@ package rs.core.services.internal
 import java.util
 
 import akka.actor.{ActorRef, Props}
-import rs.core.actors.{SingleStateActor, BaseActorSysevents}
+import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.services.Messages._
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
 import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
@@ -33,7 +33,6 @@ import scala.language.postfixOps
 
 
 object StreamAggregatorActor {
-
   def props(consumerId: String) = Props(classOf[StreamAggregatorActor], consumerId)
 
   case class ServiceLocationChanged(serviceKey: ServiceKey, location: Option[ActorRef])
@@ -41,7 +40,7 @@ object StreamAggregatorActor {
 }
 
 
-trait StreamAggregatorActorSysevents extends BaseActorSysevents {
+trait StreamAggregatorActorEvt extends CommonActorEvt {
 
   val SubjectUpdateReceived = "SubjectUpdateReceived".trace
   val DownstreamConsumer = "DownstreamConsumer".trace
@@ -52,8 +51,8 @@ trait StreamAggregatorActorSysevents extends BaseActorSysevents {
 }
 
 final class StreamAggregatorActor(consumerId: String)
-  extends SingleStateActor
-  with DemandProducerContract with StreamDemandBinding with ConsumerDemandTracker with StreamAggregatorActorSysevents {
+  extends StatelessActor
+    with DemandProducerContract with StreamDemandBinding with ConsumerDemandTracker with StreamAggregatorActorEvt {
 
 
   private val streamToBucket: mutable.Map[Subject, Bucket] = mutable.HashMap()
@@ -74,16 +73,16 @@ final class StreamAggregatorActor(consumerId: String)
     scheduleNextCheck()
   }
 
-  def activeSubjects = streamToBucket.keys
+  private def scheduleNextCheck() = scheduleOnce(200 millis, SendPending)
 
   def invalidRequest(subj: Subject) = {
     pendingMessages = pendingMessages :+ InvalidRequest(subj)
     processPendingMessages()
   }
 
-  def serviceAvailable(service: ServiceKey) = pendingMessages = pendingMessages filter {
-    case ServiceNotAvailable(key) => key != service
-    case _ => true
+  def subjectClosed(subj: Subject) = {
+    pendingMessages = pendingMessages :+ SubscriptionClosed(subj)
+    processPendingMessages()
   }
 
   onMessage {
@@ -94,44 +93,44 @@ final class StreamAggregatorActor(consumerId: String)
       scheduleNextCheck()
   }
 
-
-  private def onUpdate(key: Subject, tran: StreamState): Unit = SubjectUpdateReceived { ctx =>
-    ctx +('subj -> key, 'payload -> tran)
-    upstreamDemandFulfilled(sender(), 1)
-    streamToBucket get key foreach { b =>
-      b.onNewState(canUpdate, tran, send)
-    }
-  }
-
-  private def publishPending(): Unit = if (priorityGroups.size() > 0) {
-    processPendingMessages()
-    val cycles = priorityGroups.size()
-    var cnt = 0
-    while (cnt < cycles && hasDemand) {
-      if (pendingPublisherIdx < 0 || pendingPublisherIdx >= priorityGroups.size()) pendingPublisherIdx = 0
-      priorityGroups get pendingPublisherIdx publishPending(canUpdate, send)
-      pendingPublisherIdx += 1
-      cnt += 1
-    }
-  }
-
-  def serviceUnavailable(service: ServiceKey) = if (!pendingMessages.exists {
-    case ServiceNotAvailable(key) => key == service
-    case _ => false
-  }) pendingMessages = pendingMessages :+ ServiceNotAvailable(service)
-
-  def subjectClosed(subj: Subject) = {
-    pendingMessages = pendingMessages :+ SubscriptionClosed(subj)
-    processPendingMessages()
-  }
-
   def remove(subj: Subject) = {
     streamToBucket get subj foreach closeBucket
+  }
+
+  private def closeBucket(bucket: Bucket): Unit = {
+    priorityKeysToBuckets get bucket.priorityKey foreach { pg =>
+      pg.remove(bucket)
+      if (pg.isEmpty) remove(pg)
+    }
+    streamToBucket -= bucket.subj
+  }
+
+  private def remove(pg: PriorityBucketGroup) = {
+    priorityKeysToBuckets -= pg.priorityKey
+    priorityGroups remove pg
   }
 
   def add(subj: Subject, priorityKey: Option[String], aggregationIntervalMs: Int) = {
     streamToBucket get subj foreach closeBucket
     newBucket(subj, priorityKey, aggregationIntervalMs)
+  }
+
+  private def newBucket(key: Subject, priorityKey: Option[String], aggregationIntervalMs: Int): Unit = {
+    val bucket = new Bucket(key, priorityKey, aggregationIntervalMs)
+    streamToBucket += key -> bucket
+    initialiseBucket(bucket)
+  }
+
+  private def initialiseBucket(bucket: Bucket) = {
+    priorityKeysToBuckets getOrElse(bucket.priorityKey, newPriorityGroup(bucket.priorityKey)) add bucket
+  }
+
+  private def newPriorityGroup(key: Option[String]) = {
+    val group = new PriorityBucketGroup(key)
+    priorityKeysToBuckets += key -> group
+    priorityGroups.add(group)
+    util.Collections.sort(priorityGroups)
+    group
   }
 
   override def onConsumerDemand(sender: ActorRef, demand: Long): Unit = {
@@ -151,49 +150,12 @@ final class StreamAggregatorActor(consumerId: String)
     super.postStop()
   }
 
-
-  private def hasTarget = lastDemandRequestor isDefined
-
-  private def scheduleNextCheck() = scheduleOnce(200 millis, SendPending)
-
-  @tailrec private def processPendingMessages(): Unit = {
-    if (pendingMessages.nonEmpty && canUpdate()) {
-      send(pendingMessages.head)
-      pendingMessages = pendingMessages.tail
-      processPendingMessages()
+  private def onUpdate(key: Subject, tran: StreamState): Unit = SubjectUpdateReceived { ctx =>
+    ctx +('subj -> key, 'payload -> tran)
+    upstreamDemandFulfilled(sender(), 1)
+    streamToBucket get key foreach { b =>
+      b.onNewState(canUpdate, tran, send)
     }
-  }
-
-  private def remove(pg: PriorityBucketGroup) = {
-    priorityKeysToBuckets -= pg.priorityKey
-    priorityGroups remove pg
-  }
-
-
-  private def closeBucket(bucket: Bucket): Unit = {
-    priorityKeysToBuckets get bucket.priorityKey foreach { pg =>
-      pg.remove(bucket)
-      if (pg.isEmpty) remove(pg)
-    }
-    streamToBucket -= bucket.subj
-  }
-
-  private def newPriorityGroup(key: Option[String]) = {
-    val group = new PriorityBucketGroup(key)
-    priorityKeysToBuckets += key -> group
-    priorityGroups.add(group)
-    util.Collections.sort(priorityGroups)
-    group
-  }
-
-  private def initialiseBucket(bucket: Bucket) = {
-    priorityKeysToBuckets getOrElse(bucket.priorityKey, newPriorityGroup(bucket.priorityKey)) add bucket
-  }
-
-  private def newBucket(key: Subject, priorityKey: Option[String], aggregationIntervalMs: Int): Unit = {
-    val bucket = new Bucket(key, priorityKey, aggregationIntervalMs)
-    streamToBucket += key -> bucket
-    initialiseBucket(bucket)
   }
 
   private def send(msg: Any) = {
@@ -206,6 +168,34 @@ final class StreamAggregatorActor(consumerId: String)
     }
   }
 
+  private def publishPending(): Unit = if (priorityGroups.size() > 0) {
+    processPendingMessages()
+    val cycles = priorityGroups.size()
+    var cnt = 0
+    while (cnt < cycles && hasDemand) {
+      if (pendingPublisherIdx < 0 || pendingPublisherIdx >= priorityGroups.size()) pendingPublisherIdx = 0
+      priorityGroups get pendingPublisherIdx publishPending(canUpdate, send)
+      pendingPublisherIdx += 1
+      cnt += 1
+    }
+  }
+
+  private def hasTarget = lastDemandRequestor isDefined
+
+  @tailrec private def processPendingMessages(): Unit = {
+    if (pendingMessages.nonEmpty && canUpdate()) {
+      send(pendingMessages.head)
+      pendingMessages = pendingMessages.tail
+      processPendingMessages()
+    }
+  }
+
+  private def switchLocation(service: ServiceKey, location: Option[ActorRef]): Unit = ServiceLocationUpdated { ctx =>
+    closeLocation(service)
+    serviceLocations += service -> location
+    openLocation(service)
+    ctx +('service -> service, 'ref -> location)
+  }
 
   private def closeLocation(service: ServiceKey) =
     serviceLocations.get(service).flatten foreach { loc =>
@@ -222,6 +212,13 @@ final class StreamAggregatorActor(consumerId: String)
       case None =>
         serviceUnavailable(service)
     }
+
+  def activeSubjects = streamToBucket.keys
+
+  def serviceAvailable(service: ServiceKey) = pendingMessages = pendingMessages filter {
+    case ServiceNotAvailable(key) => key != service
+    case _ => true
+  }
 
 
   onMessage {
@@ -243,12 +240,10 @@ final class StreamAggregatorActor(consumerId: String)
 
   }
 
-  private def switchLocation(service: ServiceKey, location: Option[ActorRef]): Unit = ServiceLocationUpdated { ctx =>
-    closeLocation(service)
-    serviceLocations += service -> location
-    openLocation(service)
-    ctx +('service -> service, 'ref -> location)
-  }
+  def serviceUnavailable(service: ServiceKey) = if (!pendingMessages.exists {
+    case ServiceNotAvailable(key) => key == service
+    case _ => false
+  }) pendingMessages = pendingMessages :+ ServiceNotAvailable(service)
 
   private case object SendPending
 
@@ -277,16 +272,15 @@ private class PriorityBucketGroup(val priorityKey: Option[String]) extends Compa
 
   def isEmpty = buckets.isEmpty
 
-
-  //noinspection ComparingUnrelatedTypes
-  def canEqual(other: Any): Boolean = other.isInstanceOf[PriorityBucketGroup]
-
   override def equals(other: Any): Boolean = other match {
     case that: PriorityBucketGroup =>
       (that canEqual this) &&
         priorityKey == that.priorityKey
     case _ => false
   }
+
+  //noinspection ComparingUnrelatedTypes
+  def canEqual(other: Any): Boolean = other.isInstanceOf[PriorityBucketGroup]
 
   override def hashCode(): Int = preCalculatedHashCode
 
@@ -305,6 +299,11 @@ private class Bucket(val subj: Subject, val priorityKey: Option[String], aggrega
   private var pendingState: Option[StreamState] = None
   private var state: Option[StreamState] = None
 
+  def onNewState(canUpdate: () => Boolean, tran: StreamState, send: Any => Unit): Unit = {
+    schedule(tran)
+    publishPending(canUpdate, send)
+  }
+
   def publishPending(canUpdate: () => Boolean, send: Any => Unit) = {
 
     if (canUpdate() && pendingState.isDefined && isAggregationCriteriaMet) pendingState foreach { pending =>
@@ -313,11 +312,6 @@ private class Bucket(val subj: Subject, val priorityKey: Option[String], aggrega
       state = pendingState
       pendingState = None
     }
-  }
-
-  def onNewState(canUpdate: () => Boolean, tran: StreamState, send: Any => Unit): Unit = {
-    schedule(tran)
-    publishPending(canUpdate, send)
   }
 
   private def isAggregationCriteriaMet = aggregationIntervalMs < 1 || now - lastUpdatePublishedAt > aggregationIntervalMs

@@ -26,6 +26,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
         signalResult: new Signal()
     };
 
+    var componentId = "core/Codec";
 
     var TypeNone = 0;
     var TypeNil = 1;
@@ -196,15 +197,16 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
     });
 
 
+    // TODO later: UI-side configuration
     var outboundBufferSize = 1024 * 64;
     var flushThresholdFactor = 0.8;
     var _internalBuffer = JDataView(outboundBufferSize);
 
     function _allocBuffer(bytesRequired) {
         if (outboundBufferSize - _internalBuffer.tell() < bytesRequired + 1) {
-            Log.logDebug("Outbound buffer increased: " + outboundBufferSize + " to " + (outboundBufferSize * 2));
+            if (Log.isDebug()) Log.logDebug(componentId, "Outbound buffer increased from " + outboundBufferSize + " to " + (outboundBufferSize * 2));
             outboundBufferSize = outboundBufferSize * 2;
-            // TODO later: limitation
+            // TODO later: limitation/warnings
             var bytes = _internalBuffer.getBytes(_internalBuffer.tell(), 0);
             _internalBuffer = JDataView(outboundBufferSize);
             _internalBuffer.setBytes(0, bytes);
@@ -250,11 +252,11 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
 
     function _writeNext(data) {
         if (_.isUndefined(data.type) || !_.isNumber(data.type)) {
-            Log.logWarn("Invalid outbound message: " + JSON.stringify(data));
+            Log.logWarn(componentId, "Invalid outbound message: " + JSON.stringify(data));
         } else {
             var enc = _getEncoderFor(data.type);
             if (!enc) {
-                Log.logWarn("No encoder for type " + data.type);
+                Log.logWarn(componentId, "No encoder for type " + data.type);
             } else {
                 enc(data);
             }
@@ -292,7 +294,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
                 next = _readNextIfAny(frameWrapper);
             }
         } catch (error) {
-            Log.logError("Error during deserialization: " + error);
+            Log.logError(componentId, "Error during deserialization: " + error);
         }
         if (eventsCount > 0) signals.frameProcessed.dispatch();
     }

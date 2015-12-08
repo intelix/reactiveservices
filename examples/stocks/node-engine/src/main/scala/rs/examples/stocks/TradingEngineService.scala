@@ -20,7 +20,7 @@ import java.util.Date
 import play.api.libs.json.Json
 import rs.core.SubjectTags.UserId
 import rs.core.services.endpoint.Terminal
-import rs.core.services.{ServiceCell, ServiceCellSysevents, StreamId}
+import rs.core.services.{StatelessServiceActor, ServiceEvt, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromTail, ListSpecs}
 import rs.core.stream.SetStreamState.SetSpecs
@@ -29,14 +29,14 @@ import rs.core.{CompositeTopicKey, ServiceKey, Subject, TopicKey}
 
 import scala.language.postfixOps
 
-trait TradingEngineServiceEvents extends ServiceCellSysevents {
+trait TradingEngineServiceEvents extends ServiceEvt {
 
   val IncomingTrade = "IncomingTrade".info
 
   override def componentId: String = "TradingEngine"
 }
 
-class TradingEngineService(id: String) extends ServiceCell(id) with Terminal with TradingEngineServiceEvents {
+class TradingEngineService(id: String) extends StatelessServiceActor(id) with Terminal with TradingEngineServiceEvents {
 
   case class Trade(id: String, trader: String, symbol: String, price: Double, date: String)
 

@@ -15,14 +15,14 @@
  */
 package rs.examples.stocks
 
-import rs.core.services.{ServiceCell, StreamId}
+import rs.core.services.{StatelessServiceActor, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.{Subject, TopicKey}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class PriceSourceService(id: String) extends ServiceCell(id) {
+class PriceSourceService(id: String) extends StatelessServiceActor(id) {
 
   implicit val dict = Dictionary("price")
 

@@ -22,7 +22,7 @@ import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 import akka.io.{IO, Udp}
 import akka.util.ByteString
-import rs.core.actors.{ActorState, FSMActor, BaseActorSysevents}
+import rs.core.actors.{ActorState, CommonActorEvt, StatefulActor}
 import rs.core.config.ConfigOps.wrap
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.UdpClusterManagerActor._
@@ -31,69 +31,72 @@ import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
 
+trait UdpClusterManagerActorEvt extends CommonActorEvt {
+
+  val UdpBound = "UdpBound" info
+
+  val NewLeaderElected = "NewLeaderElected".info
+  val NodeUp = "NodeUp".info
+  val NodeRemoved = "NodeRemoved".info
+  val NodeExited = "NodeExited".info
+  val NodeUnreachable = "NodeUnreachable".info
+  val NodeReachable = "NodeReachable".info
+
+  override def componentId: String = "UdpClusterManager"
+}
+
+object UdpClusterManagerActorEvt extends UdpClusterManagerActorEvt
+
+
 object UdpClusterManagerActor {
 
-  trait Evt extends BaseActorSysevents {
 
-    val UdpBound = "UdpBound" info
+  object UdpMessages {
 
-    val NewLeaderElected = "NewLeaderElected".info
-    val NodeUp = "NodeUp".info
-    val NodeRemoved = "NodeRemoved".info
-    val NodeExited = "NodeExited".info
-    val NodeUnreachable = "NodeUnreachable".info
-    val NodeReachable = "NodeReachable".info
-
-
-    override def componentId: String = "UdpClusterManager"
-  }
-
-  object Evt extends Evt
-
-  case class Endpoint(uri: String, host: String, port: Int, addr: InetSocketAddress)
-
-
-  case class Request(node: String) {
-    lazy val toByteString = ByteString("?" + node)
-  }
-
-  object Request {
-    def unapply(bs: ByteString): Option[String] =
-      bs.utf8String match {
-        case s if s.startsWith("?") => Some(s.drop(1))
-        case _ => None
-      }
-  }
-
-  case class Response(node: String, address: String, members: Set[String], uptime: Long, roles: Set[String], seed: Option[Address]) {
-    lazy val toByteString = ByteString("!" + node + ";" + address + ";" + seed.map(_.toString).getOrElse("none") + ";" + (if (members.isEmpty) "none" else members.mkString(",")) + ";" + uptime + ";" + roles.mkString(","))
-  }
-
-  object Response {
-    private def convertSeed(str: String) = str match {
-      case "none" => None
-      case s => Some(AddressFromURIString(s))
+    case class Request(node: String) {
+      lazy val toByteString = ByteString("?" + node)
     }
 
-    def unapply(bs: ByteString): Option[(String, String, Set[String], Long, Set[String], Option[Address])] =
-      bs.utf8String match {
-        case s if s.startsWith("!") => s drop 1 split ";" match {
-          case Array(n, addr, seed, "none", ut) => Some(n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed))
-          case Array(n, addr, seed, "none", ut, _) => Some(n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed))
-          case Array(n, addr, seed, m, ut, rs) => Some(n, addr, m.split(",").toSet, ut.toLong, rs.split(",").toSet, convertSeed(seed))
-          case Array(n, addr, seed, m, ut) => Some(n, addr, m.split(",").toSet, ut.toLong, Set.empty[String], convertSeed(seed))
+    object Request {
+      def unapply(bs: ByteString): Option[String] =
+        bs.utf8String match {
+          case s if s.startsWith("?") => Some(s.drop(1))
           case _ => None
         }
-        case _ => None
+    }
+
+    case class Response(node: String, address: String, members: Set[String], uptime: Long, roles: Set[String], seed: Option[Address]) {
+      lazy val toByteString = ByteString("!" + node + ";" + address + ";" + seed.map(_.toString).getOrElse("none") + ";" + (if (members.isEmpty) "none" else members.mkString(",")) + ";" + uptime + ";" + roles.mkString(","))
+    }
+
+    object Response {
+      private def convertSeed(str: String) = str match {
+        case "none" => None
+        case s => Some(AddressFromURIString(s))
       }
+
+      def unapply(bs: ByteString): Option[(String, String, Set[String], Long, Set[String], Option[Address])] =
+        bs.utf8String match {
+          case s if s.startsWith("!") => s drop 1 split ";" match {
+            case Array(n, addr, seed, "none", ut) => Some(n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed))
+            case Array(n, addr, seed, "none", ut, _) => Some(n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed))
+            case Array(n, addr, seed, m, ut, rs) => Some(n, addr, m.split(",").toSet, ut.toLong, rs.split(",").toSet, convertSeed(seed))
+            case Array(n, addr, seed, m, ut) => Some(n, addr, m.split(",").toSet, ut.toLong, Set.empty[String], convertSeed(seed))
+            case _ => None
+          }
+          case _ => None
+        }
+    }
+
   }
 
+  case class Endpoint(uri: String, host: String, port: Int, addr: InetSocketAddress)
 
   case class ManagerStateData(
                                system: ActorSystem,
                                socket: Option[ActorRef] = None,
                                endpoints: List[Endpoint] = List.empty,
-                               responses: Map[String, Response] = Map.empty,
+                               responses: Map[String, UdpMessages.Response] = Map.empty,
                                currentLeader: Option[Address] = None,
                                currentMembers: Map[Address, Set[String]] = Map.empty,
                                lastDiscoveredClusters: Set[ReachableCluster] = Set.empty,
@@ -123,48 +126,65 @@ object UdpClusterManagerActor {
       ReachableCluster(currentMembers.keys.toSet, combinedRoles, Some(system.uptime))
     }
 
-    private def isAnotherCluster(r: Response) = r.members.nonEmpty && !r.members.exists { m => currentMembers.contains(AddressFromURIString(m)) }
+    private def isAnotherCluster(r: UdpMessages.Response) = r.members.nonEmpty && !r.members.exists { m => currentMembers.contains(AddressFromURIString(m)) }
   }
 
-  case class BlockCommunicationWith(host: String, port: Int)
 
-  case class UnblockCommunicationWith(host: String, port: Int)
+  object Messages {
+
+    case class BlockCommunicationWith(host: String, port: Int)
+
+    case class UnblockCommunicationWith(host: String, port: Int)
+
+  }
+
+  private object InternalMessages {
+
+    case object Start
+
+    case object DiscoveryTimeout
+
+    case object PerformHandshake
+
+    case object CheckState
+
+    case class SendResponseTo(uri: String, addr: InetSocketAddress)
+
+  }
+
+  private object States {
+
+    case object Initial extends ActorState
+
+    case object InitialDiscovery extends ActorState
+
+    case object ContinuousDiscovery extends ActorState
+
+  }
+
 
 }
 
 
-class UdpClusterManagerActor extends FSMActor[ManagerStateData] with Evt {
+class UdpClusterManagerActor extends StatefulActor[ManagerStateData] with UdpClusterManagerActorEvt {
 
-  case object Start
-
-  case object Initial extends ActorState
-
-  case object InitialDiscovery extends ActorState
-
-  case object ContinuousDiscovery extends ActorState
-
-
-  case object DiscoveryTimeout
-
-  case object PerformHandshake
-
-  case object CheckState
-
-  case class SendResponseTo(uri: String, addr: InetSocketAddress)
-
+  import InternalMessages._
+  import Messages._
+  import States._
+  import UdpMessages._
 
   implicit val sys = context.system
 
   implicit val cluster = Cluster(sys)
   private lazy val selfAddress = cluster.selfAddress
 
-  private val seedNodes = globalCfg.asStringList("node.cluster.discovery.seed-nodes")
-  private val seedRoles = globalCfg.asStringList("node.cluster.discovery.seed-roles")
+  private val seedNodes = nodeCfg.asStringList("node.cluster.discovery.seed-nodes")
+  private val seedRoles = nodeCfg.asStringList("node.cluster.discovery.seed-roles")
   private lazy val mySeed = if (seedNodes.exists(selfAddress.toString.contains) || seedRoles.exists(cluster.selfRoles.contains)) Some(cluster.selfAddress) else None
 
   val udpEndpointHost = config.asString("node.cluster.discovery.udp-endpoint.host", "localhost")
   val udpEndpointPort = config.asInt("node.cluster.discovery.udp-endpoint.port", 0)
-  val initialDiscoveryTimeout = globalCfg.asFiniteDuration("node.cluster.discovery.pre-discovery-timeout", 10 seconds)
+  val initialDiscoveryTimeout = nodeCfg.asFiniteDuration("node.cluster.discovery.pre-discovery-timeout", 10 seconds)
 
   val endpoints = config.asStringList("node.cluster.discovery.udp-contacts").map { s =>
     s.split(":") match {

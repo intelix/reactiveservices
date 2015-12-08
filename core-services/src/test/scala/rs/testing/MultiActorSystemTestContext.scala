@@ -3,7 +3,7 @@ package rs.testing
 import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import com.typesafe.config._
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
-import rs.core.actors.SingleStateActor
+import rs.core.actors.StatelessActor
 import rs.core.sysevents.WithSysevents
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.sysevents.support.{EventAssertions, WithSyseventsCollector}
@@ -54,7 +54,7 @@ private object WatcherActor extends WatcherSysevents {
   def props(componentId: String) = Props(new WatcherActor(componentId))
 }
 
-private class WatcherActor(id: String) extends SingleStateActor with WatcherSysevents {
+private class WatcherActor(id: String) extends StatelessActor with WatcherSysevents {
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('InstanceId -> id)
 
   var watched = Set[ActorRef]()

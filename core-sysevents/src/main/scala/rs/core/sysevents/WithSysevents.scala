@@ -16,7 +16,7 @@
 package rs.core.sysevents
 
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{WithConfig, GlobalConfig}
+import rs.core.config.{WithConfig, NodeConfig}
 import rs.core.sysevents.log.LoggerSyseventPublisher
 
 trait WithSysevents {
@@ -27,11 +27,13 @@ trait WithSysevents {
   def commonFields: Seq[(Symbol, Any)] = Seq()
 }
 
-trait WithNodeSysevents extends WithSysevents with WithConfig {
+trait WithNodeSysevents extends WithSysevents {
 
   override implicit val evtPublisherContext = this
 
-  lazy val nodeId = config.asString("node.id", "n/a")
+  val nodeCfg: NodeConfig
+
+  lazy val nodeId = nodeCfg.asString("node.id", "n/a")
 
   override def commonFields: Seq[(Symbol, Any)] = Seq('nodeid -> nodeId)
 }

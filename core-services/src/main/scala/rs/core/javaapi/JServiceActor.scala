@@ -18,14 +18,14 @@ package rs.core.javaapi
 import akka.actor.Actor
 import rs.core.Subject
 import rs.core.actors.JBaseActor
-import rs.core.services.{WithId, ServiceWithId, BaseServiceCell, StreamId}
+import rs.core.services._
 import rs.core.stream._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-abstract class JServiceCell(id: String)
-  extends ServiceWithId(id) with JBaseActor with BaseServiceCell with JStringStreamPublisher with JListStreamPublisher with JSetStreamPublisher with JDictionaryMapStreamPublisher {
+abstract class JServiceActor(id: String)
+  extends ServiceActorWithId(id) with JBaseActor with BaseServiceActor with JStringStreamPublisher with JListStreamPublisher with JSetStreamPublisher with JDictionaryMapStreamPublisher {
 
   self: Actor =>
 

@@ -17,15 +17,15 @@ package rs.service.auth
 
 import akka.stream.scaladsl._
 import akka.stream.{BidiShape, FlowShape}
-import com.typesafe.config.Config
-import rs.core.SubjectTags.{TagOps, UserId, UserToken}
+import rs.core.SubjectTags.{SubjectTag, UserId, UserToken}
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{GlobalConfig, ServiceConfig}
+import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
 import rs.core.stream.{DictionaryMapStreamState, SetStreamState}
-import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
+import rs.core.sysevents.SyseventPublisher
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.tools.UUIDTools
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 trait AuthStageEvt extends ComponentWithBaseSysevents {
@@ -36,33 +36,25 @@ trait AuthStageEvt extends ComponentWithBaseSysevents {
   val SubjectPermissionsProvided = "SubjectPermissionsProvided".info
   val SubjectPermissionsReset = "SubjectPermissionsReset".info
   val AuthServiceDown = "AuthServiceDown".warn
-
   val AccessDenied = "AccessDenied".warn
 
-
-  override def componentId: String = "AuthStage"
+  override def componentId: String = "Endpoint.Auth"
 }
 
 object AuthStageEvt extends AuthStageEvt
 
-private object SecretToken extends TagOps {
-  override val tagId: String = "secret"
-}
+private object PrivateIdToken extends SubjectTag("pid")
 
 class AuthStage extends ServiceDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, globalConfig: GlobalConfig) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig) =
     if (serviceCfg.asBoolean("auth.enabled", defaultValue = true))
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
 
-        implicit val evtPub = new WithNodeSysevents {
-          override val commonFields: Seq[(Symbol, Any)] = super.commonFields :+ ('token -> sessionId)
+        implicit val evtPub = SyseventPublisher(nodeCfg, 'token -> sessionId)
 
-          override def config: Config = globalConfig.config
-        }
-
-        val privateKey = sessionId + "_private"
+        val privateKey = sessionId + "_" + UUIDTools.generateShortUUID
 
         val authServiceKey: ServiceKey = serviceCfg.asString("auth.service-key", "auth")
 
@@ -70,11 +62,11 @@ class AuthStage extends ServiceDialectStageBuilder {
         val subjectsPermissionsTopic: TopicKey = serviceCfg.asString("auth.topic-subjects-permissions", "subjects")
         val infoTopic: TopicKey = serviceCfg.asString("auth.topic-info", "info")
 
-        val closeOnServiceDown = serviceCfg.asBoolean("auth.close-when-auth-unavailable", defaultValue = true)
+        val closeOnServiceDown = serviceCfg.asBoolean("auth.invalidate-session-on-service-unavailable", defaultValue = true)
 
-        val AuthSubSubject = Subject(authServiceKey, tokenTopic, UserToken(sessionId) + SecretToken(privateKey))
-        val SubjectPermissionsSubSubject = Subject(authServiceKey, subjectsPermissionsTopic, UserToken(sessionId) + SecretToken(privateKey))
-        val InfoSubSubject = Subject(authServiceKey, infoTopic, UserToken(sessionId) + SecretToken(privateKey))
+        val AuthSubSubject = Subject(authServiceKey, tokenTopic, UserToken(sessionId) + PrivateIdToken(privateKey))
+        val SubjectPermissionsSubSubject = Subject(authServiceKey, subjectsPermissionsTopic, UserToken(sessionId) + PrivateIdToken(privateKey))
+        val InfoSubSubject = Subject(authServiceKey, infoTopic, UserToken(sessionId) + PrivateIdToken(privateKey))
 
 
         @volatile var userId: Option[String] = None
@@ -125,7 +117,7 @@ class AuthStage extends ServiceDialectStageBuilder {
               }
             }
             false
-          case StreamStateUpdate(subj@Subject(_, _, SecretToken(k)), state) if k == privateKey =>
+          case StreamStateUpdate(subj@Subject(_, _, PrivateIdToken(k)), state) if k == privateKey =>
             false
           case _ => true
         }.map {

@@ -18,9 +18,9 @@ package rs.core.stream
 import java.util
 
 import rs.core.Subject
-import rs.core.javaapi.JServiceCell
+import rs.core.javaapi.JServiceActor
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{BaseServiceCell, StreamId}
+import rs.core.services.{SimpleStreamId, BaseServiceActor, StreamId}
 import rs.core.stream.SetStreamState._
 
 import scala.language.implicitConversions
@@ -91,9 +91,9 @@ trait SetStreamConsumer extends StreamConsumer {
 }
 
 trait JSetStreamPublisher extends SetStreamPublisher {
-  self: JServiceCell =>
+  self: JServiceActor =>
 
-  def streamSetSnapshot(s: String, l: util.Set[String], allowPartialUpdates: Boolean): Unit = streamSetSnapshot(StreamId(s), l, allowPartialUpdates)
+  def streamSetSnapshot(s: String, l: util.Set[String], allowPartialUpdates: Boolean): Unit = streamSetSnapshot(SimpleStreamId(s), l, allowPartialUpdates)
 
   def streamSetSnapshot(s: StreamId, l: util.Set[String], allowPartialUpdates: Boolean): Unit = {
     implicit val setSpecs = SetSpecs(allowPartialUpdates)
@@ -112,10 +112,8 @@ trait JSetStreamPublisher extends SetStreamPublisher {
 }
 
 
-
-
 trait SetStreamPublisher {
-  self: BaseServiceCell =>
+  self: BaseServiceActor =>
 
   implicit def toSetPublisher(v: String): SetPublisher = SetPublisher(v)
 

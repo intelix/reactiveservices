@@ -19,19 +19,18 @@ import akka.actor.ActorRef
 import akka.remote.MgmtService
 import akka.remote.MgmtService.{Block, Unblock}
 import org.scalatest.Suite
+import rs.core.config.NodeConfig
 import rs.core.sysevents.support.EventAssertions
 import rs.core.tools.UUIDTools
-import rs.node.core.discovery.UdpClusterManagerActor
-import rs.node.core.discovery.UdpClusterManagerActor.{UnblockCommunicationWith, BlockCommunicationWith}
-import rs.node.core.{ServiceClusterGuardianActor, ServiceNodeActor}
+import rs.node.core.discovery.UdpClusterManagerActor.Messages.{BlockCommunicationWith, UnblockCommunicationWith}
+import rs.node.core.discovery.UdpClusterManagerActorEvt
+import rs.node.core.{ServiceNodeActorEvt, ServiceClusterGuardianActor, ServiceNodeActor}
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
 trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAssertions with AbstractNodeTestContext {
   _: Suite with ActorSystemManagement =>
-
-
 
 
   private def gremlinConfig =
@@ -80,7 +79,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
   override protected def startWithConfig(idx: Int, configs: ConfigReference*): ActorRef =
     withSystem(instanceId(idx), ConfigFromFile("sysevents-log")) { implicit sys =>
       val config = buildConfig(configs: _*)
-      sys.start(ServiceClusterGuardianActor.props(config), UUIDTools.generateShortUUID)
+      sys.start(ServiceClusterGuardianActor.props(NodeConfig(config)), UUIDTools.generateShortUUID)
     }
 
 
@@ -130,24 +129,24 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
   trait WithGremlinOnNode1 extends WithNode1 {
     private val nodeIdx = 1
 
-    def atNode1BlockNode(idx: Int*) = idx.foreach { i =>
+    def onNode1BlockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode1("mgmt") ! Block(Seq(portFor(i)))
       serviceOnNode1(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
-    def atNode1UnblockNode(idx: Int*) = idx.foreach { i =>
+    def onNode1UnblockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode1("mgmt") ! Unblock(Seq(portFor(i)))
       serviceOnNode1(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
   }
 
   trait WithGremlinOnNode2 extends WithNode2 {
-    def atNode2BlockNode(idx: Int*) = idx.foreach { i =>
+    def onNode2BlockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode2("mgmt") ! Block(Seq(portFor(i)))
       serviceOnNode2(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
-    def atNode2UnblockNode(idx: Int*) = idx.foreach { i =>
+    def onNode2UnblockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode2("mgmt") ! Unblock(Seq(portFor(i)))
       serviceOnNode2(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
@@ -155,12 +154,12 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
   }
 
   trait WithGremlinOnNode3 extends WithNode3 {
-    def atNode3BlockNode(idx: Int*) = idx.foreach { i =>
+    def onNode3BlockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode3("mgmt") ! Block(Seq(portFor(i)))
       serviceOnNode3(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
-    def atNode3UnblockNode(idx: Int*) = idx.foreach { i =>
+    def onNode3UnblockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode3("mgmt") ! Unblock(Seq(portFor(i)))
       serviceOnNode3(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
@@ -168,12 +167,12 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
   }
 
   trait WithGremlinOnNode4 extends WithNode4 {
-    def atNode4BlockNode(idx: Int*) = idx.foreach { i =>
+    def onNode4BlockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode4("mgmt") ! Block(Seq(portFor(i)))
       serviceOnNode4(ServiceNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
     }
 
-    def atNode4UnblockNode(idx: Int*) = idx.foreach { i =>
+    def onNode4UnblockNode(idx: Int*) = idx.foreach { i =>
       serviceOnNode4("mgmt") ! Unblock(Seq(portFor(i)))
       serviceOnNode4(ServiceNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
     }
@@ -193,37 +192,38 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
 
   trait With2Nodes extends WithNode1 with WithNode2 {
     eventTimeout = EventWaitTimeout(20 seconds)
+
     def expectFullyBuilt() {
-      on node1 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
-      on node2 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
-      on node2 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
-      on node2 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
-      on node1 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
+      on node1 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
+      on node2 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
+      on node2 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
+      on node2 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
+      on node1 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
     }
   }
 
   trait With3Nodes extends With2Nodes with WithNode3 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      on node3 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
-      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
-      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
-      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
-      on node1 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
+      on node3 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
+      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
+      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
+      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+      on node1 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
     }
   }
 
   trait With4Nodes extends With3Nodes with WithNode4 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      on node4 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
-      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
-      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
-      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
-      on node4 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-      on node1 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-      on node2 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-      on node3 expectOne of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
+      on node4 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
+      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
+      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
+      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+      on node1 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+      on node2 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
     }
   }
 
@@ -232,7 +232,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EventAsser
   trait With5Nodes extends With4Nodes with WithNode5 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      on node5 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node5 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
     }
   }
 

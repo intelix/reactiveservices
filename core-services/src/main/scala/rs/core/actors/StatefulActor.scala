@@ -17,24 +17,24 @@
 package rs.core.actors
 
 import akka.actor.{Actor, ActorRef, FSM, Terminated}
-import com.typesafe.scalalogging.StrictLogging
-import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
-import rs.core.tools.NowProvider
-
-trait BaseActorSysevents extends ComponentWithBaseSysevents {
-  val PostStop = "Lifecycle.PostStop".info
-  val PreStart = "Lifecycle.PreStart".info
-  val PreRestart = "Lifecycle.PreRestart".info
-  val PostRestart = "Lifecycle.PostRestart".info
-  val StateTransition = "Lifecycle.StateTransition".info
-  val StateChange = "StateChange".info
-}
-
+import rs.core.sysevents.WithNodeSysevents
 
 trait ActorState
 
-trait FSMActor[T] extends FSM[ActorState, T] with BaseActor {
+trait StatefulActor[T] extends FSM[ActorState, T] with BaseActor {
+
+  private var chainedUnhandled: StateFunction = {
+    case Event(Terminated(ref), _) => terminatedFuncChain.foreach(_ (ref)); stay()
+  }
+
+  final override def onMessage(f: Receive) = otherwise {
+    case Event(x, _) if f.isDefinedAt(x) => f(x); stay()
+  }
+
+  final def otherwise(f: StateFunction) = {
+    chainedUnhandled = f orElse chainedUnhandled
+  }
+
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
     super.preRestart(reason, message)
@@ -47,34 +47,14 @@ trait FSMActor[T] extends FSM[ActorState, T] with BaseActor {
     initialize()
   }
 
-
   def transitionTo(state: ActorState) = {
     if (stateName != state) StateChange('to -> state, 'from -> stateName)
     goto(state)
   }
 
-
-  private var chainedUnhandled: StateFunction = {
-    case Event(Terminated(ref), _) =>
-      terminatedFuncChain.foreach(_ (ref))
-      stay()
-  }
-
-  final def otherwise(f: StateFunction) = {
-    chainedUnhandled = f orElse chainedUnhandled
-  }
-
   whenUnhandled {
     case x if chainedUnhandled.isDefinedAt(x) => chainedUnhandled(x)
   }
-
-
-  final override def onMessage(f: Receive) = otherwise {
-    case Event(x, _) if f.isDefinedAt(x) =>
-      f(x)
-      stay()
-  }
-
 
 }
 
@@ -84,56 +64,46 @@ trait JBaseActor extends BaseActor {
     case Terminated(ref) => terminatedFuncChain.foreach(_ (ref))
   }
 
-  override final def onMessage(f: Receive): Unit = chainedFunc = f orElse chainedFunc
-
   override final val receive: Actor.Receive = {
     case x if chainedFunc.isDefinedAt(x) => chainedFunc(x)
     case x => unhandled(x)
   }
+
+  override final def onMessage(f: Receive): Unit = chainedFunc = f orElse chainedFunc
 }
 
 
-trait BaseActor
-  extends ActorUtils
-    with StrictLogging
-    with BaseActorSysevents
-    with WithNodeSysevents
-    with NowProvider {
+trait BaseActor extends ActorUtils with CommonActorEvt with WithNodeSysevents {
 
-
+  private val pathAsString = self.path.toStringWithoutAddress
   protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
 
   def onActorTerminated(f: ActorRef => Unit) = terminatedFuncChain = terminatedFuncChain :+ f
-
-
-  private val pathAsString = self.path.toStringWithoutAddress
 
   override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('path -> pathAsString)
 
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
-    PreRestart('reason -> reason.getMessage, 'msg -> message, 'path -> self.path.toStringWithoutAddress)
+    PreRestart('reason -> reason.getMessage, 'msg -> message, 'path -> pathAsString)
     super.preRestart(reason, message)
   }
-
 
   @throws[Exception](classOf[Exception])
   override def postRestart(reason: Throwable): Unit = {
     super.postRestart(reason)
-    PostRestart('reason -> reason.getMessage, 'path -> self.path.toStringWithoutAddress)
+    PostRestart('reason -> reason.getMessage, 'path -> pathAsString)
   }
-
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
-    PreStart('path -> self.path.toStringWithoutAddress)
+    PreStart('path -> pathAsString)
     super.preStart()
   }
 
   @throws[Exception](classOf[Exception])
   override def postStop(): Unit = {
     super.postStop()
-    PostStop('path -> self.path.toStringWithoutAddress)
+    PostStop('path -> pathAsString)
   }
 
 

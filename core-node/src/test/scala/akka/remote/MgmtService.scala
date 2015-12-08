@@ -18,9 +18,9 @@ package akka.remote
 import akka.actor.Address
 import akka.remote.MgmtService.{Block, Unblock}
 import akka.remote.transport.FailureInjectorTransportAdapter.{Drop, One, PassThru}
-import rs.core.actors.{BaseActorSysevents, SingleStateActor}
+import rs.core.actors.{CommonActorEvt, StatelessActor}
 
-trait MgmtServiceEvents extends BaseActorSysevents {
+trait MgmtServiceEvents extends CommonActorEvt {
   val Blocking = "Blocking".info
   val Unblocking = "Unblocking".info
 
@@ -46,7 +46,7 @@ object MgmtService {
 
 }
 
-class MgmtService(id: String) extends SingleStateActor with MgmtServiceEvents {
+class MgmtService(id: String) extends StatelessActor with MgmtServiceEvents {
 
   private def exec(c: Any) = RARP(context.system).provider.transport.managementCommand(c)
 

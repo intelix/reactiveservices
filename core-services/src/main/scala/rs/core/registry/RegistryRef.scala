@@ -17,7 +17,7 @@ package rs.core.registry
 
 import akka.actor.ActorRef
 import rs.core.ServiceKey
-import rs.core.actors.{BaseActor, FSMActor}
+import rs.core.actors.BaseActor
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.RegistryLocation
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
@@ -25,25 +25,22 @@ import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import scala.language.postfixOps
 
 
-trait RegistryRefSysevents extends ComponentWithBaseSysevents {
+trait RegistryRefEvt extends ComponentWithBaseSysevents {
   val ServiceRegistrationPending = "ServiceRegistrationPending".trace
   val ServiceUnregistrationPending = "ServiceUnregistrationPending".trace
   val ServiceLocationUpdate = "ServiceLocationUpdate".trace
 }
 
-trait RegistryRef extends BaseActor with RegistryRefSysevents {
+trait RegistryRef extends BaseActor with RegistryRefEvt {
 
   type LocationHandler = PartialFunction[(ServiceKey, Option[ActorRef]), Unit]
 
   private var registryRef: Option[ActorRef] = None
-
   private var pendingToRegistry: List[Any] = List.empty
-
   private var localLocation: Map[ServiceKey, Option[ActorRef]] = Map.empty
   private var localLocationHandlerFunc: LocationHandler = {
     case _ =>
   }
-
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
@@ -65,16 +62,16 @@ trait RegistryRef extends BaseActor with RegistryRefSysevents {
 
   final def unregisterService(s: ServiceKey) = unregisterServiceAt(s, self)
 
+  final def unregisterServiceAt(s: ServiceKey, loc: ActorRef) = {
+    sendToRegistry(Unregister(s, loc))
+    ServiceUnregistrationPending('service -> s, 'ref -> loc, 'registry -> registryRef)
+  }
+
   final def registerService(s: ServiceKey) = registerServiceAt(s, self)
 
   final def registerServiceAt(s: ServiceKey, loc: ActorRef) = {
     sendToRegistry(Register(s, loc))
     ServiceRegistrationPending('service -> s, 'ref -> loc, 'registry -> registryRef)
-  }
-
-  final def unregisterServiceAt(s: ServiceKey, loc: ActorRef) = {
-    sendToRegistry(Unregister(s, loc))
-    ServiceUnregistrationPending('service -> s, 'ref -> loc, 'registry -> registryRef)
   }
 
   final def registerServiceLocationInterest(s: ServiceKey) =
@@ -89,8 +86,6 @@ trait RegistryRef extends BaseActor with RegistryRefSysevents {
       localLocation -= s.id
     }
 
-  final def onServiceLocationChanged(handler: LocationHandler) = localLocationHandlerFunc = handler orElse localLocationHandlerFunc
-
   private def sendToRegistry(msg: Any) = registryRef match {
     case Some(r) =>
       if (pendingToRegistry.nonEmpty) sendPending()
@@ -104,6 +99,8 @@ trait RegistryRef extends BaseActor with RegistryRefSysevents {
       pendingToRegistry = List.empty
     }
   }
+
+  final def onServiceLocationChanged(handler: LocationHandler) = localLocationHandlerFunc = handler orElse localLocationHandlerFunc
 
   onMessage {
     case RegistryLocation(ref) =>

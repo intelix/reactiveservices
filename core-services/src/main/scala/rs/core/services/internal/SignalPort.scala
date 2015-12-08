@@ -16,12 +16,12 @@
 package rs.core.services.internal
 
 import akka.actor.{ActorRef, Props}
-import rs.core.actors.{SingleStateActor, BaseActorSysevents}
+import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages.Signal
 import rs.core.services.internal.InternalMessages.SignalPayload
 
-trait SignalPortSysevents extends BaseActorSysevents {
+trait SignalPortEvt extends CommonActorEvt {
   override def componentId: String = "SignalPort"
 }
 
@@ -30,10 +30,10 @@ object SignalPort {
 }
 
 class SignalPort
-  extends SingleStateActor
-  with SimpleInMemoryAckedDeliveryWithDynamicRouting
-  with RegistryRef
-  with SignalPortSysevents {
+  extends StatelessActor
+    with SimpleInMemoryAckedDeliveryWithDynamicRouting
+    with RegistryRef
+    with SignalPortEvt {
 
   private var routes: Map[String, ActorRef] = Map.empty
 
@@ -52,7 +52,6 @@ class SignalPort
     case Signal(subj, payload, expAt, None, correlationId) =>
       registerServiceLocationInterest(subj.service)
       val signal = SignalPayload(subj, payload, expAt, correlationId)
-
       unorderedAcknowledgedDelivery(signal, LogicalDestination(subj.service.id))(sender())
     case Signal(subj, payload, expAt, Some(x), correlationId) =>
       registerServiceLocationInterest(subj.service)

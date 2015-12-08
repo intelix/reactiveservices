@@ -20,9 +20,10 @@ import akka.actor._
 import com.typesafe.config._
 import com.typesafe.scalalogging.StrictLogging
 import net.ceedubs.ficus.Ficus._
-import rs.core.actors.{BaseActorSysevents, SingleStateActor}
+import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
-import rs.core.config.GlobalConfig
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.NodeConfig
 import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.node.core.ServiceClusterGuardianActor.RestartRequestException
@@ -31,7 +32,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scalaz.Scalaz._
 
-trait ServiceClusterGuardianSysevents extends ComponentWithBaseSysevents with BaseActorSysevents {
+trait ServiceClusterGuardianEvt extends ComponentWithBaseSysevents with CommonActorEvt {
 
   val Launched = "Launched".info
 
@@ -39,29 +40,30 @@ trait ServiceClusterGuardianSysevents extends ComponentWithBaseSysevents with Ba
 
 }
 
-object ServiceClusterGuardianSysevents extends ServiceClusterGuardianSysevents
+object ServiceClusterGuardianEvt extends ServiceClusterGuardianEvt
 
 object ServiceClusterGuardianActor {
 
   class RestartRequestException extends Exception
 
-  def props(config: Config) = Props(new ServiceClusterGuardianActor(config))
+  def props(config: NodeConfig) = Props(new ServiceClusterGuardianActor(config))
 
-  def start(config: Config)(implicit f: ActorRefFactory) = f.actorOf(props(config))
+  def start(config: NodeConfig)(implicit f: ActorRefFactory) = f.actorOf(props(config))
 }
 
-class ServiceClusterGuardianActor(config: Config)
-  extends SingleStateActor
-    with ServiceClusterGuardianSysevents
+class ServiceClusterGuardianActor(cfg: NodeConfig)
+  extends StatelessActor
+    with ServiceClusterGuardianEvt
     with StrictLogging {
 
-  private val maxRetries = config.as[Option[Int]]("node.cluster.max-retries") | -1
-  private val maxRetriesTimewindow: Duration = config.as[Option[FiniteDuration]]("node.cluster.max-retries-window") match {
+
+  override implicit val nodeCfg: NodeConfig = cfg
+
+  private val maxRetries = nodeCfg.asInt("node.cluster.max-retries", -1)
+  private val maxRetriesTimewindow = nodeCfg.asOptFiniteDuration("node.cluster.max-retries-window") match {
     case Some(d) => d
     case None => Duration.Inf
   }
-
-  override implicit val globalCfg: GlobalConfig = GlobalConfig(config)
 
   private var clusterSystem: Option[ActorSystem] = None
 
@@ -79,8 +81,8 @@ class ServiceClusterGuardianActor(config: Config)
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()
-    context.watch(context.actorOf(Props(classOf[ServiceClusterBootstrapActor], config), "bootstrap"))
-    Launched('config -> config)
+    context.watch(context.actorOf(Props(classOf[ServiceClusterBootstrapActor], nodeCfg), "bootstrap"))
+    Launched('config -> nodeCfg)
   }
 
   onMessage {

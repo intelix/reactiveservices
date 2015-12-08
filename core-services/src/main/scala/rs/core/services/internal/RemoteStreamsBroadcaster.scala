@@ -18,25 +18,25 @@ package rs.core.services.internal
 import java.util
 
 import akka.actor.ActorRef
+import com.typesafe.config._
 import rs.core.actors.BaseActor
-import rs.core.config.GlobalConfig
+import rs.core.config.NodeConfig
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.stream.{StreamState, StreamStateTransition}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
-import com.typesafe.config._
 
 import scala.collection.mutable
 
 
-trait RemoteStreamsBroadcasterSysevents extends ComponentWithBaseSysevents {
+trait RemoteStreamsBroadcasterEvt extends ComponentWithBaseSysevents {
   val StreamStateTransition = "StreamStateTransition".trace
   val InitiatingStreamForDestination = "InitiatingStreamForDestination".trace
   val ClosingStreamForDestination = "ClosingStreamForDestination".trace
   val StreamUpdateSent = "StreamUpdateSent".trace
 }
 
-trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSysevents {
+trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEvt {
 
   private val targets: mutable.Map[ActorRef, ConsumerWithStreamSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, StreamBroadcaster] = mutable.HashMap()
@@ -60,7 +60,6 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
 
   final def initiateTarget(ref: ActorRef) = if (!targets.contains(ref)) newTarget(ref)
 
-
   final def initiateStreamFor(ref: ActorRef, key: StreamId) = InitiatingStreamForDestination { ctx =>
     ctx +('stream -> key, 'ref -> ref)
     val target = targets getOrElse(ref, newTarget(ref))
@@ -82,18 +81,6 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
     sink.resetDownstreamView()
   }
 
-  final def closeStreamFor(ref: ActorRef, key: StreamId) = ClosingStreamForDestination { ctx =>
-    ctx +('stream -> key, 'ref -> ref)
-    targets get ref foreach { target =>
-      target locateExistingSinkFor key foreach { existingSink =>
-        target.closeStream(key)
-        streams get key foreach { stream =>
-          stream removeSink existingSink
-        }
-      }
-    }
-  }
-
   private def newStreamBroadcaster(key: StreamId) = {
     val sb = new StreamBroadcaster()
     streams += key -> sb
@@ -106,21 +93,26 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
     target
   }
 
+  final def closeStreamFor(ref: ActorRef, key: StreamId) = ClosingStreamForDestination { ctx =>
+    ctx +('stream -> key, 'ref -> ref)
+    targets get ref foreach { target =>
+      target locateExistingSinkFor key foreach { existingSink =>
+        target.closeStream(key)
+        streams get key foreach { stream =>
+          stream removeSink existingSink
+        }
+      }
+    }
+  }
 
   private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentComponentId: String)(implicit val config: Config) extends ConsumerDemandTracker {
+    override val nodeCfg: NodeConfig = NodeConfig(config)
     private val streamKeyToSink: mutable.Map[StreamId, StreamSink] = mutable.HashMap()
     private val streams: util.ArrayList[StreamSink] = new util.ArrayList[StreamSink]()
     private val canUpdate = () => hasDemand
     private var nextPublishIdx = 0
 
     def locateExistingSinkFor(key: StreamId): Option[StreamSink] = streamKeyToSink get key
-
-    def closeStream(key: StreamId) = {
-      streamKeyToSink get key foreach { existingSink =>
-        streamKeyToSink -= key
-        streams remove existingSink
-      }
-    }
 
     def addStream(key: StreamId): StreamSink = {
       closeStream(key)
@@ -130,14 +122,21 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
       newSink
     }
 
-    def addDemand(demand: Long): Unit = {
-      addConsumerDemand(demand)
-      publishToAll()
+    def closeStream(key: StreamId) = {
+      streamKeyToSink get key foreach { existingSink =>
+        streamKeyToSink -= key
+        streams remove existingSink
+      }
     }
 
     private def updateForTarget(key: StreamId)(tran: StreamStateTransition) = fulfillDownstreamDemandWith {
       ref.tell(StreamUpdate(key, tran), self)
       StreamUpdateSent('stream -> key, 'target -> ref, 'payload -> tran)
+    }
+
+    def addDemand(demand: Long): Unit = {
+      addConsumerDemand(demand)
+      publishToAll()
     }
 
     private def publishToAll() = if (streams.size() > 0) {
@@ -174,17 +173,17 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
           true
       }
 
-    def addSink(streamSink: StreamSink) = {
-      sinks add streamSink
-      streamSink publish latestState
-    }
-
     private def transitionLocalStateWith(transition: StreamStateTransition) = {
       if (transition applicableTo latestState)
         latestState = transition toNewStateFrom latestState
       else
         latestState = None
       latestState
+    }
+
+    def addSink(streamSink: StreamSink) = {
+      sinks add streamSink
+      streamSink publish latestState
     }
 
   }
@@ -206,6 +205,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
         pendingState = None
       }
 
+    private def updateFrom(newState: StreamState) = newState transitionFrom remoteView foreach update
 
     def onTransition(transition: StreamStateTransition, newState: StreamState) =
       if (canUpdate()) {
@@ -215,8 +215,6 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterSy
       } else {
         pendingState = Some(newState)
       }
-
-    private def updateFrom(newState: StreamState) = newState transitionFrom remoteView foreach update
 
   }
 

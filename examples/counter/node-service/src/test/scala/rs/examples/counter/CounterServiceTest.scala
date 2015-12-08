@@ -1,6 +1,6 @@
 package rs.examples.counter
 
-import rs.node.core.ServiceNodeActor
+import rs.node.core.ServiceNodeActorEvt
 import rs.testing.components.TestServiceConsumer
 import rs.testing.components.TestServiceConsumer.{Open, SendSignal}
 import rs.testing.{ConfigFromContents, ConfigReference, StandardMultiNodeSpec}
@@ -17,8 +17,8 @@ class CounterServiceTest extends StandardMultiNodeSpec {
 
     override def node2Services = super.node2Services + ("consumer-service" -> classOf[TestServiceConsumer])
 
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "counter-service")
-    on node2 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "consumer-service")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "counter-service")
+    on node2 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "consumer-service")
 
     def consumer = serviceOnNode2("consumer-service")
   }
@@ -75,15 +75,15 @@ class CounterServiceTest extends StandardMultiNodeSpec {
     consumer ! SendSignal("counter-service", "start")
     on node1 expectOne of CounterServiceEvt.NowTicking
 
-    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate + ('topic -> "counter", 'value -> (lastValue + 1).toString)
-    on node2 expectNone of TestServiceConsumer.Evt.StringUpdate + ('topic -> "counter", 'value -> lastValue.toString)
+    on node2 expectOne of TestServiceConsumer.Evt.StringUpdate +('topic -> "counter", 'value -> (lastValue + 1).toString)
+    on node2 expectNone of TestServiceConsumer.Evt.StringUpdate +('topic -> "counter", 'value -> lastValue.toString)
   }
 
   it should "serve any number of subscribers" in new WithOneSubscriber {
     new WithNode3 {
       override def node3Services = super.node3Services + ("consumer-service" -> classOf[TestServiceConsumer])
 
-      on node3 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "consumer-service")
+      on node3 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "consumer-service")
 
       def consumer2 = serviceOnNode3("consumer-service")
 
@@ -95,7 +95,8 @@ class CounterServiceTest extends StandardMultiNodeSpec {
   "Counter service consumer" should "keep receiving updates after one service instance crashes" in new WithOneSubscriber {
     new WithNode3 {
       override def node3Services = super.node3Services + ("counter-service" -> classOf[CounterService])
-      on node3 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "counter-service")
+
+      on node3 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "counter-service")
 
       clearEvents()
       stopNode1()

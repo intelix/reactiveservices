@@ -18,19 +18,16 @@ package rs.node.core
 
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
-import com.typesafe.config._
-import com.typesafe.scalalogging.StrictLogging
-import rs.core.actors.{BaseActorSysevents, SingleStateActor}
+import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.GlobalConfig
-import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
+import rs.core.config.NodeConfig
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
-trait ServiceClusterBootstrapSysevents extends ComponentWithBaseSysevents with BaseActorSysevents {
+trait ServiceClusterBootstrapEvt extends ComponentWithBaseSysevents with CommonActorEvt {
 
   val StartingCluster = "StartingCluster".info
   val StoppingCluster = "StoppingCluster".info
@@ -38,21 +35,15 @@ trait ServiceClusterBootstrapSysevents extends ComponentWithBaseSysevents with B
   override def componentId: String = "Cluster.Bootstrap"
 }
 
-object ServiceClusterBootstrapSysevents extends ServiceClusterBootstrapSysevents
+object ServiceClusterBootstrapEvt extends ServiceClusterBootstrapEvt
 
-object ServiceClusterBootstrapActor {
-}
+class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with ServiceClusterBootstrapEvt {
 
-class ServiceClusterBootstrapActor(implicit val cfg: Config)
-  extends SingleStateActor
-    with StrictLogging
-    with ServiceClusterBootstrapSysevents {
+  override implicit val nodeCfg = cfg
 
-  //  private val blockingWaitTimeout = cfg[FiniteDuration]("node.cluster.termination-wait-timeout", 10 seconds)
-  private val clusterSystemId = cfg.asString("node.cluster.system-id", context.system.name)
+  private val clusterSystemId = nodeCfg.asString("node.cluster.system-id", context.system.name)
 
   private var clusterSystem: Option[ActorSystem] = None
-
 
   override def supervisorStrategy: SupervisorStrategy =
     OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minutes) {
@@ -65,7 +56,6 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
       throw new Exception("Restarting cluster subsystem")
   }
 
-  override implicit val globalCfg: GlobalConfig = GlobalConfig(cfg)
 
   @throws[Exception](classOf[Exception]) override
   def postStop(): Unit = {
@@ -90,7 +80,7 @@ class ServiceClusterBootstrapActor(implicit val cfg: Config)
 
   private def startCluster() = {
     StartingCluster { ctx =>
-      clusterSystem = Some(ActorSystem(clusterSystemId, cfg))
+      clusterSystem = Some(ActorSystem(clusterSystemId, nodeCfg.config))
       clusterSystem foreach { sys =>
         context.watch(sys.actorOf(Props[ServiceNodeActor], "node"))
       }

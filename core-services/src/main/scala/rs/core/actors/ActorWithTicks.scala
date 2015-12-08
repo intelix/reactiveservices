@@ -16,13 +16,13 @@
 
 package rs.core.actors
 
-import akka.actor.Actor
+import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 import scala.concurrent.duration._
 
 private case class CallbackRequest(f: () => Unit, intervalMs: Long, lastCallTs: Long)
 
-trait ActorWithTicks extends BaseActor {
+trait ActorWithTicks extends BaseActor with ComponentWithBaseSysevents {
 
   implicit private val ec = context.dispatcher
 
@@ -37,21 +37,23 @@ trait ActorWithTicks extends BaseActor {
     super.preStart()
   }
 
-  def internalProcessTick(): Unit = {}
   def processTick(): Unit = {}
 
   def onTick(interval: FiniteDuration)(callback: => Unit): Unit = onTick(interval.toMillis)(callback)
+
   def onTick(intervalMs: Long)(callback: => Unit): Unit = callbacks = callbacks :+ CallbackRequest(() => callback, intervalMs, 0)
+
   def onTick(callback: => Unit): Unit = callbacksOnEveryTick = callbacksOnEveryTick :+ (() => callback)
 
-  private def scheduleTick() = this.context.system.scheduler.scheduleOnce(tickInterval, self, Tick())(context.dispatcher)
+  private def scheduleTick() = scheduleOnce(tickInterval, Tick)
 
   onMessage {
-    case Tick() =>
-      processCallbacks()
-      internalProcessTick()
-      processTick()
-      scheduleTick()
+    case Tick =>
+      try {
+        processCallbacks()
+      } finally {
+        scheduleTick()
+      }
   }
 
   private def processCallbacks() = {
@@ -63,10 +65,9 @@ trait ActorWithTicks extends BaseActor {
         case x => x
       }
     if (callbacksOnEveryTick.nonEmpty)
-      callbacksOnEveryTick foreach(_())
+      callbacksOnEveryTick foreach (_ ())
   }
 
-  private case class Tick()
-
+  private case object Tick
 
 }

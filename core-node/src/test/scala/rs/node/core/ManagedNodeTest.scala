@@ -13,30 +13,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package rs.testing
+package rs.node.core
 
 import org.scalatest.FlatSpec
 import rs.core.registry.ServiceRegistrySysevents
-import rs.node.core.ServiceNodeActor.Evt
-import rs.node.core.discovery.UdpClusterManagerActor
-import rs.node.core.{ServiceClusterBootstrapSysevents, ServiceClusterGuardianSysevents, ServiceNodeActor}
+import rs.node.core.discovery.UdpClusterManagerActorEvt
 import rs.testing.components._
+import rs.testing._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with IsolatedActorSystems {
+class ManagedNodeTest extends StandardMultiNodeSpec {
 
 
   "Cluster guardian" should "start a node" in new WithNode1 {
-    on node1 expectOne of ServiceClusterBootstrapSysevents.StartingCluster
-    on node1 expectSome of ServiceNodeActor.Evt.StateChange
+    on node1 expectOne of ServiceClusterBootstrapEvt.StartingCluster
+    on node1 expectSome of ServiceNodeActorEvt.StateChange
   }
 
 
   it should "terminate in case of fatal error during initial bootstrap (eg bootstrap failure)" in new With2Nodes {
-    on node1 expectOne of ServiceClusterGuardianSysevents.PostStop
-    on node1 expectNone of ServiceClusterBootstrapSysevents.PostRestart
+    on node1 expectOne of ServiceClusterGuardianEvt.PostStop
+    on node1 expectNone of ServiceClusterBootstrapEvt.PostRestart
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+
       ConfigFromContents(
@@ -48,8 +47,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
   it should "terminate (after configured number of attempts) in case of fatal error during node bootstrap (eg node failure)" in new With2Nodes {
-    on node1 expectSome of ServiceClusterGuardianSysevents.PostStop
-    on node1 expect(4) of ServiceClusterBootstrapSysevents.PostRestart
+    on node1 expectSome of ServiceClusterGuardianEvt.PostStop
+    on node1 expect(4) of ServiceClusterBootstrapEvt.PostRestart
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+
       ConfigFromContents(
@@ -62,8 +61,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg failure in preStart)" in new With2Nodes {
     ServiceWithInitialisationFailureActor.recoveryEnabled = false
-    on node1 expectSome of ServiceClusterGuardianSysevents.PostStop
-    on node1 expect(1) of ServiceClusterBootstrapSysevents.PostRestart
+    on node1 expectSome of ServiceClusterGuardianEvt.PostStop
+    on node1 expect(1) of ServiceClusterBootstrapEvt.PostRestart
     on node1 expect(3 + 1 + 3 + 1) of ServiceWithInitialisationFailureEvents.PreStart
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+
@@ -79,8 +78,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg service runtime failure)" in new With2Nodes {
     ServiceWithRuntimeFailureActor.recoveryEnabled = false
-    on node1 expectSome of ServiceClusterGuardianSysevents.PostStop
-    on node1 expect(1) of ServiceClusterBootstrapSysevents.PostRestart
+    on node1 expectSome of ServiceClusterGuardianEvt.PostStop
+    on node1 expect(1) of ServiceClusterBootstrapEvt.PostRestart
     on node1 expect(3 + 1 + 3 + 1) of ServiceWithRuntimeFailureEvents.PreStart
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+
@@ -98,8 +97,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     ServiceWithInitialisationFailureActor.recoveryEnabled = true
     ServiceWithInitialisationFailureActor.failureCounter = 0
     on node1 expect(5) of ServiceWithInitialisationFailureEvents.PreStart
-    on node1 expectNone of ServiceClusterGuardianSysevents.PostStop
-    on node1 expectNone of ServiceClusterBootstrapSysevents.PostRestart
+    on node1 expectNone of ServiceClusterGuardianEvt.PostStop
+    on node1 expectNone of ServiceClusterBootstrapEvt.PostRestart
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+
       ConfigFromContents(
@@ -114,8 +113,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   "Service node" should "terminate all services when restarted (due to other service initialisation failure)" in new With2Nodes {
     ServiceWithInitialisationFailureActor.recoveryEnabled = false
-    on node1 expectSome of ServiceClusterGuardianSysevents.PostStop
-    on node1 expect(2) of ServiceClusterBootstrapSysevents.PostRestart
+    on node1 expectSome of ServiceClusterGuardianEvt.PostStop
+    on node1 expect(2) of ServiceClusterBootstrapEvt.PostRestart
 
     on node1 expect(3) of ServiceRegistrySysevents.PostStop
 
@@ -134,8 +133,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     ServiceWithInitialisationFailureActor.recoveryEnabled = true
     ServiceWithInitialisationFailureActor.failureCounter = 0
     on node1 expect(5) of ServiceWithInitialisationFailureEvents.PreStart
-    on node1 expectNone of ServiceClusterGuardianSysevents.PostStop
-    on node1 expectNone of ServiceClusterBootstrapSysevents.PostRestart
+    on node1 expectNone of ServiceClusterGuardianEvt.PostStop
+    on node1 expectNone of ServiceClusterBootstrapEvt.PostRestart
 
     on node1 expectNone of ServiceRegistrySysevents.PostStop
 
@@ -153,34 +152,34 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "join self when no other active cluster discovered" in new WithNode1 {
 
-    on node1 expectSome of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> node1Address.r)
+    on node1 expectSome of ServiceNodeActorEvt.JoiningCluster + ('seeds -> node1Address.r)
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("node.cluster.discovery.timeout=2s")
   }
   it should "not join self if not core node" in new WithNode3 {
 
-   within (5 seconds) {
-      on node3 expectNone of ServiceNodeActor.Evt.JoiningCluster
+    within(5 seconds) {
+      on node3 expectNone of ServiceNodeActorEvt.JoiningCluster
     }
   }
 
   it should "timeout from discovery if enabled and no core node to join" in new WithNode3 {
 
-   within (5 seconds) {
-      on node3 expectNone of ServiceNodeActor.Evt.JoiningCluster
+    within(5 seconds) {
+      on node3 expectNone of ServiceNodeActorEvt.JoiningCluster
     }
-    on node3 expectOne of ServiceNodeActor.Evt.StateChange + ('to -> "ClusterFormationPending")
+    on node3 expectOne of ServiceNodeActorEvt.StateChange + ('to -> "ClusterFormationPending")
 
     override def node3Configs: Seq[ConfigReference] = super.node3Configs :+
       ConfigFromContents("node.cluster.discovery.timeout=2 seconds")
   }
 
   it should "result in joining some node after timeout discovery if not all cores are present" in new WithNode3 with WithNode2 {
-    on node3 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "ClusterFormationPending")
-    on node2 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "ClusterFormationPending")
+    on node3 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "ClusterFormationPending")
+    on node2 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "ClusterFormationPending")
 
-    on node2 expectOne of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> node2Address.r)
-    on node3 expectSome of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> s"Set($node2Address)")
+    on node2 expectOne of ServiceNodeActorEvt.JoiningCluster + ('seeds -> node2Address.r)
+    on node3 expectSome of ServiceNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node2Address)")
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+
       ConfigFromContents("node.cluster.discovery.timeout=2 seconds")
@@ -196,20 +195,20 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
   it should "discover other nodes" in new With4NodesAndTestOn1 {
-    on node1 expectOne of ServiceNodeActor.Evt.StateChange + ('to -> "Joined", 'from -> "Joining")
-    on node2 expectOne of ServiceNodeActor.Evt.StateChange + ('to -> "Joined", 'from -> "Joining")
-    on node3 expectOne of ServiceNodeActor.Evt.StateChange + ('to -> "Joined", 'from -> "Joining")
-    on node4 expectOne of ServiceNodeActor.Evt.StateChange + ('to -> "Joined", 'from -> "Joining")
-    on node2 expectOne of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> s"Set($node1Address)")
-    on node3 expectOne of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> s"Set($node1Address)")
-    on node4 expectOne of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+    on node1 expectOne of ServiceNodeActorEvt.StateChange +('to -> "Joined", 'from -> "Joining")
+    on node2 expectOne of ServiceNodeActorEvt.StateChange +('to -> "Joined", 'from -> "Joining")
+    on node3 expectOne of ServiceNodeActorEvt.StateChange +('to -> "Joined", 'from -> "Joining")
+    on node4 expectOne of ServiceNodeActorEvt.StateChange +('to -> "Joined", 'from -> "Joining")
+    on node2 expectOne of ServiceNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+    on node3 expectOne of ServiceNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+    on node4 expectOne of ServiceNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
   }
 
   it should "join formed cluster if discovered" in new WithNode2 {
-    on node2 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+    on node2 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
 
     new WithNode1 {
-      on node1 expectOne of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> s"Set($node2Address)")
+      on node1 expectOne of ServiceNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node2Address)")
     }
 
 
@@ -220,12 +219,10 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
 
   it should "join formed cluster even if some cores are missing" in new WithNode2 {
-    on node2 expectOne of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+    on node2 expectOne of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
     new WithNode3 {
-      on node3 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node3 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
     }
-//    on node2 expectNone of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
-    printRaisedEvents()
 
     override def node2Configs: Seq[ConfigReference] = super.node2Configs :+
       ConfigFromContents("node.cluster.discovery.timeout=1 seconds")
@@ -233,23 +230,23 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "merge with other cluster when discovered" in new WithGremlin with WithGremlinOnNode2 {
     // creating cluster island on node 2
-    on node2 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+    on node2 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
 
     // blocking traffic between node 1 and 2 so node 1 doesn't merge on startup
 
-    atNode2BlockNode(1)
+    onNode2BlockNode(1)
 
     // creating island cluster on node 1
     new WithGremlin with WithGremlinOnNode1 {
-      on node1 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node1 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
 
       // unblocking
-      atNode2UnblockNode(1)
+      onNode2UnblockNode(1)
 
-      on node2 expectOne of ServiceNodeActor.Evt.ClusterMergeTrigger
-      on node1 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
+      on node2 expectOne of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node1 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
 
-      on node2 expectSome of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+      on node2 expectSome of ServiceNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
     }
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
@@ -258,24 +255,24 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
 
   it should "always merge in the same direction - from less priority address to higher priority address" in new WithGremlin with WithGremlinOnNode1 {
     // creating cluster island on node 1
-    on node1 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+    on node1 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
 
     // blocking traffic between node 1 and 2 so node 1 doesn't merge on startup
-    atNode1BlockNode(2)
+    onNode1BlockNode(2)
 
 
     // creating island cluster on node 2
     new WithGremlin with WithGremlinOnNode2 {
-      on node2 expectSome of ServiceNodeActor.Evt.StateChange + ('to -> "Joined")
+      on node2 expectSome of ServiceNodeActorEvt.StateChange + ('to -> "Joined")
 
       // unblocking
-      atNode1UnblockNode(2)
+      onNode1UnblockNode(2)
 
 
-      on node2 expectSome of ServiceNodeActor.Evt.ClusterMergeTrigger
-      on node1 expectNone of ServiceNodeActor.Evt.ClusterMergeTrigger
+      on node2 expectSome of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node1 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
 
-      on node2 expectSome of ServiceNodeActor.Evt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+      on node2 expectSome of ServiceNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
     }
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
@@ -287,36 +284,34 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     expectFullyBuilt()
     clearEvents()
 
-    atNode1BlockNode(3, 4)
-    atNode2BlockNode(3, 4)
+    onNode1BlockNode(3, 4)
+    onNode2BlockNode(3, 4)
 
-    atNode3BlockNode(1, 2)
-    atNode4BlockNode(1, 2)
+    onNode3BlockNode(1, 2)
+    onNode4BlockNode(1, 2)
 
-    on node1 expect(2) of UdpClusterManagerActor.Evt.NodeRemoved
-    on node2 expect(2) of UdpClusterManagerActor.Evt.NodeRemoved
-    on node3 expect(2) of UdpClusterManagerActor.Evt.NodeRemoved
-    on node4 expect(2) of UdpClusterManagerActor.Evt.NodeRemoved
+    on node1 expect(2) of UdpClusterManagerActorEvt.NodeRemoved
+    on node2 expect(2) of UdpClusterManagerActorEvt.NodeRemoved
+    on node3 expect(2) of UdpClusterManagerActorEvt.NodeRemoved
+    on node4 expect(2) of UdpClusterManagerActorEvt.NodeRemoved
 
-    atNode1UnblockNode(3, 4)
-    atNode2UnblockNode(3, 4)
-    atNode3UnblockNode(1, 2)
-    atNode4UnblockNode(1, 2)
+    onNode1UnblockNode(3, 4)
+    onNode2UnblockNode(3, 4)
+    onNode3UnblockNode(1, 2)
+    onNode4UnblockNode(1, 2)
 
-    on node3 expectSome of Evt.ClusterMergeTrigger
-    on node4 expectSome of Evt.ClusterMergeTrigger
+    on node3 expectSome of ServiceNodeActorEvt.ClusterMergeTrigger
+    on node4 expectSome of ServiceNodeActorEvt.ClusterMergeTrigger
 
-    on node1 expectNone of Evt.ClusterMergeTrigger
+    on node1 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
 
 
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
-    on node4 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
-
-    printRaisedEvents()
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+    on node4 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+    on node4 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
   }
@@ -326,34 +321,34 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     expectFullyBuilt()
     clearEvents()
 
-    atNode1BlockNode(2, 3, 4)
-    atNode2BlockNode(1)
-    atNode3BlockNode(1)
-    atNode4BlockNode(1)
+    onNode1BlockNode(2, 3, 4)
+    onNode2BlockNode(1)
+    onNode3BlockNode(1)
+    onNode4BlockNode(1)
 
-    on node1 expect(3) of UdpClusterManagerActor.Evt.NodeRemoved
-    on node2 expect(1) of UdpClusterManagerActor.Evt.NodeRemoved
-
-
-    atNode1UnblockNode(2, 3, 4)
-    atNode2UnblockNode(1)
-    atNode3UnblockNode(1)
-    atNode4UnblockNode(1)
-
-    on node2 expectSome of Evt.ClusterMergeTrigger
-    on node3 expectSome of Evt.ClusterMergeTrigger
-    on node4 expectSome of Evt.ClusterMergeTrigger
-
-    on node1 expectNone of Evt.ClusterMergeTrigger
+    on node1 expect(3) of UdpClusterManagerActorEvt.NodeRemoved
+    on node2 expect(1) of UdpClusterManagerActorEvt.NodeRemoved
 
 
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node2Address)
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node3Address)
-    on node4 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
+    onNode1UnblockNode(2, 3, 4)
+    onNode2UnblockNode(1)
+    onNode3UnblockNode(1)
+    onNode4UnblockNode(1)
+
+    on node2 expectSome of ServiceNodeActorEvt.ClusterMergeTrigger
+    on node3 expectSome of ServiceNodeActorEvt.ClusterMergeTrigger
+    on node4 expectSome of ServiceNodeActorEvt.ClusterMergeTrigger
+
+    on node1 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+
+
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+    on node4 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+    on node4 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
   }
@@ -363,37 +358,35 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     expectFullyBuilt()
     clearEvents()
 
-    atNode1BlockNode(4)
-    atNode2BlockNode(4)
-    atNode3BlockNode(4)
-    atNode4BlockNode(1, 2, 3)
+    onNode1BlockNode(4)
+    onNode2BlockNode(4)
+    onNode3BlockNode(4)
+    onNode4BlockNode(1, 2, 3)
 
-    on node1 expect(1) of UdpClusterManagerActor.Evt.NodeRemoved
-    on node2 expect(1) of UdpClusterManagerActor.Evt.NodeRemoved
-
-
-    atNode1UnblockNode(4)
-    atNode2UnblockNode(4)
-    atNode3UnblockNode(4)
-    atNode4UnblockNode(1, 2, 3)
-
-    on node4 expectSome of Evt.ClusterMergeTrigger
+    on node1 expect(1) of UdpClusterManagerActorEvt.NodeRemoved
+    on node2 expect(1) of UdpClusterManagerActorEvt.NodeRemoved
 
 
-   within (5 seconds) {
-      on node1 expectNone of Evt.ClusterMergeTrigger
-      on node2 expectNone of Evt.ClusterMergeTrigger
-      on node3 expectNone of Evt.ClusterMergeTrigger
+    onNode1UnblockNode(4)
+    onNode2UnblockNode(4)
+    onNode3UnblockNode(4)
+    onNode4UnblockNode(1, 2, 3)
+
+    on node4 expectSome of ServiceNodeActorEvt.ClusterMergeTrigger
+
+
+    within(5 seconds) {
+      on node1 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node2 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node3 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
     }
 
 
 
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-    on node3 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.Evt.NodeUp + ('addr -> node1Address)
-
-    printRaisedEvents()
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+    on node3 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+    on node4 expectSome of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
   }
@@ -404,38 +397,38 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     expectFullyBuilt()
     clearEvents()
 
-    atNode1BlockNode(3, 4)
-    atNode2BlockNode(3, 4)
+    onNode1BlockNode(3, 4)
+    onNode2BlockNode(3, 4)
 
-    atNode3BlockNode(1, 2)
-    atNode4BlockNode(1, 2)
+    onNode3BlockNode(1, 2)
+    onNode4BlockNode(1, 2)
 
-   within (10 seconds) {
-      on node1 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
-      on node2 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
-      on node3 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
-      on node4 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
+    within(10 seconds) {
+      on node1 expectNone of UdpClusterManagerActorEvt.NodeRemoved
+      on node2 expectNone of UdpClusterManagerActorEvt.NodeRemoved
+      on node3 expectNone of UdpClusterManagerActorEvt.NodeRemoved
+      on node4 expectNone of UdpClusterManagerActorEvt.NodeRemoved
     }
 
-    atNode1UnblockNode(3, 4)
-    atNode2UnblockNode(3, 4)
-    atNode3UnblockNode(1, 2)
-    atNode4UnblockNode(1, 2)
+    onNode1UnblockNode(3, 4)
+    onNode2UnblockNode(3, 4)
+    onNode3UnblockNode(1, 2)
+    onNode4UnblockNode(1, 2)
 
-   within (10 seconds) {
-      on node1 expectNone of Evt.ClusterMergeTrigger
-      on node2 expectNone of Evt.ClusterMergeTrigger
-      on node3 expectNone of Evt.ClusterMergeTrigger
-      on node4 expectNone of Evt.ClusterMergeTrigger
+    within(10 seconds) {
+      on node1 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node2 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node3 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node4 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
     }
 
 
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node3Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node2Address)
-    on node4 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node1Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node3Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node4Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node3Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node4Address)
+    on node4 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node2Address)
+    on node4 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
   }
@@ -446,43 +439,43 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
     expectFullyBuilt()
     clearEvents()
 
-    atNode1BlockNode(2, 3, 4)
-    atNode2BlockNode(1)
+    onNode1BlockNode(2, 3, 4)
+    onNode2BlockNode(1)
 
-    atNode3BlockNode(1)
-    atNode4BlockNode(1)
+    onNode3BlockNode(1)
+    onNode4BlockNode(1)
 
-   within (10 seconds) {
-      on node1 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
-      on node2 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
-      on node3 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
-      on node4 expectNone of UdpClusterManagerActor.Evt.NodeRemoved
+    within(10 seconds) {
+      on node1 expectNone of UdpClusterManagerActorEvt.NodeRemoved
+      on node2 expectNone of UdpClusterManagerActorEvt.NodeRemoved
+      on node3 expectNone of UdpClusterManagerActorEvt.NodeRemoved
+      on node4 expectNone of UdpClusterManagerActorEvt.NodeRemoved
     }
 
-    atNode1UnblockNode(2, 3, 4)
-    atNode2UnblockNode(1)
-    atNode3UnblockNode(1)
-    atNode4UnblockNode(1)
+    onNode1UnblockNode(2, 3, 4)
+    onNode2UnblockNode(1)
+    onNode3UnblockNode(1)
+    onNode4UnblockNode(1)
 
 
-   within (10 seconds) {
-      on node1 expectNone of Evt.ClusterMergeTrigger
-      on node2 expectNone of Evt.ClusterMergeTrigger
-      on node3 expectNone of Evt.ClusterMergeTrigger
-      on node4 expectNone of Evt.ClusterMergeTrigger
+    within(10 seconds) {
+      on node1 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node2 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node3 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
+      on node4 expectNone of ServiceNodeActorEvt.ClusterMergeTrigger
     }
 
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node4Address)
-    on node1 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node2Address)
-    on node2 expectSome of UdpClusterManagerActor.Evt.NodeReachable + ('addr -> node1Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node3Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node4Address)
+    on node1 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node2Address)
+    on node2 expectSome of UdpClusterManagerActorEvt.NodeReachable + ('addr -> node1Address)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
   }
 
 
   it should "start services before cluster formation if requested" in new WithNode3 {
-    on node3 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test")
+    on node3 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test")
 
     override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=on")
 
@@ -490,8 +483,8 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
   it should "not start services before cluster formation if requested" in new WithNode3 {
-   within (10 seconds) {
-      on node3 expectNone of ServiceNodeActor.Evt.StartingService + ('service -> "test")
+    within(10 seconds) {
+      on node3 expectNone of ServiceNodeActorEvt.StartingService + ('service -> "test")
     }
 
     override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
@@ -500,7 +493,7 @@ class ManagedNodeTest extends FlatSpec with ManagedNodeTestContext with Isolated
   }
 
   it should "start services after cluster formation if requested" in new WithNode2 {
-    on node2 expectSome of ServiceNodeActor.Evt.StartingService + ('service -> "test")
+    on node2 expectSome of ServiceNodeActorEvt.StartingService + ('service -> "test")
 
     override def node2Configs: Seq[ConfigReference] = super.node2Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
 

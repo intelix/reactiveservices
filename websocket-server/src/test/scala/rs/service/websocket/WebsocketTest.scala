@@ -17,10 +17,10 @@ package rs.service.websocket
 
 import play.api.libs.json.Json
 import rs.core.Subject
-import rs.core.services.BaseServiceCell.StopRequest
+import rs.core.services.BaseServiceActor.StopRequest
 import rs.core.services.StreamId
-import rs.node.core.ServiceNodeActor
-import rs.service.auth.{AuthStageEvt, BaseAuthEvt, AuthServiceActor}
+import rs.node.core.ServiceNodeActorEvt
+import rs.service.auth.AuthStageEvt
 import rs.service.websocket.WebsocketClientStubService._
 import rs.testing._
 import rs.testing.components.TestServiceActor
@@ -52,10 +52,10 @@ class WebsocketTest extends StandardMultiNodeSpec {
           """.stripMargin)
       )
 
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "client")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "websocket-server")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test")
-    on node2 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test2")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "client")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "websocket-server")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test")
+    on node2 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test2")
     clearEvents()
 
   }
@@ -127,7 +127,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
     new WithNode5 {
       override def node5Services: Map[String, Class[_]] = super.node5Services ++ Map("test3" -> classOf[TestServiceActor])
 
-      on node5 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test3")
+      on node5 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test3")
       on node1 expectSome of WebsocketClientStubService.Evt.StringUpdate +('sourceService -> "test3", 'topic -> "string", 'id -> "c1", 'value -> "hello")
     }
 
@@ -148,7 +148,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
     new WithNode5 {
       override def node5Services: Map[String, Class[_]] = super.node5Services ++ Map("test2" -> classOf[TestServiceActor])
 
-      on node5 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test2")
+      on node5 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test2")
       on node1 expectSome of WebsocketClientStubService.Evt.StringUpdate +('sourceService -> "test2", 'topic -> "string", 'id -> "c1", 'value -> "hello")
     }
 
@@ -449,12 +449,12 @@ class WebsocketTest extends StandardMultiNodeSpec {
       )
 
 
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "client")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "client2")
-    on node3 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "client3")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "websocket-server")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test")
-    on node2 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test2")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "client")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "client2")
+    on node3 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "client3")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "websocket-server")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test")
+    on node2 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test2")
     clearEvents()
 
   }
@@ -584,14 +584,14 @@ class WebsocketTest extends StandardMultiNodeSpec {
       )
 
 
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "client")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "client2")
-    on node3 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "client3")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "websocket-server")
-    on node2 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "websocket-server")
-    on node3 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "websocket-server")
-    on node1 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test")
-    on node2 expectOne of ServiceNodeActor.Evt.StartingService + ('service -> "test2")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "client")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "client2")
+    on node3 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "client3")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "websocket-server")
+    on node2 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "websocket-server")
+    on node3 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "websocket-server")
+    on node1 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test")
+    on node2 expectOne of ServiceNodeActorEvt.StartingService + ('service -> "test2")
     clearEvents()
 
 
@@ -661,8 +661,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk +('correlation -> "Some(auth2)", 'payload -> "Some(true)", 'id -> "c2")
     on node3 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk +('correlation -> "Some(auth3)", 'payload -> "Some(true)", 'id -> "c3")
 
-    on node1 expect(2) of BaseAuthEvt.SuccessfulCredentialsAuth + ('userid -> "user1")
-    on node1 expect(1) of BaseAuthEvt.SuccessfulCredentialsAuth + ('userid -> "user2")
+    on node1 expect(2) of AuthServiceEvt.SuccessfulCredentialsAuth + ('userid -> "user1")
+    on node1 expect(1) of AuthServiceEvt.SuccessfulCredentialsAuth + ('userid -> "user2")
 
     clearEvents()
 
@@ -706,8 +706,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk +('correlation -> "Some(auth2)", 'payload -> "Some(true)", 'id -> "c2")
     on node3 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk +('correlation -> "Some(auth3)", 'payload -> "Some(true)", 'id -> "c3")
 
-    on node1 expect(2) of BaseAuthEvt.SuccessfulCredentialsAuth + ('userid -> "user1")
-    on node1 expect(1) of BaseAuthEvt.SuccessfulCredentialsAuth + ('userid -> "user2")
+    on node1 expect(2) of AuthServiceEvt.SuccessfulCredentialsAuth + ('userid -> "user1")
+    on node1 expect(1) of AuthServiceEvt.SuccessfulCredentialsAuth + ('userid -> "user2")
 
 
     clearEvents()
@@ -739,7 +739,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
       Subject("auth", "tauth"),
       auth1Token,
       System.currentTimeMillis() + 8000, None, Some("auth1"))
-    on node1 expectOne of BaseAuthEvt.SuccessfulTokenAuth + ('authkey -> auth1Token.r)
+    on node1 expectOne of AuthServiceEvt.SuccessfulTokenAuth + ('authkey -> auth1Token.r)
     on node1 expectSome of WebsocketClientStubService.Evt.ReceivedSignalAckOk +('correlation -> "Some(auth1)", 'payload -> "Some(true)", 'id -> "c1")
   }
 

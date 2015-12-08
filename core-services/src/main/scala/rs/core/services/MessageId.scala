@@ -33,7 +33,7 @@ trait MessageId {
 
 class SequentialMessageIdGenerator {
 
-  var seed = UUIDTools.generateShortUUID
+  val seed = UUIDTools.generateShortUUID
   var counter = 0L
 
   def next() = {

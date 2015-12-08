@@ -20,11 +20,11 @@ import rs.core.actors.BaseActor
 import rs.core.services.internal.acks.{Acknowledgeable, Acknowledgement}
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
-trait MessageAcknowledgingSysevents extends BaseActor with ComponentWithBaseSysevents {
+trait MessageAcknowledgingEvt extends BaseActor with ComponentWithBaseSysevents {
   val AutoAcknowledged = "AutoAcknowledged".trace
 }
 
-trait MessageAcknowledging extends MessageAcknowledgingSysevents {
+trait MessageAcknowledging extends MessageAcknowledgingEvt {
 
   private def acknowledge(m: Acknowledgeable) = AutoAcknowledged { ctx =>
     val ackTo = m.acknowledgeTo getOrElse sender()

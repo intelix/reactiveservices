@@ -187,7 +187,7 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 var self = this;
                 if (!self._visibilityMonitorEnabled() || (self.state && (self.state.visibility === true))) {
                     if (self.isDebug()) {
-                        self.logDebug("Received ws connected event, re-subscribing");
+                        self.logDebug("Server connection established, re-subscribing");
                     }
                     self._reopenAllSubscriptions();
                 }
@@ -200,7 +200,7 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
             _onDisconnected: function () {
                 var self = this;
                 if (self.isDebug()) {
-                    self.logDebug("Received ws disconnected event");
+                    self.logDebug("Server connection lost");
                 }
                 self._closeAllSubscriptions();
                 if (self.state && self.state.connected) {
@@ -284,7 +284,7 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 if (self.subscribed) {
                     var configs = self._getSubscriptionConfigsFor(self.props);
                     if (configs && _.isArray(configs) && configs.length > 0) {
-                        self.logDebug("Closing subscriptions on request...");
+                        self.logDebug("Closing subscriptions: " + configs.length);
                         configs.forEach(self._unsubscribeFromStream);
 
                         if (self.componentMounted) {
@@ -301,7 +301,7 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 if (!self.state || !self.subscribed) {
                     var configs = self._getSubscriptionConfigsFor(self.props);
                     if (configs && _.isArray(configs) && configs.length > 0) {
-                        self.logDebug("Reopening subscriptions on request...");
+                        self.logDebug("Re-opening subscriptions: " + configs.length);
                         configs.forEach(self._subscribeToStream);
                     }
                     self.subscribed = true;

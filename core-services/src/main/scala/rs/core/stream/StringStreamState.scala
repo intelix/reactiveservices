@@ -17,9 +17,9 @@ package rs.core.stream
 
 import play.api.libs.json.{JsValue, Json}
 import rs.core.Subject
-import rs.core.javaapi.JServiceCell
+import rs.core.javaapi.JServiceActor
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{BaseServiceCell, StreamId}
+import rs.core.services.{BaseServiceActor, StreamId}
 
 import scala.language.implicitConversions
 
@@ -38,7 +38,7 @@ case class StringStreamState(value: String) extends StreamState with StreamState
 }
 
 trait JStringStreamPublisher {
-  self: JServiceCell =>
+  self: JServiceActor =>
   def streamString(stream: String, value: String) = performStateTransition(stream, StringStreamState(value))
 
   def streamString(stream: StreamId, value: String) = performStateTransition(stream, StringStreamState(value))
@@ -46,7 +46,7 @@ trait JStringStreamPublisher {
 
 
 trait StringStreamPublisher {
-  self: BaseServiceCell =>
+  self: BaseServiceActor =>
 
   implicit def toString(v: JsValue): String = Json.stringify(v)
 

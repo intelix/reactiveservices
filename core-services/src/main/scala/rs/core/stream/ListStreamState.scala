@@ -18,9 +18,9 @@ package rs.core.stream
 import java.util
 
 import rs.core.Subject
-import rs.core.javaapi.JServiceCell
+import rs.core.javaapi.JServiceActor
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{BaseServiceCell, StreamId}
+import rs.core.services.{SimpleStreamId, BaseServiceActor, StreamId}
 import rs.core.stream.ListStreamState._
 
 import scala.language.implicitConversions
@@ -120,7 +120,7 @@ case class ListStreamStateTransitionPartial(seed: Int, seq: Int, seq2: Int, list
 
 
 trait JListStreamPublisher extends ListStreamPublisher {
-  self: JServiceCell =>
+  self: JServiceActor =>
 
   def listEvictionFromHead = FromHead
 
@@ -135,7 +135,7 @@ trait JListStreamPublisher extends ListStreamPublisher {
     streamListSnapshot(s, l.toArray.toList.asInstanceOf[List[String]], maxEntries, evictionStrategy)
 
   def streamListSnapshot(s: String, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit =
-    streamListSnapshot(StreamId(s), l, maxEntries, evictionStrategy)
+    streamListSnapshot(SimpleStreamId(s), l, maxEntries, evictionStrategy)
 
   def streamListSnapshot(s: StreamId, l: List[String], maxEntries: Int, evictionStrategy: EvictionStrategy): Unit = {
     implicit val specs = ListSpecs(maxEntries, evictionStrategy)
@@ -166,7 +166,7 @@ trait JListStreamPublisher extends ListStreamPublisher {
 
 
 trait ListStreamPublisher {
-  self: BaseServiceCell =>
+  self: BaseServiceActor =>
 
   implicit def toListPublisher(v: String): ListPublisher = ListPublisher(v)
 

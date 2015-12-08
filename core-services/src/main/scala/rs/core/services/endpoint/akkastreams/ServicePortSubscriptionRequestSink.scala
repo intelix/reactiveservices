@@ -19,7 +19,7 @@ import akka.actor.{ActorRef, PoisonPill, Props}
 import akka.stream.actor.ActorSubscriberMessage.{OnComplete, OnError, OnNext}
 import akka.stream.actor.{ActorSubscriber, RequestStrategy, WatermarkRequestStrategy}
 import rs.core.ServiceKey
-import rs.core.actors.SingleStateActor
+import rs.core.actors.StatelessActor
 import rs.core.config.ConfigOps.wrap
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages._
@@ -27,35 +27,21 @@ import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
 import rs.core.sysevents.ref.ComponentWithBaseSysevents
 
 
-trait ServicePortSubscriptionRequestSinkSysevents extends ComponentWithBaseSysevents {
-
-
+trait ServicePortSubscriptionRequestSinkEvt extends ComponentWithBaseSysevents {
   val CompletedSuccessfully = "CompletedSuccessfully".info
   val CompletedWithError = "CompletedWithError".warn
   val TerminatedOnRequest = "TerminatedOnRequest".warn
 
+  override def componentId: String = "ServicePort.SubscriptionSink"
 }
 
 
 trait ServicePortSubscriptionRequestSink
-  extends SingleStateActor
-  with RegistryRef
-  with ServicePortSubscriptionRequestSinkSysevents {
+  extends StatelessActor
+    with RegistryRef
+    with ServicePortSubscriptionRequestSinkEvt {
 
   val streamAggregator: ActorRef
-
-  private def onServiceUnavailable(key: ServiceKey): Unit = {
-    streamAggregator ! ServiceLocationChanged(key, None)
-  }
-
-  private def onServiceAvailable(key: ServiceKey, ref: ActorRef): Unit = {
-    streamAggregator ! ServiceLocationChanged(key, Some(ref))
-  }
-
-  onServiceLocationChanged {
-    case (key, None) => onServiceUnavailable(key)
-    case (key, Some(ref)) => onServiceAvailable(key, ref)
-  }
 
   def addSubscription(m: OpenSubscription): Unit = {
     val serviceKey = m.subj.service
@@ -65,6 +51,18 @@ trait ServicePortSubscriptionRequestSink
 
   def removeSubscription(m: CloseSubscription): Unit = streamAggregator ! m
 
+  onServiceLocationChanged {
+    case (key, None) => onServiceUnavailable(key)
+    case (key, Some(ref)) => onServiceAvailable(key, ref)
+  }
+
+  private def onServiceUnavailable(key: ServiceKey): Unit = {
+    streamAggregator ! ServiceLocationChanged(key, None)
+  }
+
+  private def onServiceAvailable(key: ServiceKey, ref: ActorRef): Unit = {
+    streamAggregator ! ServiceLocationChanged(key, Some(ref))
+  }
 
 
 }
@@ -76,12 +74,21 @@ object ServicePortSubscriptionRequestSinkSubscriber {
 
 class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRef, token: String)
   extends ServicePortSubscriptionRequestSink
-  with ActorSubscriber {
+    with ActorSubscriber {
 
-  val HighWatermark = config.asInt("service-port.backpressure.high-watermark", 5000)
-  val LowWatermark = config.asInt("service-port.backpressure.low-watermark", 1000)
+  val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 5000)
+  val LowWatermark = nodeCfg.asInt("service-port.backpressure.low-watermark", 1000)
 
-  override protected def requestStrategy: RequestStrategy = new WatermarkRequestStrategy(HighWatermark, LowWatermark)
+  def terminateInstance(): Unit = {
+    // for some reason streams 1.0 don't terminate the actor automatically and it's not happening when cancel() is called as it is already marked
+    // as 'cancelled', as OnComplete and OnError are processed in aroundReceive
+    try {
+      cancel()
+    } catch {
+      case _: Throwable =>
+    }
+    context.stop(self)
+  }
 
 
   onMessage {
@@ -95,17 +102,7 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
       terminateInstance()
   }
 
-
-  def terminateInstance(): Unit = {
-    // for some reason streams 1.0 don't terminate the actor automatically and it's not happening when cancel() is called as it is already marked
-    // as 'cancelled', as OnComplete and OnError are processed in aroundReceive
-    try {
-      cancel()
-    } catch {
-      case _: Throwable =>
-    }
-    context.stop(self)
-  }
+  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('token -> token)
 
   onActorTerminated { ref =>
     if (ref == streamAggregator) {
@@ -113,8 +110,6 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
       terminateInstance()
     }
   }
-
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('token -> token)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
@@ -128,6 +123,7 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
     super.postStop()
   }
 
-  override def componentId: String = "ServicePort.SubscritionsSink"
+  override protected def requestStrategy: RequestStrategy = new WatermarkRequestStrategy(HighWatermark, LowWatermark)
+
 
 }
