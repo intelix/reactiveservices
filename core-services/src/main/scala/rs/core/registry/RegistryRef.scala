@@ -20,12 +20,12 @@ import rs.core.ServiceKey
 import rs.core.actors.BaseActor
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.RegistryLocation
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 import scala.language.postfixOps
 
 
-trait RegistryRefEvt extends ComponentWithBaseSysevents {
+trait RegistryRefEvt extends CommonEvt {
   val ServiceRegistrationPending = "ServiceRegistrationPending".trace
   val ServiceUnregistrationPending = "ServiceUnregistrationPending".trace
   val ServiceLocationUpdate = "ServiceLocationUpdate".trace

@@ -65,7 +65,7 @@ final class StreamAggregatorActor(consumerId: String)
   private var pendingPublisherIdx = 0
   private var serviceLocations: Map[ServiceKey, Option[ActorRef]] = Map.empty
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('consumer -> consumerId)
+  addEvtFields('consumer -> consumerId)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {

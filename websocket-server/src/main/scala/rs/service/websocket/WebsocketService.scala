@@ -64,7 +64,7 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
 
   val decider: Supervision.Decider = {
     case x =>
-      FlowFailure('error -> x)
+      FlowFailure('error -> x, 'stacktrace -> x.getStackTrace)
       Supervision.Stop
   }
 

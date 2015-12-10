@@ -40,7 +40,7 @@ abstract class CompoundStreamIdTemplate[T](id: String) {
   }
 }
 
-abstract class SimpleStreamIdPattern(id: String) {
+abstract class SimpleStreamIdTemplate(id: String) {
   def apply() = SimpleStreamId(id)
   def unapply(s: StreamId): Boolean = s match {
     case SimpleStreamId(i) => i == id

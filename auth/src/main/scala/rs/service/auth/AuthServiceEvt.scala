@@ -15,9 +15,9 @@
  */
 package rs.service.auth
 
-import rs.core.actors.CommonActorEvt
+import rs.core.services.ServiceEvt
 
-trait AuthServiceEvt extends CommonActorEvt {
+trait AuthServiceEvt extends ServiceEvt {
 
   val AuthToken = "AuthToken".trace
   val UserInfo = "UserInfo".trace
@@ -33,9 +33,8 @@ trait AuthServiceEvt extends CommonActorEvt {
   val FailedCredentialsAuth = "FailedCredentialsAuth".info
   val FailedTokenAuth = "FailedTokenAuth".info
 
-  override def componentId: String = "Auth.Service"
+  override def componentId: String = "Auth"
 
 }
-
 
 object AuthServiceEvt extends AuthServiceEvt

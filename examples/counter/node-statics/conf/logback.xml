@@ -16,30 +16,24 @@
 
 <configuration>
 
-    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="StdOut" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%-40thread] %-45logger{28} - %msg%n</Pattern>
         </layout>
     </appender>
 
-    <appender name="EVENTS" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="Sysevents" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</Pattern>
         </layout>
     </appender>
 
     <logger name="sysevents" level="DEBUG" additivity="false">
-        <appender-ref ref="EVENTS" />
+        <appender-ref ref="Sysevents" />
     </logger>
 
-
-    <logger name="scala.slick" level="INFO" />
-
-    <logger name="akka.cluster.ClusterHeartbeatSender" level="WARN" />
-    <logger name="akka.cluster.ClusterRemoteWatcher" level="WARN" />
-
-    <root level="DEBUG">
-        <appender-ref ref="STDOUT" />
+    <root level="INFO">
+        <appender-ref ref="StdOut" />
     </root>
 
 </configuration>

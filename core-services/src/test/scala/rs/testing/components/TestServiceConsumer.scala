@@ -5,29 +5,29 @@ import rs.core.services.BaseServiceActor.StopRequest
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.ServiceEvt
 import rs.core.services.endpoint.Terminal
-import rs.testing.components.TestServiceConsumer.{Close, Evt, Open, SendSignal}
+import rs.testing.components.TestServiceConsumer.{Close, Open, SendSignal}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
+trait TestServiceConsumerEvt extends ServiceEvt {
+  val StringUpdate = "StringUpdate".info
+  val SetUpdate = "SetUpdate".info
+  val MapUpdate = "MapUpdate".info
+  val ListUpdate = "ListUpdate".info
+  val SubscribingTo = "SubscribingTo".info
+
+  val SignalResponseReceivedAckOk = "SignalResponseReceivedAckOk".info
+  val SignalResponseReceivedAckFailed = "SignalResponseReceivedAckFailed".info
+  val SignalTimeout = "SignalTimeout".info
+
+  override def componentId: String = "Test.ServiceConsumer"
+}
+
+object TestServiceConsumerEvt extends TestServiceConsumerEvt
+
 object TestServiceConsumer {
-
-  trait Evt extends ServiceEvt {
-    val StringUpdate = "StringUpdate".info
-    val SetUpdate = "SetUpdate".info
-    val MapUpdate = "MapUpdate".info
-    val ListUpdate = "ListUpdate".info
-    val SubscribingTo = "SubscribingTo".info
-
-    val SignalResponseReceivedAckOk = "SignalResponseReceivedAckOk".info
-    val SignalResponseReceivedAckFailed = "SignalResponseReceivedAckFailed".info
-    val SignalTimeout = "SignalTimeout".info
-
-    override def componentId: String = "TestServiceConsumer"
-  }
-
-  object Evt extends Evt
 
   case class Open(svc: String, topic: String, keys: String = "")
 
@@ -37,7 +37,7 @@ object TestServiceConsumer {
 
 }
 
-class TestServiceConsumer(id: String) extends Terminal with Evt {
+class TestServiceConsumer(id: String) extends Terminal with TestServiceConsumerEvt {
 
   implicit val ec = context.dispatcher
 

@@ -17,4 +17,6 @@ package rs.core.config
 
 import com.typesafe.config.Config
 
-case class NodeConfig(override val config: Config) extends WithSomeConfig
+trait WithSomeConfig {
+  def config: Config
+}

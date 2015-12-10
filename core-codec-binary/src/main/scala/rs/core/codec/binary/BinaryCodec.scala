@@ -29,7 +29,7 @@ import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
 import rs.core.stream.SetStreamState.{Add, Remove, SetOp, SetSpecs}
 import rs.core.stream._
-import rs.core.sysevents.{SyseventPublisher, WithNodeSysevents}
+import rs.core.sysevents.{EvtPublisher, EvtPublisherContext}
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 import scala.annotation.tailrec
@@ -136,7 +136,7 @@ object BinaryCodec {
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
 
       import BinaryCodecEvt._
-      implicit val publisher = SyseventPublisher(nodeCfg)
+      implicit val publisher = EvtPublisher(nodeCfg)
 
       val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
         @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)

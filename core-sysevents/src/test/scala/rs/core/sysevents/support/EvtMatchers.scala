@@ -22,7 +22,7 @@ import scala.util.matching.Regex
 
 case class EventFieldMatcher(f: String => Boolean)
 
-trait EventMatchers {
+trait EvtMatchers {
 
   class ContainsAllFields(e: Sysevent, count: Option[Range], values: Seq[FieldAndValue]) extends Matcher[List[Seq[FieldAndValue]]] {
     def apply(left: List[Seq[FieldAndValue]]) = {

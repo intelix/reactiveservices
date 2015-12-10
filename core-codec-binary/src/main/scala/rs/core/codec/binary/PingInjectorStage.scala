@@ -20,13 +20,12 @@ import akka.stream.{BidiShape, FlowShape}
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{NodeConfig, ServiceConfig}
-import rs.core.sysevents.SyseventPublisher
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.{CommonEvt, EvtPublisher}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait PingInjectorEvt extends ComponentWithBaseSysevents {
+trait PingInjectorEvt extends CommonEvt {
   val ServerClientPing = "ServerClientPing".trace
 
   override def componentId: String = "Endpoint.PingInjector"
@@ -41,7 +40,7 @@ class PingInjectorStage extends BinaryDialectStageBuilder {
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
         import PingInjectorEvt._
-        implicit val publisher = SyseventPublisher(nodeCfg, 'token -> sessionId)
+        implicit val publisher = EvtPublisher(nodeCfg, 'token -> sessionId)
 
         val interval = serviceCfg.asFiniteDuration("ping.interval", 30 seconds)
 

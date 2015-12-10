@@ -21,6 +21,8 @@ import rs.service.auth.api.AuthenticationMessages.{AuthenticationResponse, Authe
 
 class ConfigBasedAuthenticationProviderActor extends StatelessActor with ConfigBasedAuthenticationProviderEvt {
 
+  addEvtFields('type -> "config-based")
+
   onMessage {
     case Authenticate(u, p) => Authentication { ctx =>
       ctx + ('user -> u)

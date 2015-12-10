@@ -14,11 +14,9 @@
  * limitations under the License.
  */
 
-package rs.core.sysevents.ref
+package rs.core.sysevents
 
-import rs.core.sysevents.SyseventComponent
-
-trait ComponentWithBaseSysevents extends SyseventComponent {
+trait CommonEvt extends EvtGroup {
 
   val Invalid = 'Invalid.warn
   val Warning = 'Warning.warn

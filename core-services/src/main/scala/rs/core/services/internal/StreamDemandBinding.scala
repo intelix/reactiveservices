@@ -19,9 +19,9 @@ import akka.actor.ActorRef
 import rs.core.actors.{BaseActor, StatelessActor}
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
 import rs.core.services.internal.acks.Acknowledgeable
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
-trait StreamDemandBindingEvt extends ComponentWithBaseSysevents {
+trait StreamDemandBindingEvt extends CommonEvt {
   val DuplicateDemandRequest = "DuplicateDemandRequest".trace
 }
 

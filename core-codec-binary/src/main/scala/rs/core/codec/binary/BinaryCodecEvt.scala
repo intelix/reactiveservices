@@ -1,9 +1,9 @@
 package rs.core.codec.binary
 
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 
-trait BinaryCodecEvt extends ComponentWithBaseSysevents {
+trait BinaryCodecEvt extends CommonEvt {
 
   val MessageEncoded = "MessageEncoded".trace
   val MessageDecoded = "MessageDecoded".trace

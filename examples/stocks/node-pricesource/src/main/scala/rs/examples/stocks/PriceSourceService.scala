@@ -15,29 +15,33 @@
  */
 package rs.examples.stocks
 
-import rs.core.services.{StatelessServiceActor, StreamId}
+import rs.core.services.{ServiceEvt, SimpleStreamId, StatelessServiceActor, StreamId}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.{Subject, TopicKey}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class PriceSourceService(id: String) extends StatelessServiceActor(id) {
+trait PriceSourceServiceEvt extends ServiceEvt {
+  override def componentId: String = "PriceSourceService"
+}
+
+class PriceSourceService(id: String) extends StatelessServiceActor(id) with PriceSourceServiceEvt {
 
   implicit val dict = Dictionary("price")
 
   var symbols: Map[String, Int] = Map.empty
 
   onSubjectMapping {
-    case Subject(_, TopicKey(sym), _) => Some(sym)
+    case Subject(_, TopicKey(sym), _) => sym
   }
 
   onStreamActive {
-    case StreamId(sym, _) => symbols += sym -> (Math.random() * 5000).toInt
+    case SimpleStreamId(sym) => symbols += sym -> (Math.random() * 5000).toInt
   }
 
   onStreamPassive {
-    case StreamId(sym, _) => symbols -= sym
+    case SimpleStreamId(sym) => symbols -= sym
   }
 
 

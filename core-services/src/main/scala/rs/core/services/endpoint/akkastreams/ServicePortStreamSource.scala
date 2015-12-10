@@ -22,17 +22,17 @@ import rs.core.actors.StatelessActor
 import rs.core.services.Messages.ServiceOutbound
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 
-trait ServicePortStreamSourceEvt extends ComponentWithBaseSysevents {
+trait ServicePortStreamSourceEvt extends CommonEvt {
 
   val Cancelled = "Cancelled".info
   val TerminatingOnRequest = "TerminatingOnRequest".info
   val DemandProduced = "DemandProduced".trace
   val OnNext = "OnNext".trace
 
-  override def componentId: String = "ServicePort.StreamSource"
+  override def componentId: String = "ServicePort.StreamDataSource"
 }
 
 object ServicePortStreamSource {
@@ -72,7 +72,6 @@ class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
     context.watch(streamAggregator)
   }
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('token -> token)
-
+  addEvtFields('token -> token)
 
 }

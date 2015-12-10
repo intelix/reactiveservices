@@ -21,6 +21,8 @@ import rs.service.auth.api.AuthorisationMessages.{DomainPermissions, Permissions
 
 class ConfigBasedAuthorisationProviderActor extends StatelessActor with ConfigBasedAuthorisationProviderEvt {
 
+  addEvtFields('type -> "config-based")
+
   onMessage {
     case PermissionsRequest(u) => Authorisation { ctx =>
       ctx + ('user -> u)

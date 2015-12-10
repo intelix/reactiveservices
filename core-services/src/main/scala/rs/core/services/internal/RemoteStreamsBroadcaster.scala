@@ -20,16 +20,15 @@ import java.util
 import akka.actor.ActorRef
 import com.typesafe.config._
 import rs.core.actors.BaseActor
-import rs.core.config.NodeConfig
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.stream.{StreamState, StreamStateTransition}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
 
 import scala.collection.mutable
 
 
-trait RemoteStreamsBroadcasterEvt extends ComponentWithBaseSysevents {
+trait RemoteStreamsBroadcasterEvt extends CommonEvt {
   val StreamStateTransition = "StreamStateTransition".trace
   val InitiatingStreamForDestination = "InitiatingStreamForDestination".trace
   val ClosingStreamForDestination = "ClosingStreamForDestination".trace
@@ -105,8 +104,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
     }
   }
 
-  private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentComponentId: String)(implicit val config: Config) extends ConsumerDemandTracker {
-    override val nodeCfg: NodeConfig = NodeConfig(config)
+  private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentComponentId: String)(implicit val config: Config) extends ConsumerDemandTracker with EvtPublisherContext {
     private val streamKeyToSink: mutable.Map[StreamId, StreamSink] = mutable.HashMap()
     private val streams: util.ArrayList[StreamSink] = new util.ArrayList[StreamSink]()
     private val canUpdate = () => hasDemand
@@ -150,7 +148,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
       }
     }
 
-    override def componentId: String = parentComponentId + ".ConsumerLink"
+    override def componentId: String = parentComponentId
   }
 
   private class StreamBroadcaster {

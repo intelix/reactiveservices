@@ -39,7 +39,7 @@ trait Terminal
   _: StatefulActor[_] =>
 
 
-  override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(componentId), "stream-aggregator")
+  override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(consumerId = componentId), "stream-aggregator")
 
   startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)
 

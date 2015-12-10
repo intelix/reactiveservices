@@ -16,35 +16,38 @@
 package rs.core.sysevents.support
 
 import rs.core.sysevents._
-import rs.core.sysevents.log.LoggerSyseventPublisher
+import rs.core.sysevents.log.LoggerEvtPublisher
 
 case class RaisedEvent(timestamp: Long, event: Sysevent, values: Seq[FieldAndValue])
 
-class TestSyseventPublisher extends LoggerSyseventPublisher {
+object TestEvtPublisher {
 
   @volatile var events = Map[Sysevent, List[Seq[FieldAndValue]]]()
   private var eventsInOrder = List[RaisedEvent]()
+
+  def clear() = TestEvtPublisher.synchronized {
+    events = Map()
+    eventsInOrder = List()
+  }
+
+  def clearComponentEvents(componentId: String) = TestEvtPublisher.synchronized {
+    events = events.filter(_._1.componentId == componentId)
+    eventsInOrder = eventsInOrder.filter(_.event.componentId != componentId)
+  }
 
   def withOrderedEvents(f: List[RaisedEvent] => Unit) = this.synchronized {
     f(eventsInOrder)
   }
 
-  def clear() = this.synchronized {
-    events = Map()
-    eventsInOrder = List()
-  }
+}
 
-  def clearComponentEvents(componentId: String) = this.synchronized {
-    events = events.filter(_._1.componentId == componentId)
-    eventsInOrder = eventsInOrder.filter(_.event.componentId != componentId)
-  }
+class TestEvtPublisher extends LoggerEvtPublisher {
 
-
-  override def publish(ctx: SyseventPublisherContext): Unit = {
-    this.synchronized {
-      val cwf = ctx.asInstanceOf[ContextWithFields]
-      eventsInOrder = eventsInOrder :+ RaisedEvent(System.currentTimeMillis(), cwf.event, cwf.fields)
-      events += (cwf.event -> (events.getOrElse(cwf.event, List()) :+ cwf.fields.map {
+  override def publish(ctx: EvtContext): Unit = {
+    TestEvtPublisher.synchronized {
+      val cwf = ctx.asInstanceOf[EvtContextWithFields]
+      TestEvtPublisher.eventsInOrder = TestEvtPublisher.eventsInOrder :+ RaisedEvent(System.currentTimeMillis(), cwf.event, cwf.fields)
+      TestEvtPublisher.events += (cwf.event -> (TestEvtPublisher.events.getOrElse(cwf.event, List()) :+ cwf.fields.map {
         case (f, v) => f -> transformValue(v)
       }))
     }

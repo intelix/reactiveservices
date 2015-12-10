@@ -21,12 +21,12 @@ import akka.actor.ActorRef
 import rs.core.config.ConfigOps.wrap
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 import scala.collection.mutable
 
 
-trait DemandProducerContractEvt extends ComponentWithBaseSysevents {
+trait DemandProducerContractEvt extends CommonEvt {
 
   val StartedDemandProducer = "StartedDemandProducer".trace
   val StoppedDemandProducer = "StoppedDemandProducer".trace

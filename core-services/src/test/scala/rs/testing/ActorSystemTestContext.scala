@@ -3,10 +3,10 @@ package rs.testing
 import akka.actor.{ActorRef, ActorSystem, Props}
 import org.scalatest.Suite
 import rs.core.sysevents.Sysevent
-import rs.core.sysevents.support.EventAssertions
+import rs.core.sysevents.support.EvtAssertions
 import rs.core.tools.UUIDTools
 
-trait ActorSystemTestContext extends EventAssertions {
+trait ActorSystemTestContext extends EvtAssertions {
   self: Suite =>
 
   private var system: Option[ActorSystem] = None

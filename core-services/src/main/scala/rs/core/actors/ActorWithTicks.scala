@@ -16,13 +16,13 @@
 
 package rs.core.actors
 
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 import scala.concurrent.duration._
 
 private case class CallbackRequest(f: () => Unit, intervalMs: Long, lastCallTs: Long)
 
-trait ActorWithTicks extends BaseActor with ComponentWithBaseSysevents {
+trait ActorWithTicks extends BaseActor with CommonEvt {
 
   implicit private val ec = context.dispatcher
 

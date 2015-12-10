@@ -2,18 +2,18 @@ package rs.testing.components
 
 import rs.core.services.{StatelessServiceActor, ServiceEvt}
 
-trait ServiceWithInitialisationFailureEvents extends ServiceEvt {
-  override def componentId: String = "FaultyService"
+trait ServiceWithInitialisationFailureEvt extends ServiceEvt {
+  override def componentId: String = "Test.FaultyService"
 }
 
-object ServiceWithInitialisationFailureEvents extends ServiceWithInitialisationFailureEvents
+object ServiceWithInitialisationFailureEvt extends ServiceWithInitialisationFailureEvt
 
 object ServiceWithInitialisationFailureActor {
   var recoveryEnabled = false
   var failureCounter = 0
 }
 
-class ServiceWithInitialisationFailureActor(id: String) extends StatelessServiceActor(id) with ServiceWithInitialisationFailureEvents {
+class ServiceWithInitialisationFailureActor(id: String) extends StatelessServiceActor(id) with ServiceWithInitialisationFailureEvt {
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()

@@ -26,7 +26,7 @@ import scalaz.Scalaz._
 object ConfigOps {
   implicit def wrap(cfg: Config): ConfigOps = new ConfigOps(cfg)
 
-  implicit def wrap(cfg: WithConfig): ConfigOps = new ConfigOps(cfg.config)
+  implicit def wrap(cfg: WithSomeConfig): ConfigOps = new ConfigOps(cfg.config)
 }
 
 class ConfigOps(cfg: Config) {

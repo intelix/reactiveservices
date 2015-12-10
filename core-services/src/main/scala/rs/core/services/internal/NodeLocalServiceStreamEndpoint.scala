@@ -22,7 +22,7 @@ import akka.cluster.Cluster
 import com.typesafe.config._
 import rs.core.actors.{ActorWithTicks, StatelessActor}
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{NodeConfig, ServiceConfig}
+import rs.core.config.ServiceConfig
 import rs.core.registry.RegistryRef
 import rs.core.services.BaseServiceActor._
 import rs.core.services.Messages.{InvalidRequest, StreamStateUpdate}
@@ -31,8 +31,7 @@ import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
 import rs.core.services.internal.acks.Acknowledgeable
 import rs.core.stream.{StreamState, StreamStateTransition}
-import rs.core.sysevents.WithNodeSysevents
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
 import rs.core.tools.NowProvider
 import rs.core.{ServiceKey, Subject}
 
@@ -41,7 +40,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 
 
-trait NodeLocalServiceStreamEndpointEvt extends ComponentWithBaseSysevents {
+trait NodeLocalServiceStreamEndpointEvt extends CommonEvt {
 
   val EndpointStarted = "EndpointStarted".info
   val EndpointStopped = "EndpointStopped".info
@@ -54,7 +53,6 @@ trait NodeLocalServiceStreamEndpointEvt extends ComponentWithBaseSysevents {
 
   val StreamUpdateReceived = "StreamUpdateReceived".trace
   val StreamResyncRequested = "StreamResyncRequest".warn
-  val StreamUpdatedBroadcasted = "StreamUpdatedBroadcasted".trace
 
   val AcknowledgeableForwarded = "AcknowledgeableForwarded".trace
 
@@ -107,8 +105,6 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     EndpointStopped('service -> serviceKey, 'ref -> serviceRef)
   }
 
-  override def componentId: String = super.componentId + "." + serviceKey.id
-
   override def onIdleStream(key: StreamId): Unit = {
     acknowledgedDelivery(key, CloseStreamFor(key), SpecificDestination(serviceRef), Some(_ => true))
     mappings = mappings filter {
@@ -147,7 +143,6 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   onActorTerminated { ref =>
     closeAllFor(ref)
   }
-
 
 
   private def openLocalStream(subscriber: ActorRef, subj: Subject): Unit = OpenedLocalStream { ctx =>
@@ -276,59 +271,6 @@ private class LocalSubjectStreamSink(val streamKey: StreamId, subj: Subject, can
 }
 
 
-private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String)(implicit val config: Config) extends ConsumerDemandTracker with WithNodeSysevents with NodeLocalServiceStreamEndpointEvt {
-  override val nodeCfg: NodeConfig = NodeConfig(config)
-  private val subjectToSink: mutable.Map[Subject, LocalSubjectStreamSink] = mutable.HashMap()
-  private val streams: util.ArrayList[LocalSubjectStreamSink] = new util.ArrayList[LocalSubjectStreamSink]()
-  private val canUpdate = () => hasDemand
-  private var nextPublishIdx = 0
-
-  def isIdle = streams.isEmpty
-
-  def locateExistingSinkFor(key: Subject): Option[LocalSubjectStreamSink] = subjectToSink get key
-
-  def allSinks = subjectToSink.values
-
-  def addStream(key: StreamId, subj: Subject): LocalSubjectStreamSink = {
-    closeStream(subj)
-    val newSink = new LocalSubjectStreamSink(key, subj, canUpdate, updateForTarget(subj))
-    subjectToSink += subj -> newSink
-    streams add newSink
-    newSink
-  }
-
-  def closeStream(subj: Subject) = {
-    subjectToSink get subj foreach { existingSink =>
-      subjectToSink -= subj
-      streams remove existingSink
-    }
-  }
-
-  def addDemand(demand: Long): Unit = {
-    addConsumerDemand(demand)
-    publishToAll()
-  }
-
-  private def updateForTarget(subj: Subject)(state: StreamState) = fulfillDownstreamDemandWith {
-    ref.tell(StreamStateUpdate(subj, state), self)
-    StreamUpdatedBroadcasted('subj -> subj)
-  }
-
-  private def publishToAll() = if (streams.size() > 0) {
-    val cycles = streams.size()
-    var cnt = 0
-    while (cnt < cycles && hasDemand) {
-      streams get nextPublishIdx publishPending()
-      nextPublishIdx += 1
-      if (nextPublishIdx == streams.size()) nextPublishIdx = 0
-      cnt += 1
-    }
-  }
-
-  override def componentId: String = super.componentId + "." + serviceId
-}
-
-
 private class LocalStreamBroadcaster(timeout: FiniteDuration) extends NowProvider {
 
   private val idleThreshold = timeout.toMillis
@@ -453,10 +395,62 @@ trait LocalStreamsBroadcaster extends StatelessActor with ActorWithTicks {
     }
   }
 
+
+  private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String)(implicit val config: Config) extends ConsumerDemandTracker with EvtPublisherContext {
+    private val subjectToSink: mutable.Map[Subject, LocalSubjectStreamSink] = mutable.HashMap()
+    private val streams: util.ArrayList[LocalSubjectStreamSink] = new util.ArrayList[LocalSubjectStreamSink]()
+    private val canUpdate = () => hasDemand
+    private var nextPublishIdx = 0
+
+    def isIdle = streams.isEmpty
+
+    def locateExistingSinkFor(key: Subject): Option[LocalSubjectStreamSink] = subjectToSink get key
+
+    def allSinks = subjectToSink.values
+
+    def addStream(key: StreamId, subj: Subject): LocalSubjectStreamSink = {
+      closeStream(subj)
+      val newSink = new LocalSubjectStreamSink(key, subj, canUpdate, updateForTarget(subj))
+      subjectToSink += subj -> newSink
+      streams add newSink
+      newSink
+    }
+
+    def closeStream(subj: Subject) = {
+      subjectToSink get subj foreach { existingSink =>
+        subjectToSink -= subj
+        streams remove existingSink
+      }
+    }
+
+    def addDemand(demand: Long): Unit = {
+      addConsumerDemand(demand)
+      publishToAll()
+    }
+
+    private def updateForTarget(subj: Subject)(state: StreamState) = fulfillDownstreamDemandWith {
+      ref.tell(StreamStateUpdate(subj, state), self)
+    }
+
+    private def publishToAll() = if (streams.size() > 0) {
+      val cycles = streams.size()
+      var cnt = 0
+      while (cnt < cycles && hasDemand) {
+        streams get nextPublishIdx publishPending()
+        nextPublishIdx += 1
+        if (nextPublishIdx == streams.size()) nextPublishIdx = 0
+        cnt += 1
+      }
+    }
+
+    override def componentId: String = LocalStreamsBroadcaster.this.componentId
+  }
+
+
 }
 
 
-trait NodeLocalServiceAgentEvt extends ComponentWithBaseSysevents {
+trait NodeLocalServiceAgentEvt extends CommonEvt {
 
   val AgentStarted = "AgentStarted".info
   val AgentStopped = "AgentStopped".warn
@@ -478,7 +472,7 @@ class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: Strin
   var actor: Option[ActorRef] = None
 
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey, 'ref -> serviceRef)
+  addEvtFields('service -> serviceKey, 'ref -> serviceRef)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {

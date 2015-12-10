@@ -4,15 +4,15 @@ import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import com.typesafe.config._
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import rs.core.actors.StatelessActor
-import rs.core.sysevents.WithSysevents
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
-import rs.core.sysevents.support.{EventAssertions, WithSyseventsCollector}
+import rs.core.config.{WithBlankConfig, NodeConfig}
+import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
+import rs.core.sysevents.support.{EvtAssertions, WithEvtCollector}
 import rs.core.tools.UUIDTools
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
-trait MultiActorSystemTestContextSysevents extends ComponentWithBaseSysevents {
+trait MultiActorSystemTestContextSysevents extends CommonEvt {
   override def componentId: String = "Test.ActorSystem"
 
   val ActorSystemCreated = 'ActorSystemCreated.trace
@@ -41,7 +41,7 @@ private case class Watch(ref: ActorRef)
 
 private case class StopAll()
 
-private trait WatcherSysevents extends ComponentWithBaseSysevents {
+private trait WatcherSysevents extends CommonEvt {
   val Watching = 'Watching.trace
   val WatchedActorGone = 'WatchedActorGone.trace
   val AllWatchedActorsGone = 'AllWatchedActorsGone.trace
@@ -55,18 +55,17 @@ private object WatcherActor extends WatcherSysevents {
 }
 
 private class WatcherActor(id: String) extends StatelessActor with WatcherSysevents {
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('InstanceId -> id)
+
+  addEvtFields('InstanceId -> id)
 
   var watched = Set[ActorRef]()
 
   onMessage {
     case StopAll() =>
       if (watched.isEmpty) {
-        logger.debug("AllWatchedActorsGone")
         AllWatchedActorsGone()
       }
       watched.foreach { a =>
-        logger.debug(s"TerminatingActor $a")
         TerminatingActor('Actor -> a)
         context.stop(a)
       }
@@ -78,7 +77,6 @@ private class WatcherActor(id: String) extends StatelessActor with WatcherSyseve
       watched = watched match {
         case w if w contains ref =>
           WatchedActorGone('Ref -> ref, 'Path -> ref.path.toSerializationFormat)
-          logger.debug(s"WatchedActorGone $ref")
           if (w.size == 1) AllWatchedActorsGone()
           w - ref
         case w => w
@@ -102,11 +100,12 @@ case class ConfigFromContents(contents: String) extends ConfigReference {
 trait MultiActorSystemTestContext
   extends BeforeAndAfterEach
     with MultiActorSystemTestContextSysevents
-    with WithSyseventsCollector
-    with WithSysevents
+    with WithEvtCollector
+    with WithBlankConfig
+    with EvtPublisherContext
     with WithTestSeparator {
 
-  self: Suite with ActorSystemManagement with EventAssertions =>
+  self: Suite with ActorSystemManagement with EvtAssertions =>
 
   object OnlyThisTest extends Tag("OnlyThisTest")
 

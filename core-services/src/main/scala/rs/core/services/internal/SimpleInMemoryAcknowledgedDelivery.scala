@@ -22,7 +22,7 @@ import rs.core.actors.ActorWithTicks
 import rs.core.config.ConfigOps.wrap
 import rs.core.services.internal.acks.{Acknowledgeable, AcknowledgeableWithSpecificId, Acknowledgement}
 import rs.core.services.{Expirable, MessageId, SequentialMessageIdGenerator}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -44,7 +44,7 @@ trait SimpleInMemoryAckedDeliveryWithDynamicRouting extends SimpleInMemoryAcknow
 }
 
 
-trait SimpleInMemoryAcknowledgedDeliveryEvt extends ComponentWithBaseSysevents {
+trait SimpleInMemoryAcknowledgedDeliveryEvt extends CommonEvt {
   val UnorderedDeliveryScheduled = "UnorderedDeliveryScheduled".trace
   val OrderedDeliveryScheduled = "OrderedDeliveryScheduled".trace
   val DeliveryCancelled = "DeliveryCancelled".trace

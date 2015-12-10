@@ -22,7 +22,7 @@ trait ConfigBasedAuthorisationProviderEvt extends CommonActorEvt {
 
   val Authorisation = "Authorisation".info
 
-  override def componentId: String = "Auth.ConfigBasedAuthorisationProvider"
+  override def componentId: String = "Auth.AuthorisationProvider"
 }
 
 object ConfigBasedAuthorisationProviderEvt extends ConfigBasedAuthorisationProviderEvt

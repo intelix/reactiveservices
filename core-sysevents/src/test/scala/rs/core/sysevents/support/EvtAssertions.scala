@@ -26,14 +26,14 @@ import rs.core.sysevents.log.StandardLogMessageFormatterWithDate
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.language.{implicitConversions, postfixOps}
 
-trait EventAssertions extends Matchers with WithSyseventsCollector with WithSysevents with EventMatchers with BeforeAndAfterEach with BeforeAndAfterAll with StrictLogging with StandardLogMessageFormatterWithDate {
+trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with BeforeAndAfterEach with BeforeAndAfterAll with StrictLogging with StandardLogMessageFormatterWithDate {
   self: org.scalatest.Suite =>
 
-  def clearEvents() = evtPublisher.asInstanceOf[TestSyseventPublisher].clear()
+  def clearEvents() = TestEvtPublisher.clear()
 
-  def clearComponentEvents(componentId: String) = evtPublisher.asInstanceOf[TestSyseventPublisher].clearComponentEvents(componentId)
+  def clearComponentEvents(componentId: String) = TestEvtPublisher.clearComponentEvents(componentId)
 
-  def events = evtPublisher.asInstanceOf[TestSyseventPublisher].events
+  def events = TestEvtPublisher.events
 
   override protected def beforeAll(): Unit = {
     logger.warn("**** > Starting " + this.getClass)
@@ -68,7 +68,7 @@ trait EventAssertions extends Matchers with WithSyseventsCollector with WithSyse
   def printRaisedEvents() = {
     val log = LoggerFactory.getLogger("history")
     log.error("*" * 60 + " RAISED EVENTS: " + "*" * 60)
-    evtPublisher.asInstanceOf[TestSyseventPublisher].withOrderedEvents { events =>
+    TestEvtPublisher.withOrderedEvents { events =>
       events.foreach { next =>
         log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
       }
@@ -82,7 +82,7 @@ trait EventAssertions extends Matchers with WithSyseventsCollector with WithSyse
     log2.error("Test failed", x)
     log2.error("*" * 60 + " RAISED EVENTS: " + "*" * 60)
     log2.error("Raised sysevents:")
-    evtPublisher.asInstanceOf[TestSyseventPublisher].withOrderedEvents { events =>
+    TestEvtPublisher.withOrderedEvents { events =>
       events.foreach { next =>
         log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
       }
@@ -108,8 +108,9 @@ trait EventAssertions extends Matchers with WithSyseventsCollector with WithSyse
       f
     } catch {
       case x: Throwable =>
-        val ctx = evtPublisher.contextFor(ErrorSysevent("ExpectationFailed", "Test"), Seq())
-        evtPublisher.publish(ctx)
+        // TODO Remove
+        //        val ctx = evtPublisher.contextFor(ErrorSysevent("ExpectationFailed", "Test"), Seq())
+        //        evtPublisher.publish(ctx)
         report(x)
         throw x
     }
@@ -144,7 +145,7 @@ trait EventAssertions extends Matchers with WithSyseventsCollector with WithSyse
 
   def within(duration: FiniteDuration)(f: => Unit): Unit = within(duration.toMillis)(f)
 
-  def within(millis: Long)(f: => Unit):Unit = {
+  def within(millis: Long)(f: => Unit): Unit = {
     val startedAt = System.currentTimeMillis()
     while (System.currentTimeMillis() - startedAt < millis) {
       f
@@ -163,13 +164,13 @@ trait EventAssertions extends Matchers with WithSyseventsCollector with WithSyse
       }
 
   private val eventsNotExpected = (timeout: FiniteDuration, event: Sysevent, values: Seq[FieldAndValue]) =>
-      try {
-        events.get(event).foreach(_ shouldNot haveAllValues(event, values))
-      } catch {
-        case x: Throwable =>
-          report(x)
-          throw x
-      }
+    try {
+      events.get(event).foreach(_ shouldNot haveAllValues(event, values))
+    } catch {
+      case x: Throwable =>
+        report(x)
+        throw x
+    }
 
 
   case class BaseExpectation(check: EventCheck)
@@ -203,7 +204,7 @@ trait EventAssertions extends Matchers with WithSyseventsCollector with WithSyse
   case class ExecutableExpectation(expectation: BaseExpectation, requiredFields: Seq[(Symbol, Any)]) {
     def of(spec: EventSpec)(implicit t: EventWaitTimeout): Unit = expectation.check(t.duration, spec.e, spec.fields ++ requiredFields)
 
-    def ofEach(specs: EventSpec*)(implicit t: EventWaitTimeout): Unit = specs foreach(of(_)(t))
+    def ofEach(specs: EventSpec*)(implicit t: EventWaitTimeout): Unit = specs foreach (of(_)(t))
 
   }
 

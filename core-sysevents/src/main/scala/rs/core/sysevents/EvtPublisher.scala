@@ -15,9 +15,10 @@
  */
 package rs.core.sysevents
 
-import rs.core.config.NodeConfig
+import com.typesafe.config.{Config, ConfigFactory}
+import rs.core.config.{NodeConfig, WithNodeConfig}
 
-trait SyseventPublisherContext {
+trait EvtContext {
   def isMute: Boolean = false
 
   def +(field: => FieldAndValue): Unit
@@ -52,7 +53,7 @@ trait SyseventPublisherContext {
 
 }
 
-class ContextWithFields(val event: Sysevent, f: Seq[FieldAndValue]) extends SyseventPublisherContext {
+class EvtContextWithFields(val event: Sysevent, f: Seq[FieldAndValue]) extends EvtContext {
   var fields = f
 
   override def +(field: => (Symbol, Any)) = fields = fields :+ field
@@ -60,7 +61,7 @@ class ContextWithFields(val event: Sysevent, f: Seq[FieldAndValue]) extends Syse
   override def ++(ff: => Seq[(Symbol, Any)]): Unit = fields = fields ++ ff
 }
 
-case object MuteContext extends SyseventPublisherContext {
+case object EvtMuteContext extends EvtContext {
 
   override def isMute: Boolean = true
 
@@ -69,20 +70,21 @@ case object MuteContext extends SyseventPublisherContext {
   override def ++(fields: => Seq[(Symbol, Any)]): Unit = {}
 }
 
-trait SyseventPublisher {
-  def contextFor(event: Sysevent, values: => Seq[FieldAndValue]): SyseventPublisherContext
+trait EvtPublisher {
+  def contextFor(event: Sysevent, values: => Seq[FieldAndValue]): EvtContext
 
-  def publish(ctx: SyseventPublisherContext)
+  def publish(ctx: EvtContext)
 }
 
 
-object SyseventPublisher {
-  def apply(cfg: NodeConfig, staticFields: (Symbol, Any)*) = new WithNodeSysevents {
-    override val nodeCfg: NodeConfig = cfg
+object EvtPublisher {
+  def apply(cfg: Config, staticFields: (Symbol, Any)*): EvtPublisherContext = new WithNodeConfig with EvtPublisherContext {
+    override implicit lazy val nodeCfg: NodeConfig = NodeConfig(cfg)
+    addEvtFields('nodeid -> nodeId)
+    addEvtFields(staticFields: _*)
+  }
 
-    override val commonFields: Seq[(Symbol, Any)] = super.commonFields ++ staticFields
-  }
-  def apply(staticFields: (Symbol, Any)*) = new WithSysevents {
-    override val commonFields: Seq[(Symbol, Any)] = super.commonFields ++ staticFields
-  }
+  def apply(cfg: NodeConfig, staticFields: (Symbol, Any)*): EvtPublisherContext = EvtPublisher(cfg.config, staticFields: _*)
+
+  def apply(staticFields: (Symbol, Any)*): EvtPublisherContext = EvtPublisher(ConfigFactory.empty(), staticFields: _*)
 }

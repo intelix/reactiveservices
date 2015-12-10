@@ -25,11 +25,10 @@ import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
 import rs.core.services.Messages._
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
-import rs.core.sysevents.SyseventPublisher
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.{CommonEvt, EvtPublisher}
 
 
-trait ServicePortEvt extends ComponentWithBaseSysevents {
+trait ServicePortEvt extends CommonEvt {
 
   val FlowStarting = "FlowStarting".info
   val FlowStopping = "FlowStopping".info
@@ -51,7 +50,7 @@ object ServicePort extends ServicePortEvt {
 
     implicit val ec = context.dispatcher
 
-    implicit val evtPublisher = SyseventPublisher(nodeCfg)
+    implicit val evtPublisher = EvtPublisher(nodeCfg)
 
     val signalParallelism = nodeCfg.asInt("signal-parallelism", 100)
 

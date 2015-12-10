@@ -13,10 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package rs.core.config
+package rs.core.sysevents
 
-import com.typesafe.config.Config
+import scala.language.implicitConversions
 
-trait WithConfig {
-  def config: Config
+trait EvtGroup extends EvtImplicits {
+  implicit val component = this
+  def componentId: String
 }

@@ -24,15 +24,14 @@ import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
-import rs.core.sysevents.{WithNodeSysevents, WithSysevents}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.{CommonEvt, EvtPublisherContext, EvtPublisherContext$}
 import rs.node.core.ServiceClusterGuardianActor.RestartRequestException
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scalaz.Scalaz._
 
-trait ServiceClusterGuardianEvt extends ComponentWithBaseSysevents with CommonActorEvt {
+trait ServiceClusterGuardianActorEvt extends CommonEvt with CommonActorEvt {
 
   val Launched = "Launched".info
 
@@ -40,7 +39,7 @@ trait ServiceClusterGuardianEvt extends ComponentWithBaseSysevents with CommonAc
 
 }
 
-object ServiceClusterGuardianEvt extends ServiceClusterGuardianEvt
+object ServiceClusterGuardianActorEvt extends ServiceClusterGuardianActorEvt
 
 object ServiceClusterGuardianActor {
 
@@ -53,11 +52,11 @@ object ServiceClusterGuardianActor {
 
 class ServiceClusterGuardianActor(cfg: NodeConfig)
   extends StatelessActor
-    with ServiceClusterGuardianEvt
+    with ServiceClusterGuardianActorEvt
     with StrictLogging {
 
 
-  override implicit val nodeCfg: NodeConfig = cfg
+  override implicit lazy val nodeCfg: NodeConfig = cfg
 
   private val maxRetries = nodeCfg.asInt("node.cluster.max-retries", -1)
   private val maxRetriesTimewindow = nodeCfg.asOptFiniteDuration("node.cluster.max-retries-window") match {

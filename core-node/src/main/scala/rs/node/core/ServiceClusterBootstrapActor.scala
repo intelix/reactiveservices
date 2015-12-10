@@ -22,12 +22,12 @@ import rs.core.actors.{CommonActorEvt, StatelessActor}
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
-trait ServiceClusterBootstrapEvt extends ComponentWithBaseSysevents with CommonActorEvt {
+trait ServiceClusterBootstrapActorEvt extends CommonEvt with CommonActorEvt {
 
   val StartingCluster = "StartingCluster".info
   val StoppingCluster = "StoppingCluster".info
@@ -35,11 +35,11 @@ trait ServiceClusterBootstrapEvt extends ComponentWithBaseSysevents with CommonA
   override def componentId: String = "Cluster.Bootstrap"
 }
 
-object ServiceClusterBootstrapEvt extends ServiceClusterBootstrapEvt
+object ServiceClusterBootstrapActorEvt extends ServiceClusterBootstrapActorEvt
 
-class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with ServiceClusterBootstrapEvt {
+class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with ServiceClusterBootstrapActorEvt {
 
-  override implicit val nodeCfg = cfg
+  override implicit lazy val nodeCfg = cfg
 
   private val clusterSystemId = nodeCfg.asString("node.cluster.system-id", context.system.name)
 
@@ -82,7 +82,7 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with 
     StartingCluster { ctx =>
       clusterSystem = Some(ActorSystem(clusterSystemId, nodeCfg.config))
       clusterSystem foreach { sys =>
-        context.watch(sys.actorOf(Props[ServiceNodeActor], "node"))
+        context.watch(sys.actorOf(Props[ClusterNodeActor], "node"))
       }
     }
   }

@@ -17,7 +17,8 @@
 package rs.core.actors
 
 import akka.actor.{Actor, ActorRef, FSM, Terminated}
-import rs.core.sysevents.WithNodeSysevents
+import rs.core.config.{NodeConfig, WithActorSystemConfig}
+import rs.core.sysevents.EvtPublisherContext
 
 trait ActorState
 
@@ -73,14 +74,16 @@ trait JBaseActor extends BaseActor {
 }
 
 
-trait BaseActor extends ActorUtils with CommonActorEvt with WithNodeSysevents {
+trait BaseActor extends WithActorSystemConfig with ActorUtils with CommonActorEvt with EvtPublisherContext {
 
   private val pathAsString = self.path.toStringWithoutAddress
   protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
 
+  override implicit lazy val nodeCfg: NodeConfig = NodeConfig(config)
+
   def onActorTerminated(f: ActorRef => Unit) = terminatedFuncChain = terminatedFuncChain :+ f
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('path -> pathAsString)
+  addEvtFields('path -> pathAsString, 'nodeid -> nodeId)
 
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {

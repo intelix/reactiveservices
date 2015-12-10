@@ -22,7 +22,7 @@ import akka.cluster.ClusterEvent._
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.services.BaseServiceActor.StopRequest
-import rs.node.core.ServiceNodeActor._
+import rs.node.core.ClusterNodeActor._
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.{JoinStrategy, RolePriorityStrategy, UdpClusterManagerActor}
 
@@ -31,7 +31,7 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scalaz.Scalaz._
 
-trait ServiceNodeActorEvt extends CommonActorEvt {
+trait ClusterNodeActorEvt extends CommonActorEvt {
 
   val AvailableSeeds = "AvailableSeeds".info
   val ClustersDiscovered = "ClustersDiscovered".info
@@ -43,13 +43,13 @@ trait ServiceNodeActorEvt extends CommonActorEvt {
   val StoppingService = "StoppingService".trace
 
 
-  override def componentId: String = "ServiceNode"
+  override def componentId: String = "Node"
 }
 
-object ServiceNodeActorEvt extends ServiceNodeActorEvt
+object ClusterNodeActorEvt extends ClusterNodeActorEvt
 
 
-object ServiceNodeActor {
+object ClusterNodeActor {
 
   case class ServiceNodeData(joinStrategy: JoinStrategy, availableSeeds: Set[Address] = Set.empty, seedsToJoin: Set[Address] = Set.empty, reachableClusters: Option[ReachableClusters] = None)
 
@@ -84,7 +84,7 @@ object ServiceNodeActor {
 }
 
 
-class ServiceNodeActor extends StatefulActor[Any] with ServiceNodeActorEvt {
+class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
   import States._
   import InternalMessages._
 

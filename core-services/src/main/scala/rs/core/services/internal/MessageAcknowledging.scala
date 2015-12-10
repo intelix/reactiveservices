@@ -18,9 +18,9 @@ package rs.core.services.internal
 import akka.actor.ActorRef
 import rs.core.actors.BaseActor
 import rs.core.services.internal.acks.{Acknowledgeable, Acknowledgement}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
-trait MessageAcknowledgingEvt extends BaseActor with ComponentWithBaseSysevents {
+trait MessageAcknowledgingEvt extends BaseActor with CommonEvt {
   val AutoAcknowledged = "AutoAcknowledged".trace
 }
 

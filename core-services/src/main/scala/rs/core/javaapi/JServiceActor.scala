@@ -77,13 +77,13 @@ abstract class JServiceActor(id: String)
 
   final def onStreamActive(streamRef: String, callback: StreamStateCallback): Unit = {
     onStreamActive {
-      case x: StreamId if x.id == streamRef => callback.handle(x.id)
+      case x: SimpleStreamId if x.id == streamRef => callback.handle(x.id)
     }
   }
 
   final def onStreamPassive(streamRef: String, callback: StreamStateCallback): Unit = {
     onStreamPassive {
-      case x: StreamId if x.id == streamRef => callback.handle(x.id)
+      case x: SimpleStreamId if x.id == streamRef => callback.handle(x.id)
     }
   }
 

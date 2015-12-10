@@ -3,13 +3,13 @@ package rs.testing
 import akka.actor.ActorRef
 import org.scalatest.Suite
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
-import rs.core.sysevents.support.EventAssertions
+import rs.core.sysevents.support.EvtAssertions
 
 import scala.language.implicitConversions
 
 
 trait AbstractNodeTestContext {
-  _: MultiActorSystemTestContext with EventAssertions with Suite with ActorSystemManagement =>
+  _: MultiActorSystemTestContext with EvtAssertions with Suite with ActorSystemManagement =>
 
   protected def instanceId(idx: Int) = s"node$idx"
 

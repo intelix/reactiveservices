@@ -24,15 +24,15 @@ import rs.core.config.ConfigOps.wrap
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages._
 import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
 
-trait ServicePortSubscriptionRequestSinkEvt extends ComponentWithBaseSysevents {
+trait ServicePortSubscriptionRequestSinkEvt extends CommonEvt {
   val CompletedSuccessfully = "CompletedSuccessfully".info
   val CompletedWithError = "CompletedWithError".warn
   val TerminatedOnRequest = "TerminatedOnRequest".warn
 
-  override def componentId: String = "ServicePort.SubscriptionSink"
+  override def componentId: String = "ServicePort.StreamSubscriptionSink"
 }
 
 
@@ -102,7 +102,7 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
       terminateInstance()
   }
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('token -> token)
+  addEvtFields('token -> token)
 
   onActorTerminated { ref =>
     if (ref == streamAggregator) {

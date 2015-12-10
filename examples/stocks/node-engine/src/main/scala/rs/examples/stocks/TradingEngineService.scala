@@ -20,7 +20,7 @@ import java.util.Date
 import play.api.libs.json.Json
 import rs.core.SubjectTags.UserId
 import rs.core.services.endpoint.Terminal
-import rs.core.services.{StatelessServiceActor, ServiceEvt, StreamId}
+import rs.core.services._
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromTail, ListSpecs}
 import rs.core.stream.SetStreamState.SetSpecs
@@ -46,36 +46,39 @@ class TradingEngineService(id: String) extends StatelessServiceActor(id) with Te
 
   val tradeDictionary: Dictionary = Dictionary("id", "trader", "symbol", "price", "date")
 
-
   val availableSymbols = Set("ABC", "XYZ")
 
   var trades: List[Trade] = List.empty
 
+  object SymbolContainerStream extends SimpleStreamIdTemplate("symbols")
+  object TradeContainerStream extends SimpleStreamIdTemplate("trades")
+  object SymbolStream extends CompoundStreamIdTemplate[String]("symbol")
+  object TradeStream extends CompoundStreamIdTemplate[String]("trade")
+
   onSubjectMapping {
-    case Subject(_, TopicKey("symbols"), _) => Some("symbols")
-    case Subject(_, CompositeTopicKey("symbol", sym), _) => Some(("symbol", sym))
-    case Subject(_, TopicKey("trades"), _) => Some("trades")
-    case Subject(_, CompositeTopicKey("trade", tId), _) => Some(("trade", tId))
+    case Subject(_, TopicKey("symbols"), _) => SymbolContainerStream()
+    case Subject(_, CompositeTopicKey("symbol", sym), _) => SymbolStream(sym)
+    case Subject(_, TopicKey("trades"), _) => TradeContainerStream()
+    case Subject(_, CompositeTopicKey("trade", tId), _) => TradeStream(tId)
   }
 
   onStreamActive {
-    case StreamId("symbols", _) => "symbols" !% availableSymbols
-    case s@StreamId("symbol", Some(sym: String)) =>
+    case s@SymbolContainerStream() => s !% availableSymbols
+    case s@SymbolStream(sym) =>
       s !# Array(sym, 0D, false)
       subscribe(Subject("price-source", sym))
-    case StreamId("trades", _) => "trades" !:! trades.take(10).map(_.id)
-    case s@StreamId("trade", Some(tId: String)) if trades exists (_.id == tId) =>
+    case s@TradeContainerStream() => s !:! trades.take(10).map(_.id)
+    case s@TradeStream(tId) if trades exists (_.id == tId) =>
       trades find (_.id == tId) foreach { trade => s.!#(Array(trade.id, trade.trader, trade.symbol, trade.price, trade.date))(tradeDictionary) }
   }
 
   onStreamPassive {
-    case s@StreamId("symbol", Some(sym: String)) =>
-      unsubscribe(Subject("price-source", sym))
+    case s@SymbolStream(sym) => unsubscribe(Subject("price-source", sym))
   }
 
   onDictMapRecord {
     case (Subject(ServiceKey("price-source"), TopicKey(symbol), _), map) =>
-      val stream = StreamId("symbol", Some(symbol))
+      val stream = SymbolStream(symbol)
       map.get("price", 0D) match {
         case 0 => stream !# Array(symbol, 0D, false)
         case price => stream !# Array(symbol, price, true)

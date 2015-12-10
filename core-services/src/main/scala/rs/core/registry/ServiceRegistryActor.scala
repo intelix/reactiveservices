@@ -50,7 +50,7 @@ class ServiceRegistryActor(id: String)
 
   context.system.eventStream.subscribe(self, classOf[RegistryLocationRequest])
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> id, 'nodeid -> nodeId)
+  addEvtFields('service -> id)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {

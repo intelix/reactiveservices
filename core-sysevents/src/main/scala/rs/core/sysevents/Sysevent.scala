@@ -19,14 +19,13 @@ import scala.language.implicitConversions
 
 sealed trait Sysevent {
 
+  val id: String
 
-  def id: String
+  val componentId: String
 
-  def componentId: String
+  type EffectBlock[T] = EvtContext => T
 
-  type EffectBlock[T] = SyseventPublisherContext => T
-
-  private def run[T](ff: => Seq[FieldAndValue], f: EffectBlock[T])(implicit ctx: WithSysevents): T = {
+  private def run[T](ff: => Seq[FieldAndValue], f: EffectBlock[T])(implicit ctx: EvtPublisherContext): T = {
     val eCtx = ctx.evtPublisher.contextFor(this, ff)
     val start = if (eCtx.isMute) 0 else System.nanoTime()
 
@@ -36,7 +35,7 @@ sealed trait Sysevent {
         throw e
     } finally {
       if (!eCtx.isMute) {
-        if (ctx.commonFields.nonEmpty) eCtx ++ ctx.commonFields
+        if (ctx.constantFields.nonEmpty) eCtx ++ ctx.constantFields
         val diff = System.nanoTime() - start
         eCtx + ('ms -> ((diff / 1000).toDouble / 1000))
       }
@@ -44,41 +43,41 @@ sealed trait Sysevent {
     }
   }
 
-  private def run(ff: => Seq[FieldAndValue])(implicit ctx: WithSysevents): Unit = {
+  private def run(ff: => Seq[FieldAndValue])(implicit ctx: EvtPublisherContext): Unit = {
     val eCtx = ctx.evtPublisher.contextFor(this, ff)
     if (!eCtx.isMute) {
-      if (ctx.commonFields.nonEmpty) eCtx ++ ctx.commonFields
+      if (ctx.constantFields.nonEmpty) eCtx ++ ctx.constantFields
     }
     ctx.evtPublisher.publish(eCtx)
   }
 
-  def apply[T](f: EffectBlock[T])(implicit ctx: WithSysevents): T = run(Seq.empty, f)
+  def apply[T](f: EffectBlock[T])(implicit ctx: EvtPublisherContext): T = run(Seq.empty, f)
 
-  def apply[T](f1: => FieldAndValue)(implicit ctx: WithSysevents): Unit = run(Seq(f1))
+  def apply[T](f1: => FieldAndValue)(implicit ctx: EvtPublisherContext): Unit = run(Seq(f1))
 
-  def apply[T]()(implicit ctx: WithSysevents): Unit = run(Seq.empty)
+  def apply[T]()(implicit ctx: EvtPublisherContext): Unit = run(Seq.empty)
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue)
-              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2))
+              (implicit ctx: EvtPublisherContext): Unit = run(Seq(f1, f2))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
                f3: => FieldAndValue)
-              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3))
+              (implicit ctx: EvtPublisherContext): Unit = run(Seq(f1, f2, f3))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
                f3: => FieldAndValue,
                f4: => FieldAndValue)
-              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4))
+              (implicit ctx: EvtPublisherContext): Unit = run(Seq(f1, f2, f3, f4))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
                f3: => FieldAndValue,
                f4: => FieldAndValue,
                f5: => FieldAndValue)
-              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4, f5))
+              (implicit ctx: EvtPublisherContext): Unit = run(Seq(f1, f2, f3, f4, f5))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
@@ -86,7 +85,7 @@ sealed trait Sysevent {
                f4: => FieldAndValue,
                f5: => FieldAndValue,
                f6: => FieldAndValue)
-              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4, f5, f6))
+              (implicit ctx: EvtPublisherContext): Unit = run(Seq(f1, f2, f3, f4, f5, f6))
 
   def apply[T](f1: => FieldAndValue,
                f2: => FieldAndValue,
@@ -95,21 +94,18 @@ sealed trait Sysevent {
                f5: => FieldAndValue,
                f6: => FieldAndValue,
                f7: => FieldAndValue)
-              (implicit ctx: WithSysevents): Unit = run(Seq(f1, f2, f3, f4, f5, f6, f7))
+              (implicit ctx: EvtPublisherContext): Unit = run(Seq(f1, f2, f3, f4, f5, f6, f7))
 
 }
 
 
-trait SyseventImplicits {
-  implicit def stringToSyseventOps(s: String)(implicit component: SyseventComponent): SyseventOps = new SyseventOps(s, component)
-
-  implicit def symbolToSyseventOps(s: Symbol)(implicit component: SyseventComponent): SyseventOps = new SyseventOps(s.name, component)
+trait EvtImplicits {
+  implicit def stringToEvtOps(s: String)(implicit component: EvtGroup): EvtOps = new EvtOps(s, component)
+  implicit def symbolToEvtOps(s: Symbol)(implicit component: EvtGroup): EvtOps = new EvtOps(s.name, component)
 }
 
-object SyseventOps extends SyseventImplicits
 
-
-class SyseventOps(id: String, component: SyseventComponent) {
+class EvtOps(id: String, component: EvtGroup) {
   def trace: Sysevent = TraceSysevent(id, component.componentId)
 
   def info: Sysevent = InfoSysevent(id, component.componentId)

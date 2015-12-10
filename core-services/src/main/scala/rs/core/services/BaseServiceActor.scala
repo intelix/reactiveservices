@@ -140,8 +140,10 @@ trait BaseServiceActor
   implicit def futureOfSignalResponseToOptionWrapper(x: Future[SignalResponse]): Option[Future[SignalResponse]] = Some(x)
 
   implicit def streamIdToOptionWrapper(x: StreamId): Option[StreamId] = Some(x)
+  implicit def stringToOptionStreamIdWrapper(x: String): Option[StreamId] = Some(x)
+  implicit def tupleToOptionStreamIdWrapper[T](x: (String,T)): Option[StreamId] = Some(x)
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('service -> serviceKey)
+  addEvtFields('service -> serviceKey)
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
@@ -210,8 +212,6 @@ trait BaseServiceActor
     case StopRequest => context.parent ! StopRequest
 
   }
-
-  override def componentId: String = "Service." + id
 
   onActorTerminated { ref =>
     activeAgents get ref.path.address foreach { loc =>

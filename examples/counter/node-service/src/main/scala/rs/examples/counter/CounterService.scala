@@ -18,7 +18,6 @@ package rs.examples.counter
 
 import rs.core.actors.ActorState
 import rs.core.services.{ServiceEvt, StatefulServiceActor}
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
 import rs.core.{Subject, TopicKey}
 import rs.examples.counter.CounterService.CounterValue
 
@@ -48,8 +47,11 @@ object CounterService {
   case class CounterValue(value: Int)
 
   case object Tick
+
   case object Reset
+
   case object Stop
+
   case object Start
 
 }

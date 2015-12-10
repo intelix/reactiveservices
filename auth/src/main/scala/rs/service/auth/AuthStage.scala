@@ -23,12 +23,11 @@ import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
 import rs.core.stream.{DictionaryMapStreamState, SetStreamState}
-import rs.core.sysevents.SyseventPublisher
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.{CommonEvt, EvtPublisher}
 import rs.core.tools.UUIDTools
 import rs.core.{ServiceKey, Subject, TopicKey}
 
-trait AuthStageEvt extends ComponentWithBaseSysevents {
+trait AuthStageEvt extends CommonEvt {
 
   val SubscribingToAuth = "SubscribingToAuth".info
   val UserIdReset = "UserIdReset".info
@@ -52,7 +51,7 @@ class AuthStage extends ServiceDialectStageBuilder {
       Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
         import FlowGraph.Implicits._
 
-        implicit val evtPub = SyseventPublisher(nodeCfg, 'token -> sessionId)
+        implicit val evtPub = EvtPublisher(nodeCfg, 'token -> sessionId)
 
         val privateKey = sessionId + "_" + UUIDTools.generateShortUUID
 

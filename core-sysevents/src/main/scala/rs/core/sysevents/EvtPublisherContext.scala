@@ -15,20 +15,20 @@
  */
 package rs.core.sysevents
 
-import scala.language.implicitConversions
+import rs.core.config.ConfigOps.wrap
+import rs.core.config.WithNodeConfig
+import rs.core.sysevents.log.LoggerEvtPublisher
 
-trait SyseventComponent {
+trait EvtPublisherContext {
+  implicit val evtPublisherContext = this
 
-  implicit val component = this
+  final val evtPublisher: EvtPublisher = EvtPublisherContext.publisher
 
-  implicit def stringToSyseventOps(s: String): SyseventOps = new SyseventOps(s, this)
+  private[sysevents] var constantFields: Seq[(Symbol, Any)] = Seq()
 
-  implicit def symbolToSyseventOps(s: Symbol): SyseventOps = new SyseventOps(s.name, this)
+  def addEvtFields(fields: (Symbol, Any)*) = constantFields = constantFields ++ fields
+}
 
-  def trace(id: String) = TraceSysevent(id, componentId)
-  def info(id: String) = InfoSysevent(id, componentId)
-  def warn(id: String) = WarnSysevent(id, componentId)
-  def error(id: String) = ErrorSysevent(id, componentId)
-
-  def componentId: String
+private object EvtPublisherContext extends WithSyseventsConfig {
+  val publisher = syseventsConfig.asClass("sysevents.publisher-provider", classOf[LoggerEvtPublisher]).newInstance().asInstanceOf[EvtPublisher]
 }

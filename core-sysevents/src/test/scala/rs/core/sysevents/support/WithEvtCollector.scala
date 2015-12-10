@@ -1,5 +1,5 @@
 package rs.core.sysevents.support
 
-trait WithSyseventsCollector {
+trait WithEvtCollector {
   System.setProperty("config-sysevents", "sysevents-test")
 }

@@ -86,9 +86,9 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 Socket.signals.disconnected.add(self._onDisconnected);
 
                 if (Socket.isConnected()) {
-                    _onConnected();
+                    self._onConnected();
                 } else {
-                    _onDisconnected();
+                    self._onDisconnected();
                 }
 
                 if (self._visibilityMonitorEnabled()) {
@@ -226,7 +226,6 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                 }));
             },
 
-
             _unsubscribeFromStream: function (config) {
                 var self = this;
 
@@ -237,7 +236,6 @@ define(['react', 'logging', 'appevents', 'socket', 'subscriptions', 'auth'],
                     self.logDebug("Dropped interest for " + _subId2String(config));
                 }
             },
-
 
             _subscribeToStream: function (config) {
                 var self = this;

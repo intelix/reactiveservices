@@ -1,8 +1,8 @@
 package rs.core.actors
 
-import rs.core.sysevents.ref.ComponentWithBaseSysevents
+import rs.core.sysevents.CommonEvt
 
-trait CommonActorEvt extends ComponentWithBaseSysevents {
+trait CommonActorEvt extends CommonEvt {
   val PostStop = "Lifecycle.PostStop".info
   val PreStart = "Lifecycle.PreStart".info
   val PreRestart = "Lifecycle.PreRestart".info

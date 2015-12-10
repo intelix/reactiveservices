@@ -5,7 +5,7 @@ import org.slf4j.{LoggerFactory, Logger}
 import play.api.libs.json._
 import rs.core.sysevents._
 
-trait EventLogger {
+trait EvtLogger {
   self: LogMessageFormatter =>
 
   def logEvent(event: Sysevent, values: Seq[(Symbol, Any)]) = {

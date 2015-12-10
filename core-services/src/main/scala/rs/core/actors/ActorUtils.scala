@@ -17,20 +17,16 @@
 package rs.core.actors
 
 import akka.actor.{Actor, ActorRef}
-import rs.core.config.NodeConfig
+import rs.core.config.{WithActorSystemConfig, WithSomeConfig, WithNodeConfig, NodeConfig}
 import rs.core.tools.{NowProvider, UUIDTools}
 
 import scala.concurrent.duration.FiniteDuration
 
-trait ActorUtils extends Actor with NowProvider {
+trait ActorUtils extends Actor with WithActorSystemConfig with NowProvider with WithNodeConfig {
 
   lazy val uuid = randomUUID
 
   def randomUUID: String = UUIDTools.generateShortUUID
-
-  lazy implicit val config = context.system.settings.config
-
-  implicit val nodeCfg = NodeConfig(config)
 
   def scheduleOnce(in: FiniteDuration, msg: Any, to: ActorRef = self, from: ActorRef = self) = context.system.scheduler.scheduleOnce(in, to, msg)(context.dispatcher, from)
 

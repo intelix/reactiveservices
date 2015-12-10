@@ -57,6 +57,10 @@ public class JCounterService extends JServiceActor {
         streamString("counter", String.valueOf(counter++));
     }
 
+    @Override
+    public String componentId() {
+        return "CounterService";
+    }
 }
 
 

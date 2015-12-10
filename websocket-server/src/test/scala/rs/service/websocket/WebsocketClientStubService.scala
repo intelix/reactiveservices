@@ -22,9 +22,8 @@ import rs.core.Subject
 import rs.core.actors.{ActorState, StatefulActor}
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{StatelessServiceActor, ServiceEvt}
+import rs.core.services.{ServiceEvt, StatelessServiceActor}
 import rs.core.stream._
-import rs.core.sysevents.WithSysevents
 import rs.service.websocket.WebSocketClient.{Connecting, Established, WebsocketConnection}
 import rs.service.websocket.WebsocketClientStubService._
 import spray.can.Http.Connect
@@ -36,33 +35,33 @@ import spray.http.{HttpHeaders, HttpMethods, HttpRequest, HttpResponse}
 import scala.annotation.tailrec
 import scala.language.postfixOps
 
+
+trait WebsocketClientStubServiceEvt extends ServiceEvt {
+  val ConnectionUpgraded = "ConnectionUpgraded".info
+  val ConnectionEstablished = "ConnectionEstablished".info
+  val ConnectionClosed = "ConnectionClosed".info
+
+  val ReceivedPing = "ReceivedPing".info
+  val ReceivedServiceNotAvailable = "ReceivedServiceNotAvailable".info
+  val ReceivedInvalidRequest = "ReceivedInvalidRequest".info
+  val ReceivedSubscriptionClosed = "ReceivedSubscriptionClosed".info
+  val ReceivedStreamStateUpdate = "ReceivedStreamStateUpdate".info
+  val ReceivedStreamStateTransitionUpdate = "ReceivedStreamStateTransitionUpdate".info
+  val ReceivedSignalAckOk = "ReceivedSignalAckOk".info
+  val ReceivedSignalAckFailed = "ReceivedSignalAckFailed".info
+
+  val StringUpdate = "StringUpdate".info
+  val SetUpdate = "SetUpdate".info
+  val MapUpdate = "MapUpdate".info
+  val ListUpdate = "ListUpdate".info
+
+
+  override def componentId: String = "WebsocketClientStubService"
+}
+
+object WebsocketClientStubServiceEvt extends WebsocketClientStubServiceEvt
+
 object WebsocketClientStubService {
-
-  trait Evt extends ServiceEvt {
-    val ConnectionUpgraded = "ConnectionUpgraded".info
-    val ConnectionEstablished = "ConnectionEstablished".info
-    val ConnectionClosed = "ConnectionClosed".info
-
-    val ReceivedPing = "ReceivedPing".info
-    val ReceivedServiceNotAvailable = "ReceivedServiceNotAvailable".info
-    val ReceivedInvalidRequest = "ReceivedInvalidRequest".info
-    val ReceivedSubscriptionClosed = "ReceivedSubscriptionClosed".info
-    val ReceivedStreamStateUpdate = "ReceivedStreamStateUpdate".info
-    val ReceivedStreamStateTransitionUpdate = "ReceivedStreamStateTransitionUpdate".info
-    val ReceivedSignalAckOk = "ReceivedSignalAckOk".info
-    val ReceivedSignalAckFailed = "ReceivedSignalAckFailed".info
-
-    val StringUpdate = "StringUpdate".info
-    val SetUpdate = "SetUpdate".info
-    val MapUpdate = "MapUpdate".info
-    val ListUpdate = "ListUpdate".info
-
-
-    override def componentId: String = "WebsocketClientStubService"
-  }
-
-  object Evt extends Evt
-
 
   case class StartWebsocketClient(id: String, host: String, port: Int)
 
@@ -82,6 +81,7 @@ class WebsocketClientStubService(serviceId: String) extends StatelessServiceActo
     case StartWebsocketClient(id, host, port) => context.actorOf(Props(classOf[WebSocketClient], id, host, port), id)
   }
 
+  override def componentId: String = "WebsocketClientStubService"
 }
 
 trait Consumer
@@ -105,9 +105,9 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
   extends StatefulActor[WebsocketConnection]
     with Consumer
     with Stash
-    with Evt {
+    with WebsocketClientStubServiceEvt {
 
-  override def commonFields: Seq[(Symbol, Any)] = super.commonFields ++ Seq('id -> id)
+  addEvtFields('id -> id)
 
   startWith(Connecting, WebsocketConnection())
 
