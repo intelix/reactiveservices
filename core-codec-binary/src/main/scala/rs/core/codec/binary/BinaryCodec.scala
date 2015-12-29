@@ -69,7 +69,7 @@ object BinaryCodec {
       val in2: Inlet[ServiceOutbound] = Inlet("ModelIn")
       val out2: Outlet[BinaryDialectOutbound] = Outlet("BytesOut")
 
-      override def shape: BidiShape[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound] = BidiShape(in1, out1, in2, out2)
+      override val shape: BidiShape[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound] = BidiShape(in1, out1, in2, out2)
 
       override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
         var subjects: Map[Int, Subject] = Map()

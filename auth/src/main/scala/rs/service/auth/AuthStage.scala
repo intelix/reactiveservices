@@ -55,7 +55,7 @@ class AuthStage extends ServiceDialectStageBuilder {
     val in2: Inlet[ServiceOutbound] = Inlet("ClientBoundIn")
     val out2: Outlet[ServiceOutbound] = Outlet("ClientBoundOut")
 
-    override def shape: BidiShape[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound] = BidiShape(in1, out1, in2, out2)
+    override val shape: BidiShape[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound] = BidiShape(in1, out1, in2, out2)
 
     override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
       implicit val evtPub = EvtPublisher(nodeCfg, 'token -> sessionId)
