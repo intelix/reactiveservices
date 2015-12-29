@@ -78,7 +78,7 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
   var connectionCounter = new AtomicInteger(0)
 
   def handleWebsocket(upgrade: UpgradeToWebsocket, headers: Seq[HttpHeader], id: String) = NewConnection { ctx =>
-    ctx + ('token -> id, 'headers -> headers.map(_.toString))
+    ctx +('token -> id, 'headers -> headers.map(_.toString))
     upgrade.handleMessages(buildFlow(id))
   }
 

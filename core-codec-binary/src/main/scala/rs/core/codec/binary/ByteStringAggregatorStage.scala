@@ -16,7 +16,7 @@
 package rs.core.codec.binary
 
 import akka.stream.BidiShape
-import akka.stream.scaladsl.{BidiFlow, Flow}
+import akka.stream.scaladsl.{BidiFlow, Flow, GraphDSL}
 import akka.util.ByteString
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{NodeConfig, ServiceConfig}
@@ -29,7 +29,7 @@ class ByteStringAggregatorStage extends BytesStageBuilder {
 
   override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig) =
     if (serviceCfg.asBoolean("aggregator.enabled", defaultValue = true))
-      Some(BidiFlow() { b =>
+      Some(BidiFlow.fromGraph(GraphDSL.create() { b =>
 
         val maxMessages = serviceCfg.asInt("aggregator.max-messages", 100)
         val within = serviceCfg.asFiniteDuration("aggregator.time-window", 100 millis)
@@ -37,10 +37,10 @@ class ByteStringAggregatorStage extends BytesStageBuilder {
         val in = b.add(Flow[ByteString])
         val out = b.add(Flow[ByteString].groupedWithin(maxMessages, within).map {
           case Nil => ByteString.empty
-          case bs :: Nil => bs
-          case s => s.foldLeft(ByteString.empty)(_ ++ _)
+          case bs :: Nil => bs.compact
+          case s => s.foldLeft(ByteString.empty)(_ ++ _).compact
         })
-        BidiShape(in, out)
-      })
+        BidiShape.fromFlows(in, out)
+      }))
     else None
 }

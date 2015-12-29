@@ -17,7 +17,7 @@ package rs.service.websocket
 
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message}
 import akka.stream.BidiShape
-import akka.stream.scaladsl.{BidiFlow, Flow, Sink}
+import akka.stream.scaladsl.{GraphDSL, BidiFlow, Flow, Sink}
 import akka.util.ByteString
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.ServiceConfig
@@ -27,7 +27,8 @@ import scala.concurrent.Future
 
 private[websocket] object WebsocketBinaryFrameFolder {
 
-  def buildStage(sessionId: String, componentId: String)(implicit mat: akka.stream.Materializer, sCfg: ServiceConfig): BidiFlow[Message, ByteString, ByteString, Message, Unit] = BidiFlow() { b =>
+  def buildStage(sessionId: String, componentId: String)(implicit mat: akka.stream.Materializer, sCfg: ServiceConfig): BidiFlow[Message, ByteString, ByteString, Message, Unit] =
+    BidiFlow.fromGraph(GraphDSL.create() { b =>
     val top = Flow[Message]
       .filter {
         case t: BinaryMessage => true
@@ -40,7 +41,7 @@ private[websocket] object WebsocketBinaryFrameFolder {
         case _ => Future.successful(ByteString.empty)
     }
     val bottom = Flow[ByteString].map { b => BinaryMessage(b) }
-    BidiShape(b.add(top), b.add(bottom))
-  }
+    BidiShape.fromFlows(b.add(top), b.add(bottom))
+  })
 
 }

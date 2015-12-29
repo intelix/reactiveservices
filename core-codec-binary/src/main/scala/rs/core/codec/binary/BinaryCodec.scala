@@ -19,8 +19,8 @@ import java.nio.ByteOrder
 
 import akka.stream._
 import akka.stream.scaladsl._
+import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import akka.util.{ByteIterator, ByteString, ByteStringBuilder}
-import com.typesafe.config.Config
 import rs.core.codec.binary.BinaryCodec.Codecs._
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.{NodeConfig, ServiceConfig}
@@ -29,7 +29,7 @@ import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
 import rs.core.stream.SetStreamState.{Add, Remove, SetOp, SetSpecs}
 import rs.core.stream._
-import rs.core.sysevents.{EvtPublisher, EvtPublisherContext}
+import rs.core.sysevents.EvtPublisher
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 import scala.annotation.tailrec
@@ -63,76 +63,91 @@ object BinaryCodec {
 
   object Streams {
 
-    def buildServerSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig): BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit] = BidiFlow.wrap(FlowGraph.partial() { implicit b =>
-      import FlowGraph.Implicits._
+    private class ServiceSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig) extends GraphStage[BidiShape[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound]] {
+      val in1: Inlet[BinaryDialectInbound] = Inlet("BytesIn")
+      val out1: Outlet[ServiceInbound] = Outlet("ModelOut")
+      val in2: Inlet[ServiceOutbound] = Inlet("ModelIn")
+      val out2: Outlet[BinaryDialectOutbound] = Outlet("BytesOut")
 
-      class InboundRouter extends FlexiRoute[BinaryDialectInbound, FanOutShape2[BinaryDialectInbound, ServiceInbound, BinaryDialectAlias]](
-        new FanOutShape2("binaryMessageRouter"), Attributes.name("binaryMessageRouter")) {
+      override def shape: BidiShape[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound] = BidiShape(in1, out1, in2, out2)
 
-        import FlexiRoute._
-
-        override def createRouteLogic(s: PortT): RouteLogic[BinaryDialectInbound] =
-          new RouteLogic[BinaryDialectInbound] {
-
-            var subjects: Map[Int, Subject] = Map()
-
-            override def initialState: State[Unit] = State(DemandFromAll(s.out0, s.out1)) { (ctx, _, el) =>
-              el match {
-                case m@BinaryDialectAlias(id, subj) =>
-                  subjects += id -> subj
-                  ctx.emit(s.out1)(m)
-                case t: BinaryDialectPong => //ignore
-                case t: BinaryDialectResetSubscription => // ignore
-                case t: BinaryDialectOpenSubscription =>
-                  subjects get t.subjAlias foreach { subj => ctx.emit(s.out0)(OpenSubscription(subj, t.priorityKey, t.aggregationIntervalMs)) }
-                case t: BinaryDialectCloseSubscription =>
-                  subjects get t.subjAlias foreach { subj => ctx.emit(s.out0)(CloseSubscription(subj)) }
-                case t: BinaryDialectSignal =>
-                  subjects get t.subjAlias foreach { subj => ctx.emit(s.out0)(Signal(subj, t.payload, t.expireAt, t.orderingGroup, t.correlationId)) }
-              }
-              SameState
-            }
-          }
-      }
-
-      class OutboundMerger extends FlexiMerge[BinaryDialectOutbound, FanInShape2[Any, Any, BinaryDialectOutbound]](
-        new FanInShape2("outboundServiceToBinaryTranslator"), Attributes.name("outboundServiceToBinaryTranslator")) {
-
-        import akka.stream.scaladsl.FlexiMerge._
-
+      override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
+        var subjects: Map[Int, Subject] = Map()
         var aliases: Map[Subject, Int] = Map()
 
-        override def createMergeLogic(s: PortT): MergeLogic[BinaryDialectOutbound] = new MergeLogic[BinaryDialectOutbound] {
-          override def initialState: State[_] = State(ReadPreferred(s.in0, s.in1)) { (ctx, input, element) =>
-            element match {
-              case BinaryDialectAlias(id, subj) => aliases += subj -> id
-              case t: InvalidRequest =>
-                aliases get t.subj foreach { alias => ctx.emit(BinaryDialectInvalidRequest(alias)) }
-              case t: ServiceNotAvailable => ctx.emit(BinaryDialectServiceNotAvailable(t.serviceKey))
-              case t: StreamStateUpdate =>
-                aliases get t.subject foreach { alias => ctx.emit(BinaryDialectStreamStateUpdate(alias, t.topicState)) }
-              case t: SignalAckOk =>
-                aliases get t.subj foreach { alias => ctx.emit(BinaryDialectSignalAckOk(alias, t.correlationId, t.payload)) }
-              case t: SignalAckFailed =>
-                aliases get t.subj foreach { alias => ctx.emit(BinaryDialectSignalAckFailed(alias, t.correlationId, t.payload)) }
-              case t: SubscriptionClosed =>
-                aliases get t.subj foreach { alias => ctx.emit(BinaryDialectSubscriptionClosed(alias)) }
-            }
-            SameState
-          }
+        var pendingToService: Option[ServiceInbound] = None
+        var pendingToClient: Option[BinaryDialectOutbound] = None
+
+        override def preStart(): Unit = {
+          pull(in1)
+          pull(in2)
         }
+
+        setHandler(in1, new InHandler {
+          override def onPush(): Unit =
+            convert(grab(in1)) match {
+              case b@Some(v) if !isAvailable(out1) => pendingToService = b
+              case Some(v) => push(out1, v); pull(in1)
+              case None => pull(in1)
+            }
+        })
+        setHandler(out1, new OutHandler {
+          override def onPull(): Unit = pendingToService foreach { next =>
+            pull(in1)
+            push(out1, next)
+            pendingToService = None
+          }
+        })
+        setHandler(in2, new InHandler {
+          override def onPush(): Unit =
+            convert(grab(in2)) match {
+              case b@Some(v) if !isAvailable(out2) => pendingToClient = b
+              case Some(v) => push(out2, v); pull(in2)
+              case None => pull(in2)
+            }
+        })
+        setHandler(out2, new OutHandler {
+          override def onPull(): Unit = pendingToClient foreach { next =>
+            pull(in2)
+            push(out2, next)
+            pendingToClient = None
+          }
+        })
+
+
+        def convert(s: BinaryDialectInbound): Option[ServiceInbound] = s match {
+          case m@BinaryDialectAlias(id, subj) =>
+            subjects += id -> subj
+            aliases += subj -> id
+            None
+          case t: BinaryDialectOpenSubscription => subjects get t.subjAlias map (OpenSubscription(_, t.priorityKey, t.aggregationIntervalMs))
+          case t: BinaryDialectCloseSubscription => subjects get t.subjAlias map CloseSubscription
+          case t: BinaryDialectSignal => subjects get t.subjAlias map (Signal(_, t.payload, t.expireAt, t.orderingGroup, t.correlationId))
+          case _ => None
+        }
+
+        def convert(s: ServiceOutbound): Option[BinaryDialectOutbound] = s match {
+          case t: InvalidRequest => aliases get t.subj map BinaryDialectInvalidRequest
+          case t: ServiceNotAvailable => Some(BinaryDialectServiceNotAvailable(t.serviceKey))
+          case t: StreamStateUpdate => aliases get t.subject map (BinaryDialectStreamStateUpdate(_, t.topicState))
+          case t: SignalAckOk => aliases get t.subj map (BinaryDialectSignalAckOk(_, t.correlationId, t.payload))
+          case t: SignalAckFailed => aliases get t.subj map (BinaryDialectSignalAckFailed(_, t.correlationId, t.payload))
+          case t: SubscriptionClosed => aliases get t.subj map BinaryDialectSubscriptionClosed
+          case _ => None
+        }
+
+
       }
 
+    }
 
-      val inboundRouter = b.add(new InboundRouter)
-      val outboundMerger = b.add(new OutboundMerger)
 
-      inboundRouter.out1 ~> outboundMerger.in0
+    def buildServerSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig): BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit] =
+      BidiFlow.fromGraph(new ServiceSideTranslator(sessionId, componentId))
 
-      BidiShape(FlowShape(inboundRouter.in, inboundRouter.out0), FlowShape(outboundMerger.in1, outboundMerger.out))
-    })
 
-    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, nodeCfg: NodeConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] = BidiFlow() { b =>
+    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, nodeCfg: NodeConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] =
+      BidiFlow.fromGraph(GraphDSL.create() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
 
       import BinaryCodecEvt._
@@ -152,10 +167,11 @@ object BinaryCodec {
         MessageEncoded('original -> x, 'encoded -> encoded)
         encoded
       }
-      BidiShape(top, bottom)
-    }
+      BidiShape.fromFlows(top, bottom)
+    })
 
-    def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutbound, BinaryDialectInbound, ByteString, Unit] = BidiFlow() { b =>
+    def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutbound, BinaryDialectInbound, ByteString, Unit] =
+      BidiFlow.fromGraph(GraphDSL.create() { b =>
       implicit val byteOrder = ByteOrder.BIG_ENDIAN
       val top = b add Flow[ByteString].mapConcat[BinaryDialectOutbound] { x =>
         @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
@@ -169,8 +185,8 @@ object BinaryCodec {
         val encoded = b.result()
         encoded
       }
-      BidiShape(top, bottom)
-    }
+      BidiShape.fromFlows(top, bottom)
+    })
 
 
   }

@@ -41,9 +41,9 @@ object ProjectBuild {
   )
 
   lazy val compilerSettings = Seq(
-    scalacOptions in Compile ++= Seq("-encoding", "UTF-8", "-target:jvm-1.7", "-deprecation", "-feature", "-unchecked", "-Xlog-reflective-calls"),
-    javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.7", "-target", "1.7", "-Xlint:unchecked", "-Xlint:deprecation"),
-    javacOptions in doc ++= Seq("-encoding", "UTF-8", "-source", "1.7"),
+    scalacOptions in Compile ++= Seq("-encoding", "UTF-8", "-target:jvm-1.8", "-deprecation", "-feature", "-unchecked", "-Xlog-reflective-calls"),
+    javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.8", "-target", "1.8", "-Xlint:unchecked", "-Xlint:deprecation"),
+    javacOptions in doc ++= Seq("-encoding", "UTF-8", "-source", "1.8"),
     incOptions := incOptions.value.withNameHashing(nameHashing = true),
     evictionWarningOptions in update := EvictionWarningOptions.default.withWarnTransitiveEvictions(false).withWarnDirectEvictions(false).withWarnScalaVersionEviction(false)
 
@@ -112,7 +112,7 @@ object ProjectBuild {
   def settings(theName: String) = defaultSettings ++: Seq(
     name := theName,
     organization := "au.com.intelix",
-    scalaVersion := "2.11.6",
+    scalaVersion := "2.11.7",
     version := "0.1.0-SNAPSHOT",
     doc in Compile <<= target.map(_ / "none")
   )

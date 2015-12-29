@@ -17,7 +17,7 @@
 (function () {
 
     //noinspection JSFileReferences
-    require(["/assets/javascripts/rs-config.js", "/assets/javascripts/auth-config.js"], function (a,b) {
+    require(["/assets/javascripts/rs-config.js"], function () {
         require.config({
 
             /*noinspection */

@@ -44,9 +44,9 @@ trait ServicePortEvt extends CommonEvt {
 object ServicePort extends ServicePortEvt {
 
 
-  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, nodeCfg: NodeConfig) = Flow.wrap[ServiceInbound, ServiceOutbound, Any](FlowGraph.partial() { implicit b =>
+  def buildFlow(tokenId: String)(implicit context: ActorRefFactory, nodeCfg: NodeConfig) = Flow.fromGraph(GraphDSL.create() { implicit b =>
 
-    import FlowGraph.Implicits._
+    import GraphDSL.Implicits._
 
     implicit val ec = context.dispatcher
 
@@ -54,30 +54,58 @@ object ServicePort extends ServicePortEvt {
 
     val signalParallelism = nodeCfg.asInt("signal-parallelism", 100)
 
-    class MessageRouter[T] extends FlexiRoute[T, UniformFanOutShape[T, T]](new UniformFanOutShape(2), Attributes.name("Router")) {
+    class MessageRouter extends GraphStage[UniformFanOutShape[ServiceInbound, ServiceInbound]] {
+      override val shape: UniformFanOutShape[ServiceInbound, ServiceInbound] = new UniformFanOutShape(2)
 
-      import FlexiRoute._
+      override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
+        val pendingSignals = scala.collection.mutable.Queue[ServiceInbound]()
+        val pendingSubscriptions = scala.collection.mutable.Queue[ServiceInbound]()
 
-      override def createRouteLogic(s: PortT): RouteLogic[T] = new RouteLogic[T] {
-        override def initialState: State[Unit] =
-          State(DemandFromAll(s.out(0), s.out(1))) {
-            (ctx, _, el) =>
-              el match {
-                case x: OpenSubscription => ctx.emit(s.out(0))(el)
-                case x: CloseSubscription => ctx.emit(s.out(0))(el)
-                case x: Signal => ctx.emit(s.out(1))(el)
-                case x =>
-              }
-              SameState
+        override def preStart(): Unit = pull(shape.in)
+
+        setHandler(shape.in, new InHandler {
+          override def onPush(): Unit = {
+            grab(shape.in) match {
+              case x: Signal =>
+                pendingSignals.enqueue(x)
+                doPushSignal()
+              case x: OpenSubscription =>
+                pendingSubscriptions.enqueue(x)
+                doPushSubscription()
+              case x: CloseSubscription =>
+                pendingSubscriptions.enqueue(x)
+                doPushSubscription()
+              case _ =>
+            }
+            doPull()
           }
+        })
+        setHandler(shape.out(0), new OutHandler {
+          override def onPull(): Unit = doPushSubscription()
+        })
+        setHandler(shape.out(1), new OutHandler {
+          override def onPull(): Unit = doPushSignal()
+        })
 
-        override def initialCompletionHandling: CompletionHandling = CompletionHandling(
-          onUpstreamFailure = (ctx, cause) => ctx.finish(),
-          onUpstreamFinish = ctx => ctx.finish(),
-          onDownstreamFinish = (ctx, _) => {
-            ctx.finish(); SameState
-          }
-        )
+        def doPull() = if (canPull) pull(shape.in)
+
+        def canPull = !hasBeenPulled(shape.in) && hasCapacity
+
+        def hasCapacity = pendingSignals.size < 64 && pendingSubscriptions.size < 64
+
+        def doPushSignal() = if (canPushSignal) {
+          push(shape.out(1), pendingSignals.dequeue())
+          doPull()
+        }
+
+        def canPushSignal = isAvailable(shape.out(1)) && pendingSignals.nonEmpty
+
+        def doPushSubscription() = if (canPushSubscription) {
+          push(shape.out(0), pendingSubscriptions.dequeue())
+          doPull()
+        }
+
+        def canPushSubscription = isAvailable(shape.out(0)) && pendingSubscriptions.nonEmpty
       }
 
     }
@@ -150,16 +178,16 @@ object ServicePort extends ServicePortEvt {
 
     val publisherSource = b.add(publisher)
 
-    val router = b.add(new MessageRouter[ServiceInbound])
+    val router = b.add(new MessageRouter)
 
     val monitor = b.add(Flow[ServiceInbound].transform(() => lifecycleMonitor))
 
-    monitor ~> router.in
-    router.out(0) ~> requestSink // stream subscriptions
-    router.out(1) ~> signalExecStage ~> merge.preferred // signals
-    publisherSource ~> merge
+    monitor ~>  router.in
+                router.out(0) ~>  requestSink // stream subscriptions
+                router.out(1) ~>  signalExecStage ~>  merge.preferred // signals
+                                                      merge <~ publisherSource
 
-    FlowShape(monitor.inlet, merge.out)
+    FlowShape(monitor.in, merge.out)
 
   })
 

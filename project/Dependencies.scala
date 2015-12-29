@@ -5,7 +5,7 @@ object Dependencies {
   object Versions {
 
 
-    val scalaVersion = "2.11.6"
+    val scalaVersion = "2.11.7"
     val scalaTestVersion = "2.2.1"
 
     val playCacheVersion = "2.2.1"
@@ -18,9 +18,10 @@ object Dependencies {
 
     val groovyVersion = "2.3.8"
 
-    val akkaVersion = "2.3.13"
-    val akkaStreamVersion = "1.0"
-    val akkaHTTPVersion = "1.0"
+    val googleProtobufVersion = "2.5.0"
+    val akkaVersion = "2.4.1"
+    val akkaStreamVersion = "2.0.1"
+    val akkaHTTPVersion = "2.0.1"
     val akkaDataReplVersion = "0.11"
 
     val scalaLoggingVersion = "3.1.0"
@@ -59,7 +60,7 @@ object Dependencies {
     val webjarsCryptoJSVersion = "3.1.2"
     val webjarsJsSignalsVersion = "1.0.0"
 
-    val kryoserVersion = "0.3.3"
+    val kryoserVersion = "0.4.0"
     
     val nettyVersion = "3.9.3.Final"
 
@@ -73,70 +74,72 @@ object Dependencies {
     import Versions._
 
 
-    val playCache       = "com.typesafe.play"           %%  "play-cache"                    % playCacheVersion
-    val playJson        = "com.typesafe.play"           %%  "play-json"                     % playJsonVersion
-    val playJsonZipper  = "com.mandubian"               %%  "play-json-zipper"              % playJsonZipperVersion
+    val playCache         = "com.typesafe.play"           %%  "play-cache"                    % playCacheVersion
+    val playJson          = "com.typesafe.play"           %%  "play-json"                     % playJsonVersion
+    val playJsonZipper    = "com.mandubian"               %%  "play-json-zipper"              % playJsonZipperVersion
 
-    val slick           = "com.typesafe.slick"          %%  "slick"                         % slickVersion
-    val h2              = "com.h2database"              %   "h2"                            % h2Version
+    val slick             = "com.typesafe.slick"          %%  "slick"                         % slickVersion
+    val h2                = "com.h2database"              %   "h2"                            % h2Version
 
-    val groovy          = "org.codehaus.groovy"         %   "groovy-all"                    % groovyVersion
+    val groovy            = "org.codehaus.groovy"         %   "groovy-all"                    % groovyVersion
 
-    val akkaActor       = "com.typesafe.akka"           %% "akka-actor"                     % akkaVersion
-    val akkaKernel      = "com.typesafe.akka"           %% "akka-kernel"                    % akkaVersion
-    val akkaAgent       = "com.typesafe.akka"           %% "akka-agent"                     % akkaVersion
-    val akkaSlf4j       = "com.typesafe.akka"           %% "akka-slf4j"                     % akkaVersion
-    val akkaRemote      = "com.typesafe.akka"           %% "akka-remote"                    % akkaVersion
-    val akkaCluster     = "com.typesafe.akka"           %% "akka-cluster"                   % akkaVersion
-    val akkaPersistence = "com.typesafe.akka"           %% "akka-persistence-experimental"  % akkaVersion
-    val akkaStreams     = "com.typesafe.akka"           %% "akka-stream-experimental"       % akkaStreamVersion
-    val akkaHttpCore    = "com.typesafe.akka"           %% "akka-http-core-experimental"    % akkaHTTPVersion
-    val akkaHttp        = "com.typesafe.akka"           %% "akka-http-experimental"         % akkaHTTPVersion
-    val akkaDataRepl    = "com.github.patriknw"         %% "akka-data-replication"          % akkaDataReplVersion
-    val akkaContrib     = "com.typesafe.akka"           %% "akka-contrib"                   % akkaVersion
+    val akkaActor         = "com.typesafe.akka"           %% "akka-actor"                     % akkaVersion
+    val akkaKernel        = "com.typesafe.akka"           %% "akka-kernel"                    % akkaVersion
+    val akkaAgent         = "com.typesafe.akka"           %% "akka-agent"                     % akkaVersion
+    val akkaSlf4j         = "com.typesafe.akka"           %% "akka-slf4j"                     % akkaVersion
+    val akkaRemote        = "com.typesafe.akka"           %% "akka-remote"                    % akkaVersion
+    val akkaCluster       = "com.typesafe.akka"           %% "akka-cluster"                   % akkaVersion
+    val akkaPersistence   = "com.typesafe.akka"           %% "akka-persistence-experimental"  % akkaVersion
+    val akkaStreams       = "com.typesafe.akka"           %% "akka-stream-experimental"       % akkaStreamVersion
+    val akkaHttpCore      = "com.typesafe.akka"           %% "akka-http-core-experimental"    % akkaHTTPVersion
+    val akkaHttp          = "com.typesafe.akka"           %% "akka-http-experimental"         % akkaHTTPVersion
+    val akkaDataRepl      = "com.github.patriknw"         %% "akka-data-replication"          % akkaDataReplVersion
+    val akkaContrib       = "com.typesafe.akka"           %% "akka-contrib"                   % akkaVersion
 
-    val loggingScala    = "com.typesafe.scala-logging"  %% "scala-logging"                  % scalaLoggingVersion
-    val loggingLogback  = "ch.qos.logback"              %  "logback-classic"                % logbackVersion
+    val googleProtobuf    = "com.google.protobuf"         %  "protobuf-java"                  % googleProtobufVersion
 
-    val jodaTime        = "joda-time"                   %  "joda-time"                      % jodaTimeVersion
-    val jodaConvert     = "org.joda"                    %  "joda-convert"                   % jodaConvertVersion
-    val prettyTime      = "org.ocpsoft.prettytime"      %  "prettytime"                     % prettytimeVersion
+    val loggingScala      = "com.typesafe.scala-logging"  %% "scala-logging"                  % scalaLoggingVersion
+    val loggingLogback    = "ch.qos.logback"              %  "logback-classic"                % logbackVersion
 
-    val webjarsPlay     = "org.webjars"                 %% "webjars-play"                   % webjarsPlayVersion
-    val webjarsJquery   = "org.webjars"                 %  "jquery"                         % webjarsJqueryVersion
-    val webjarsBootswatch = "org.webjars"               %  "bootswatch-cosmo"               % webjarsBootswatchVersion
-    val webjarsBootstrap= "org.webjars"                 %  "bootstrap"                      % webjarsBootstrapVersion
-    val webjarsReqjs    = "org.webjars"                 %  "requirejs"                      % webjarsReqjsVersion
-    val webjarsReqjsTxt = "org.webjars"                 %  "requirejs-text"                 % webjarsReqjsTxtVersion
-    val webjarsToastr   = "org.webjars"                 %  "toastr"                         % webjarsToastrVersion
-    val webjarsReactJs  = "org.webjars"                 %  "react"                          % webjarsReactJsVersion
-    val webjarsCryptoJs = "org.webjars"                 %  "cryptojs"                       % webjarsCryptoJSVersion
-    val webjarsJsSignals= "org.webjars"                 %  "js-signals"                     % webjarsJsSignalsVersion
+    val jodaTime          = "joda-time"                   %  "joda-time"                      % jodaTimeVersion
+    val jodaConvert       = "org.joda"                    %  "joda-convert"                   % jodaConvertVersion
+    val prettyTime        = "org.ocpsoft.prettytime"      %  "prettytime"                     % prettytimeVersion
+
+    val webjarsPlay       = "org.webjars"                 %% "webjars-play"                   % webjarsPlayVersion
+    val webjarsJquery     = "org.webjars"                 %  "jquery"                         % webjarsJqueryVersion
+    val webjarsBootswatch = "org.webjars"                 %  "bootswatch-cosmo"               % webjarsBootswatchVersion
+    val webjarsBootstrap  = "org.webjars"                 %  "bootstrap"                      % webjarsBootstrapVersion
+    val webjarsReqjs      = "org.webjars"                 %  "requirejs"                      % webjarsReqjsVersion
+    val webjarsReqjsTxt   = "org.webjars"                 %  "requirejs-text"                 % webjarsReqjsTxtVersion
+    val webjarsToastr     = "org.webjars"                 %  "toastr"                         % webjarsToastrVersion
+    val webjarsReactJs    = "org.webjars"                 %  "react"                          % webjarsReactJsVersion
+    val webjarsCryptoJs   = "org.webjars"                 %  "cryptojs"                       % webjarsCryptoJSVersion
+    val webjarsJsSignals  = "org.webjars"                 %  "js-signals"                     % webjarsJsSignalsVersion
 
 
-    val ficus           = "net.ceedubs"                 %% "ficus"                          % ficusVersion
-    val scalaz          = "org.scalaz"                  %% "scalaz-core"                    % scalazVersion
-    val elastic4s       = "com.sksamuel.elastic4s"      %% "elastic4s"                      % elastic4sVersion
-    val asyncHttpClient = "com.ning"                    %  "async-http-client"              % asyncHttpVersion
-    val metricsScala    = "io.dropwizard.metrics"       %   "metrics-core"                  % metricsScalaVersion
-    val uuid            = "com.eaio.uuid"               %  "uuid"                           % uuidVersion
-    val janalyseJmx     = "fr.janalyse"                 %% "janalyse-jmx"                   % janalyseJmxVersion
-    val commonsCodec    = "commons-codec"               %  "commons-codec"                  % commonsCodecVersion
+    val ficus             = "net.ceedubs"                 %% "ficus"                          % ficusVersion
+    val scalaz            = "org.scalaz"                  %% "scalaz-core"                    % scalazVersion
+    val elastic4s         = "com.sksamuel.elastic4s"      %% "elastic4s"                      % elastic4sVersion
+    val asyncHttpClient   = "com.ning"                    %  "async-http-client"              % asyncHttpVersion
+    val metricsScala      = "io.dropwizard.metrics"       %   "metrics-core"                  % metricsScalaVersion
+    val uuid              = "com.eaio.uuid"               %  "uuid"                           % uuidVersion
+    val janalyseJmx       = "fr.janalyse"                 %% "janalyse-jmx"                   % janalyseJmxVersion
+    val commonsCodec      = "commons-codec"               %  "commons-codec"                  % commonsCodecVersion
     
-    val kryoser         = "com.github.romix.akka"       %% "akka-kryo-serialization"        % kryoserVersion
-    val netty           = "io.netty"                    %   "netty"                         % nettyVersion
-    val sprayWebsocket  = "com.wandoulabs.akka"         %%   "spray-websocket"              % sprayWebsocketVersion
+    val kryoser           = "com.github.romix.akka"       %% "akka-kryo-serialization"        % kryoserVersion
+    val netty             = "io.netty"                    %   "netty"                         % nettyVersion
+    val sprayWebsocket    = "com.wandoulabs.akka"         %%   "spray-websocket"              % sprayWebsocketVersion
 
-    val trove           = "net.sf.trove4j"              %   "trove4j"                       % troveVersion
+    val trove             = "net.sf.trove4j"              %   "trove4j"                       % troveVersion
   }
   
   object Test {
     import Versions._
 
-    val scalaTest       = "org.scalatest"               %% "scalatest"                      % scalaTestVersion      % "test"
-    val akkaMultiNode   = "com.typesafe.akka"           %% "akka-multi-node-testkit"        % akkaVersion           % "test"
-    val akkaTestKit     = "com.typesafe.akka"           %% "akka-testkit"                   % akkaVersion           % "test"
-    val akkaMNTestkit   = "com.typesafe.akka"           %% "akka-multi-node-testkit"        % akkaVersion           % "test"
+    val scalaTest         = "org.scalatest"               %% "scalatest"                      % scalaTestVersion      % "test"
+    val akkaMultiNode     = "com.typesafe.akka"           %% "akka-multi-node-testkit"        % akkaVersion           % "test"
+    val akkaTestKit       = "com.typesafe.akka"           %% "akka-testkit"                   % akkaVersion           % "test"
+    val akkaMNTestkit     = "com.typesafe.akka"           %% "akka-multi-node-testkit"        % akkaVersion           % "test"
 
   }
 
@@ -174,6 +177,7 @@ object Dependencies {
     akkaDataRepl,
     kryoser,
     asyncHttpClient,
+    googleProtobuf,
 
     sprayWebsocket
 

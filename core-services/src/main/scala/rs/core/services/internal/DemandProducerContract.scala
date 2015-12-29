@@ -37,8 +37,8 @@ trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with Dem
 
   private val idGenerator = new SequentialMessageIdGenerator()
 
-  private val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 5000)
-  private val LowWatermark = nodeCfg.asInt("service-port.backpressure.low-watermark", 1000)
+  private val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 500)
+  private val LowWatermark = nodeCfg.asInt("service-port.backpressure.low-watermark", 100)
 
   private val targets: Set[ActorRef] = Set.empty
   private val pending: mutable.Map[ActorRef, LocalDemand] = mutable.HashMap()

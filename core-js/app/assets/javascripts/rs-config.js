@@ -16,7 +16,7 @@
 
 (function() {
 
-    require(["dependencies-3rdparty"], function() {
+    require(["dependencies-3rdparty", "auth-config"], function() {
 
         require.config({
 

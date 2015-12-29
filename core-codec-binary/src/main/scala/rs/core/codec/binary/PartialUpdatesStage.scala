@@ -17,6 +17,7 @@ package rs.core.codec.binary
 
 import akka.stream._
 import akka.stream.scaladsl._
+import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{NodeConfig, ServiceConfig}
@@ -26,80 +27,106 @@ import scala.collection.mutable
 
 class PartialUpdatesStage extends BinaryDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig) =
-    if (serviceCfg.asBoolean("partials.enabled", defaultValue = true))
-      Some(BidiFlow.wrap(FlowGraph.partial() { implicit b =>
-        import FlowGraph.Implicits._
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit]] =
+    if (serviceCfg.asBoolean("partials.enabled", defaultValue = true)) Some(BidiFlow.fromGraph(new PartialUpdatesProducer(serviceCfg))) else None
 
-        class InboundRouter extends FlexiRoute[BinaryDialectInbound, FanOutShape2[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectResetSubscription]](
-          new FanOutShape2("resetRouter"), Attributes.name("resetRouter")) {
+  private class PartialUpdatesProducer(serviceCfg: ServiceConfig) extends GraphStage[BidiShape[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound]] {
+    val outBuffer = serviceCfg.asInt("partials.out-buffer-msg", defaultValue = 8)
+    val inBuffer = serviceCfg.asInt("partials.in-buffer-msg", defaultValue = 8)
+    val in1: Inlet[BinaryDialectInbound] = Inlet("ServiceBoundIn")
+    val out1: Outlet[BinaryDialectInbound] = Outlet("ServiceBoundOut")
+    val in2: Inlet[BinaryDialectOutbound] = Inlet("ClientBoundIn")
+    val out2: Outlet[BinaryDialectOutbound] = Outlet("ClientBoundOut")
+    override val shape: BidiShape[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound] = BidiShape(in1, out1, in2, out2)
 
-          import FlexiRoute._
+    override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
 
-          override def createRouteLogic(s: PortT): RouteLogic[BinaryDialectInbound] =
-            new RouteLogic[BinaryDialectInbound] {
+      private val lastUpdates: mutable.Map[Int, StreamState] = mutable.HashMap()
+      private val clientBound = mutable.Queue[BinaryDialectOutbound]()
+      private val serviceBound = mutable.Queue[BinaryDialectInbound]()
 
-              override def initialState: State[Unit] = State(DemandFromAll(s.out0, s.out1)) { (ctx, _, el) =>
-                el match {
-                  case m: BinaryDialectResetSubscription =>
-                    ctx.emit(s.out1)(m)
-                  case m =>
-                    ctx.emit(s.out0)(m)
-                }
-                SameState
-              }
+      override def preStart(): Unit = {
+        pull(in1)
+        pull(in2)
+      }
+
+      setHandler(in1, new InHandler {
+        override def onPush(): Unit = {
+          grab(in1) match {
+            case BinaryDialectResetSubscription(subjAlias) => lastUpdates.get(subjAlias) match {
+              case Some(lastState) => pushToClient(BinaryDialectStreamStateUpdate(subjAlias, lastState))
+              case None => pushToClient(BinaryDialectSubscriptionClosed(subjAlias))
             }
+            case x: BinaryDialectInbound => pushToServer(x)
+          }
+          if (canPullFromClientNow) pull(in1)
         }
+      })
+      setHandler(out1, new OutHandler {
+        override def onPull(): Unit = if (serviceBound.nonEmpty) {
+          push(out1, serviceBound.dequeue())
+          if (canPullFromClientNow) pull(in1)
+        }
+      })
+      setHandler(in2, new InHandler {
+        override def onPush(): Unit = {
+          grab(in2) match {
+            case x@BinaryDialectSubscriptionClosed(subjAlias) => lastUpdates.remove(subjAlias); pushToClient(x)
+            case x: BinaryDialectStreamStateUpdate => pushToClient(toPartial(x))
+            case x: BinaryDialectOutbound => pushToClient(x)
+            case _ =>
+          }
+          if (canPullFromServiceNow) pull(in2)
+        }
+      })
+      setHandler(out2, new OutHandler {
+        override def onPull(): Unit = if (clientBound.nonEmpty) {
+          push(out2, clientBound.dequeue())
+          if (canPullFromServiceNow) pull(in2)
+        }
+      })
 
-        class OutboundMerger extends FlexiMerge[BinaryDialectOutbound, FanInShape2[Any, Any, BinaryDialectOutbound]](
-          new FanInShape2("fanIn"), Attributes.name("fanIn")) {
+      def toPartial(x: BinaryDialectStreamStateUpdate): BinaryDialectOutbound = {
+        val previous = lastUpdates get x.subjAlias
+        lastUpdates.put(x.subjAlias, x.topicState)
+        x.topicState.transitionFrom(previous) match {
+          case Some(tran) => BinaryDialectStreamStateTransitionUpdate(x.subjAlias, tran)
+          case _ => x
+        }
+      }
 
-          import akka.stream.scaladsl.FlexiMerge._
-
-          override def createMergeLogic(s: PortT): MergeLogic[BinaryDialectOutbound] = new MergeLogic[BinaryDialectOutbound] {
-
-            private val lastUpdates: mutable.Map[Int, StreamState] = mutable.HashMap()
-
-            def toPartial(x: BinaryDialectStreamStateUpdate): BinaryDialectOutbound = {
-
-              val previous = synchronized {
-                val value = lastUpdates get x.subjAlias
-                lastUpdates.put(x.subjAlias, x.topicState)
-                value
-              }
-
-              x.topicState.transitionFrom(previous) match {
-                case Some(tran) => BinaryDialectStreamStateTransitionUpdate(x.subjAlias, tran)
-                case _ => x
-              }
-            }
-
-            override def initialState: State[_] = State(ReadPreferred(s.in0, s.in1)) { (ctx, input, element) =>
-              element match {
-                case BinaryDialectResetSubscription(subjAlias) =>
-                  lastUpdates.get(subjAlias) foreach { lastState =>
-                    ctx.emit(BinaryDialectStreamStateUpdate(subjAlias, lastState))
-                  }
-                case m@BinaryDialectSubscriptionClosed(subjAlias) =>
-                  lastUpdates.remove(subjAlias)
-                  ctx.emit(m)
-                case x: BinaryDialectStreamStateUpdate =>
-                  ctx.emit(toPartial(x))
-                case x: BinaryDialectOutbound => ctx.emit(x)
-                case _ =>
-              }
-              SameState
+      def pushToClient(x: BinaryDialectOutbound) = {
+        if (isAvailable(out2) && clientBound.isEmpty) push(out2, x)
+        else {
+          val maybeAlias = x match {
+            case BinaryDialectStreamStateUpdate(alias, _) => Some(alias)
+            case BinaryDialectStreamStateTransitionUpdate(alias, _) => Some(alias)
+            case BinaryDialectInvalidRequest(alias) => Some(alias)
+            case _ => None
+          }
+          maybeAlias foreach { alias =>
+            clientBound.dequeueAll {
+              case BinaryDialectStreamStateUpdate(a, _) => a == alias
+              case BinaryDialectStreamStateTransitionUpdate(a, _) => a == alias
+              case BinaryDialectInvalidRequest(a) => a == alias
+              case _ => false
             }
           }
+          clientBound.enqueue(x)
         }
+        if (canPullFromServiceNow) pull(in2)
+      }
 
-        val inboundRouter = b.add(new InboundRouter)
-        val outboundMerger = b.add(new OutboundMerger)
+      def pushToServer(x: BinaryDialectInbound) = {
+        if (isAvailable(out1) && serviceBound.isEmpty) push(out1, x)
+        else serviceBound.enqueue(x)
+        if (canPullFromClientNow) pull(in1)
+      }
 
-        inboundRouter.out1 ~> outboundMerger.in0
+      def canPullFromServiceNow = !hasBeenPulled(in2) && clientBound.size < outBuffer
 
-        BidiShape(FlowShape(inboundRouter.in, inboundRouter.out0), FlowShape(outboundMerger.in1, outboundMerger.out))
-      }))
-    else None
+      def canPullFromClientNow = !hasBeenPulled(in1) && serviceBound.size < inBuffer
+    }
+  }
 
 }

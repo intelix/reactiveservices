@@ -76,8 +76,8 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
   extends ServicePortSubscriptionRequestSink
     with ActorSubscriber {
 
-  val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 5000)
-  val LowWatermark = nodeCfg.asInt("service-port.backpressure.low-watermark", 1000)
+  val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 500)
+  val LowWatermark = nodeCfg.asInt("service-port.backpressure.low-watermark", 100)
 
   def terminateInstance(): Unit = {
     // for some reason streams 1.0 don't terminate the actor automatically and it's not happening when cancel() is called as it is already marked

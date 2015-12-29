@@ -25,7 +25,6 @@ define(['react', 'rs_mixin', './Price'],
                 return {entries: [], available: false};
             },
 
-
             subscriptionConfig: function (props) {
                 return [
                     {
