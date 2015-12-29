@@ -103,7 +103,8 @@
             "codec_set",
             "handler_set",
             "codec_string",
-            "handler_string"
+            "handler_string",
+            "handler_ping"
         ]);
 
     });

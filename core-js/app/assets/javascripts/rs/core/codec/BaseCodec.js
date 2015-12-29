@@ -153,6 +153,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
     _addEncoder(TypeString, function (value) {
         _writeType(TypeString);
         _writeString(value.value);
+        return false;
     });
 
 
@@ -163,10 +164,12 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
         _writeSubjectAlias(value.alias);
         _writeString(priorityKey);
         _writeInt(throttling);
+        return true;
     });
     _addEncoder(TypeResetSubscription, function (value) {
         _writeType(TypeResetSubscription);
         _writeSubjectAlias(value.alias);
+        return true;
     });
 
 
@@ -182,6 +185,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
         _writeInt(value.expireInSeconds);
         _writeOptionAny(value.orderingGroup);
         _writeOptionAny(value.correlationId);
+        return true;
     });
 
 
@@ -189,11 +193,13 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
         _writeType(TypeAlias);
         _writeSubjectAlias(value.alias);
         _writeSubject(value.subject);
+        return false;
     });
 
     _addEncoder(TypePong, function (value) {
         _writeType(TypePong);
         _writeInt(value.id);
+        return true;
     });
 
 
@@ -231,6 +237,7 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
     }
 
     function _flush() {
+        if (flushTimer) clearTimeout(flushTimer);
         flushTimer = false;
         if (_hasData()) {
             var bytes = _dataFromBuffer();
@@ -247,25 +254,26 @@ define(['logging', 'signals', 'jdataview', 'socket'], function (Log, Signal, JDa
 
     function _scheduleFlush() {
         if (_shouldFlushNow()) _flush();
-        else if (!flushTimer) flushTimer = setTimeout(_flush, 100);
+        else if (!flushTimer) flushTimer = setTimeout(_flush, 50);
     }
 
     function _writeNext(data) {
         if (_.isUndefined(data.type) || !_.isNumber(data.type)) {
             Log.logWarn(componentId, "Invalid outbound message: " + JSON.stringify(data));
+            return false;
         } else {
             var enc = _getEncoderFor(data.type);
             if (!enc) {
                 Log.logWarn(componentId, "No encoder for type " + data.type);
+                return false;
             } else {
-                enc(data);
+                return enc(data);
             }
         }
     }
 
     function _handleSerialization(data) {
-        _writeNext(data);
-        _scheduleFlush();
+        if (_writeNext(data)) _flush(); else _scheduleFlush();
     }
 
 
