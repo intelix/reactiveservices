@@ -49,6 +49,8 @@ private object PrivateIdToken extends SubjectTag("pid")
 
 class AuthStage extends ServiceDialectStageBuilder {
 
+  import AuthStageEvt._
+
   private class AuthGraph(serviceCfg: ServiceConfig, nodeCfg: NodeConfig, sessionId: String) extends GraphStage[BidiShape[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound]] {
     val in1: Inlet[ServiceInbound] = Inlet("ServiceBoundIn")
     val out1: Outlet[ServiceInbound] = Outlet("ServiceBoundOut")
@@ -87,7 +89,7 @@ class AuthStage extends ServiceDialectStageBuilder {
       override def preStart(): Unit = {
         pull(in1)
         pull(in2)
-        AuthStageEvt.SubscribingToAuth('service -> authServiceKey)
+        SubscribingToAuth('service -> authServiceKey)
         serviceBound.enqueue(
           OpenSubscription(AuthSubSubject),
           OpenSubscription(SubjectPermissionsSubSubject),
@@ -126,13 +128,13 @@ class AuthStage extends ServiceDialectStageBuilder {
         case x: OpenSubscription =>
           if (isAllowed(x.subj)) Some(x)
           else {
-            AuthStageEvt.AccessDenied('subj -> x.subj, 'userid -> userId)
+            AccessDenied('subj -> x.subj, 'userid -> userId)
             None
           }
         case x: Signal =>
           if (isAllowed(x.subj)) Some(x)
           else {
-            AuthStageEvt.AccessDenied('subj -> x.subj, 'userid -> userId)
+            AccessDenied('subj -> x.subj, 'userid -> userId)
             None
           }
         case x => Some(x)
@@ -140,22 +142,22 @@ class AuthStage extends ServiceDialectStageBuilder {
 
       def filterLocalUpdates(s: ServiceOutbound): Option[ServiceOutbound] = s match {
         case ServiceNotAvailable(a) if a == authServiceKey =>
-          AuthStageEvt.AuthServiceDown('service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
+          AuthServiceDown('service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
           if (closeOnServiceDown) userId = None
           Some(s)
         case StreamStateUpdate(SubjectPermissionsSubSubject, SetStreamState(_, _, set, _)) =>
           permissions = convertPermissions(set)
-          if (permissions.isEmpty) AuthStageEvt.SubjectPermissionsReset() else AuthStageEvt.SubjectPermissionsProvided()
+          if (permissions.isEmpty) SubjectPermissionsReset() else SubjectPermissionsProvided()
           None
         case StreamStateUpdate(InfoSubSubject, DictionaryMapStreamState(_, _, values, d)) =>
           d.locateIdx(AuthServiceActor.InfoUserId) match {
             case -1 =>
             case i => values(i) match {
               case v: String if v != "" =>
-                AuthStageEvt.UserIdProvided('id -> v)
+                UserIdProvided('id -> v)
                 userId = Some(v)
               case _ =>
-                AuthStageEvt.UserIdReset()
+                UserIdReset()
                 userId = None
             }
           }

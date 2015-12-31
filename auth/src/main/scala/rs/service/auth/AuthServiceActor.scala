@@ -232,13 +232,12 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
     def isExpired = System.currentTimeMillis() <= expireTs
   }
 
-  case class Session(
-                      userTokens: Set[String],
-                      user: String,
-                      securityToken: String,
-                      idleSince: Option[Long],
-                      domains: Set[String] = Set(),
-                      subjectPatterns: Set[String] = Set())
+  case class Session(userTokens: Set[String],
+                     user: String,
+                     securityToken: String,
+                     idleSince: Option[Long],
+                     domains: Set[String] = Set(),
+                     subjectPatterns: Set[String] = Set())
 
   case class AuthOk(ut: String, user: String)
 

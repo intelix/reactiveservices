@@ -13,12 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-define(['react','./Layout', 'core/socket'], function (React, Layout, Socket) {
 
-    return function() {
-        React.render(<Layout />, document.getElementById('content'));
+define(['react', 'core/mixin', './Prices', './TradeBlotter'],
+    function (React, RSMixin, Prices, TradeBlotter) {
 
-        Socket.connect("ws://localhost:8080");
-    };
+        return React.createClass({
 
-});
+            mixins: [RSMixin],
+
+            render: function () {
+
+                return (
+                    <div>
+                        <h3>Prices:</h3>
+                        <Prices />
+                        <h3>Trades:</h3>
+                        <TradeBlotter />
+                    </div>
+                );
+
+            }
+        });
+
+    });

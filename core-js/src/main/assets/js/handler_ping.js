@@ -13,12 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-define(['react','./Layout', 'core/socket'], function (React, Layout, Socket) {
 
-    return function() {
-        React.render(<Layout />, document.getElementById('content'));
+define(['./logging', './codec_base'], function (Log, Codec) {
 
-        Socket.connect("ws://localhost:8080");
-    };
+
+    function _handlePing(id) {
+        Codec.pong(id);
+    }
+
+    Codec.signals.pingReceived.add(_handlePing);
+
 
 });

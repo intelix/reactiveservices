@@ -13,12 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-define(['react','./Layout', 'core/socket'], function (React, Layout, Socket) {
 
-    return function() {
-        React.render(<Layout />, document.getElementById('content'));
 
-        Socket.connect("ws://localhost:8080");
+
+define(['./logging', 'signals', './codec_base'], function (Log, Signal, Codec) {
+
+    var TypeStringStreamState = 50;
+
+    var signals = {
+        updateReceived: new Signal()
+    };
+
+    Codec.addDecoder(TypeStringStreamState, function (frame) {
+        return {
+            data: Codec.readString(frame),
+            dispatcher: signals.updateReceived
+        };
+    });
+
+    return {
+        signals: signals
     };
 
 });

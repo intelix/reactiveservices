@@ -18,6 +18,8 @@ object Dependencies {
 
     val groovyVersion = "2.3.8"
 
+    val guavaVersion = "15.0"
+
     val googleProtobufVersion = "2.5.0"
     val akkaVersion = "2.4.1"
     val akkaStreamVersion = "2.0.1"
@@ -37,8 +39,6 @@ object Dependencies {
     
     val elastic4sVersion = "1.4.12"
     
-    val asyncHttpVersion = "1.0.0"
-
     val metricsScalaVersion = "3.1.0"
 
     val uuidVersion = "3.2"
@@ -49,20 +49,23 @@ object Dependencies {
 
     val sprayWebsocketVersion = "0.1.4"
 
-    val webjarsJqueryVersion = "2.1.3"
+    val webjarsJqueryVersion = "2.1.4"
     val webjarsPlayVersion = "2.3.0-2"
-    val webjarsBootswatchVersion = "3.3.1+2"
-    val webjarsBootstrapVersion = "3.3.1"
-    val webjarsReqjsVersion = "2.1.14-3"
-    val webjarsReqjsTxtVersion = "2.0.10-1"
-    val webjarsReactJsVersion = "0.12.1"
+    val webjarsBootswatchVersion = "3.3.5+4"
+    val webjarsBootstrapVersion = "3.3.6"
+    val webjarsReqjsVersion = "2.1.22"
+    val webjarsReqjsTxtVersion = "2.0.14-1"
+    val webjarsReactJsVersion = "0.14.3"
     val webjarsToastrVersion = "2.1.0"
     val webjarsCryptoJSVersion = "3.1.2"
     val webjarsJsSignalsVersion = "1.0.0"
+    val webjarsUUIDVersion = "1.4.1"
+    val webjarsLoDashVersion = "3.10.1"
+    val webjarsClassnamesVersion = "2.2.0"
 
     val kryoserVersion = "0.4.0"
     
-    val nettyVersion = "3.9.3.Final"
+    val nettyVersion = "3.10.3.Final"
 
     val troveVersion = "3.0.2"
     
@@ -115,22 +118,25 @@ object Dependencies {
     val webjarsReactJs    = "org.webjars"                 %  "react"                          % webjarsReactJsVersion
     val webjarsCryptoJs   = "org.webjars"                 %  "cryptojs"                       % webjarsCryptoJSVersion
     val webjarsJsSignals  = "org.webjars"                 %  "js-signals"                     % webjarsJsSignalsVersion
+    val webjarsUUID       = "org.webjars"                 %  "uuid"                           % webjarsUUIDVersion
+    val webjarsLoDash     = "org.webjars"                 %  "lodash"                         % webjarsLoDashVersion
+    val webjarsClassnames = "org.webjars.bower"           %  "classnames"                     % webjarsClassnamesVersion
 
 
     val ficus             = "net.ceedubs"                 %% "ficus"                          % ficusVersion
     val scalaz            = "org.scalaz"                  %% "scalaz-core"                    % scalazVersion
     val elastic4s         = "com.sksamuel.elastic4s"      %% "elastic4s"                      % elastic4sVersion
-    val asyncHttpClient   = "com.ning"                    %  "async-http-client"              % asyncHttpVersion
     val metricsScala      = "io.dropwizard.metrics"       %   "metrics-core"                  % metricsScalaVersion
     val uuid              = "com.eaio.uuid"               %  "uuid"                           % uuidVersion
     val janalyseJmx       = "fr.janalyse"                 %% "janalyse-jmx"                   % janalyseJmxVersion
     val commonsCodec      = "commons-codec"               %  "commons-codec"                  % commonsCodecVersion
     
     val kryoser           = "com.github.romix.akka"       %% "akka-kryo-serialization"        % kryoserVersion
-    val netty             = "io.netty"                    %   "netty"                         % nettyVersion
+    val netty             = "io.netty"                    %   "netty"                         % nettyVersion force()
     val sprayWebsocket    = "com.wandoulabs.akka"         %%   "spray-websocket"              % sprayWebsocketVersion
 
     val trove             = "net.sf.trove4j"              %   "trove4j"                       % troveVersion
+    val guava             = "com.google.guava"            %   "guava"                         % guavaVersion force()
   }
   
   object Test {
@@ -159,7 +165,8 @@ object Dependencies {
     playJson,
     playJsonZipper,
     Test.scalaTest,
-    trove
+    trove,
+    guava
   )
 
   val commons = essentials ++: Seq(
@@ -176,7 +183,6 @@ object Dependencies {
     akkaHttp,
     akkaDataRepl,
     kryoser,
-    asyncHttpClient,
     googleProtobuf,
 
     sprayWebsocket
@@ -200,7 +206,10 @@ object Dependencies {
     webjarsReqjsTxt,
     webjarsToastr,
     webjarsCryptoJs,
-    webjarsJsSignals
+    webjarsJsSignals,
+    webjarsUUID,
+    webjarsLoDash,
+    webjarsClassnames
   )
 
   val multinodeTests = commons ++: Seq(

@@ -24,6 +24,7 @@ import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
 import rs.core.sysevents.CommonEvt
 
+import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
@@ -73,8 +74,7 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with 
   private def stopCluster(block: Boolean) =
     clusterSystem.foreach { sys =>
       implicit val ec = context.dispatcher
-      sys.shutdown()
-      sys.awaitTermination()
+      Await.result(sys.terminate(), 60 seconds)
     }
 
 

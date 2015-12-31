@@ -4,9 +4,12 @@ import com.typesafe.sbt.gzip.Import.gzip
 import com.typesafe.sbt.less.Import.LessKeys
 import com.typesafe.sbt.license.{DepModuleInfo, LicenseInfo}
 import com.typesafe.sbt.rjs.Import.{RjsKeys, rjs}
+import com.typesafe.sbt.web.Import.{WebJs, WebKeys}
 import com.typesafe.sbt.web.SbtWeb.autoImport.{Assets, pipelineStages}
 import sbt.Keys._
 import sbt._
+import WebJs._
+import RjsKeys._
 
 object ProjectBuild {
   def appName = "reactiveservices"
@@ -56,18 +59,18 @@ object ProjectBuild {
 
   lazy val testSettings = Seq(
     testOptions in Test += Tests.Argument("-oDF"),
-    testListeners in(Test, test) := Seq(TestLogger(streams.value.log, { _ => streams.value.log}, logBuffered.value)),
+    testListeners in(Test, test) := Seq(TestLogger(streams.value.log, { _ => streams.value.log }, logBuffered.value)),
     testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
     parallelExecution in Test := false
   )
-  
+
   lazy val concurrencySettings = Seq(
     concurrentRestrictions in Global := Seq(
       Tags.limit(Tags.Test, 1),
-      Tags.limitAll( 1 )
+      Tags.limitAll(1)
     )
   )
-  
+
   lazy val defaultSettings = baseSettings ++ resolverSettings ++ mavenLocalResolverSettings ++ compilerSettings ++ sharedProjectSettings ++ testSettings ++ concurrencySettings
 
   licenseOverrides := {
@@ -107,7 +110,6 @@ object ProjectBuild {
   }
 
 
-
   // Common settings for every project
   def settings(theName: String) = defaultSettings ++: Seq(
     name := theName,
@@ -131,10 +133,10 @@ object ProjectBuild {
   def serviceSettings(module: String) = webModuleSettings(module) ++: Seq(
     includeFilter in(Assets, LessKeys.less) := "*.less",
     excludeFilter in(Assets, LessKeys.less) := "_*.less",
-    pipelineStages := Seq(rjs, digest, gzip),
-    RjsKeys.mainModule := s"main-$module"
+
+    pipelineStages := Seq(rjs, digest, gzip)
+  //    RjsKeys.mainModule := s"main-$module"
   )
 
 
- 
 }

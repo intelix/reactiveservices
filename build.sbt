@@ -46,29 +46,11 @@ lazy val websocket_server = Project(
   base = file("websocket-server"),
   dependencies = Seq(
     core % "compile;test->test",
+    node % "compile;test->test",
     auth,
     codec_binary % "compile;test->test"
   )
 )
-
-lazy val tcp_server = Project(
-  id = "tcp-server",
-  base = file("tcp-server"),
-  dependencies = Seq(
-    core % "compile;test->test",
-    codec_binary % "compile;test->test"
-  )
-)
-
-lazy val repl_server = Project(
-  id = "repl-server",
-  base = file("repl-server"),
-  dependencies = Seq(
-    core % "compile;test->test",
-    codec_binary % "compile;test->test"
-  )
-)
-
 
 
 lazy val auth = Project(
@@ -81,17 +63,6 @@ lazy val auth = Project(
   )
 )
 
-lazy val auth_js = Project(
-  id = "auth-js",
-  base = file("auth-js"),
-  dependencies = Seq(
-    core % "compile;test->test",
-    js % "compile;test->test"
-  )
-).enablePlugins(PlayScala, SbtWeb)
-
-
-
 
 
 lazy val js = Project(
@@ -101,10 +72,7 @@ lazy val js = Project(
     core % "compile;test->test",
     node % "compile;test->test"
   )
-).enablePlugins(PlayScala, SbtWeb)
-
-
-
+).enablePlugins(SbtWeb)
 
 
 
@@ -117,7 +85,7 @@ lazy val examples_counter_statics = Project(
   dependencies = Seq(
     core % "compile;test->test",
     node % "compile;test->test",
-    js, auth_js
+    js
   )
 ).enablePlugins(PlayScala, SbtWeb)
 
@@ -153,7 +121,7 @@ lazy val examples_stocks_statics = Project(
   dependencies = Seq(
     core % "compile;test->test",
     node % "compile;test->test",
-    js, auth_js
+    js
   )
 ).enablePlugins(PlayScala, SbtWeb)
 

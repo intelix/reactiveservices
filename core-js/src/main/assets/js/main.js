@@ -13,12 +13,26 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-define(['react','./Layout', 'core/socket'], function (React, Layout, Socket) {
 
-    return function() {
-        React.render(<Layout />, document.getElementById('content'));
+define(
+    [   'jquery',
+        'lodash',
+        "./jquery.visible",
+        './mixin',
+        './codec_base',
+        './codec_list',
+        './codec_map',
+        './codec_set',
+        './codec_string',
+        './handler_list',
+        './handler_map',
+        './handler_set',
+        './handler_string',
+        './handler_ping',
+        './authmixin'
+    ],
+    function () {
+        return function () {
+        };
+    });
 
-        Socket.connect("ws://localhost:8080");
-    };
-
-});

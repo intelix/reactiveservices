@@ -13,12 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-define(['react','./Layout', 'core/socket'], function (React, Layout, Socket) {
+package rs.service.auth.configbased
 
-    return function() {
-        React.render(<Layout />, document.getElementById('content'));
+import rs.core.actors.CommonActorEvt
 
-        Socket.connect("ws://localhost:8080");
-    };
 
-});
+trait ConfigBasedAuthorisationProviderEvt extends CommonActorEvt {
+
+  val Authorisation = "Authorisation".info
+
+  override def componentId: String = "Auth.AuthorisationProvider"
+}
+
+object ConfigBasedAuthorisationProviderEvt extends ConfigBasedAuthorisationProviderEvt

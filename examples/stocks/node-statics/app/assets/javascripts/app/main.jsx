@@ -13,10 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-require(['react','app/content', 'socket'], function (React, Layout, Socket) {
 
-    React.render(<Layout />, document.getElementById('content'));
+define(['react', './Layout', 'core/socket'], function (React, Layout, Socket) {
 
-    Socket.connect("ws://localhost:8080");
+    return function() {
+        React.render(<Layout />, document.getElementById('content'));
+
+        Socket.connect("ws://localhost:8080");
+    };
 
 });

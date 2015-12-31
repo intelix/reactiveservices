@@ -477,12 +477,10 @@ class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: Strin
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()
-    if (!context.system.isTerminated) {
-      actor = Some(context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId"))
-      val cluster = Cluster.get(context.system)
-      acknowledgedDelivery(serviceRef, ServiceEndpoint(actor.get, cluster.selfAddress), SpecificDestination(serviceRef))
-      AgentStarted('proxy -> actor)
-    }
+    actor = Some(context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId"))
+    val cluster = Cluster.get(context.system)
+    acknowledgedDelivery(serviceRef, ServiceEndpoint(actor.get, cluster.selfAddress), SpecificDestination(serviceRef))
+    AgentStarted('proxy -> actor)
   }
 
   @throws[Exception](classOf[Exception]) override

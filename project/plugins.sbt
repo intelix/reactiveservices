@@ -1,6 +1,6 @@
-logLevel := Level.Warn
+logLevel := sbt.Level.Warn
 
-resolvers += "Typesafe repository" at "http://repo.typesafe.com/typesafe/releases/"
+resolvers += Resolver.typesafeRepo("releases")
 
 resolvers += "Apache repo"   at "https://repository.apache.org/content/repositories/releases"
 
@@ -16,16 +16,13 @@ resolvers += Resolver.url(
     Resolver.ivyStylePatterns)
 
 
-// The Play plugin
+addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.8.0")
+
 addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.3.7")
 
-// web plugins
+addSbtPlugin("com.typesafe.sbt" % "sbt-web" % "1.2.2")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-web" % "1.1.0")
-
-addSbtPlugin("com.typesafe.sbt" % "sbt-coffeescript" % "1.0.0")
-
-addSbtPlugin("com.typesafe.sbt" % "sbt-less" % "1.0.0")
+addSbtPlugin("com.typesafe.sbt" % "sbt-less" % "1.1.0")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-jshint" % "1.0.1")
 
@@ -35,11 +32,11 @@ addSbtPlugin("com.typesafe.sbt" % "sbt-digest" % "1.0.0")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-gzip" % "1.0.0")
 
-addSbtPlugin("com.github.ddispaltro" % "sbt-reactjs" % "0.4.0")
+addSbtPlugin("com.github.ddispaltro" % "sbt-reactjs" % "0.5.2")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-license-report" % "1.0.0")
 
-addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.0.0-M4")
+addSbtPlugin("com.typesafe.sbt" % "sbt-native-packager" % "1.0.6")
 
 addSbtPlugin("com.jsuereth" % "sbt-pgp" % "1.0.0")
 
