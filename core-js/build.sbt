@@ -1,4 +1,4 @@
-ProjectBuild.serviceSettings("core-js")
+ProjectBuild.serviceSettings("rs-core-js") ++: ProjectBuild.sonatypeSettings
 
 libraryDependencies ++= Dependencies.web
 

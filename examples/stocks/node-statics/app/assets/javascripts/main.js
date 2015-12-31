@@ -18,7 +18,7 @@
     'use strict';
 
     requirejs.config({
-        packages: ['app', {name: 'core', location: '../lib/core-js/js'}],
+        packages: ['app', {name: 'core', location: '../lib/rs-core-js/js'}],
         paths: {
             'jquery': '../lib/jquery/jquery',
             'react': "../lib/react/react-with-addons",

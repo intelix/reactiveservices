@@ -54,7 +54,7 @@ object ProjectBuild {
 
   lazy val sharedProjectSettings = Seq(
     licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
-    homepage := Some(url("http://intelix.com.au/"))
+    homepage := Some(url("http://reactiveservices.org/"))
   )
 
   lazy val testSettings = Seq(
@@ -115,7 +115,7 @@ object ProjectBuild {
     name := theName,
     organization := "au.com.intelix",
     scalaVersion := "2.11.7",
-    version := "0.1.0-SNAPSHOT",
+    version := "0.1.0",
     doc in Compile <<= target.map(_ / "none")
   )
 
@@ -135,8 +135,33 @@ object ProjectBuild {
     excludeFilter in(Assets, LessKeys.less) := "_*.less",
 
     pipelineStages := Seq(rjs, digest, gzip)
-  //    RjsKeys.mainModule := s"main-$module"
+    //    RjsKeys.mainModule := s"main-$module"
   )
 
+
+  lazy val sonatypeSettings = Seq(
+    publishMavenStyle := true,
+    publishTo := {
+      val nexus = "https://oss.sonatype.org/"
+      if (isSnapshot.value)
+        Some("snapshots" at nexus + "content/repositories/snapshots")
+      else
+        Some("releases" at nexus + "service/local/staging/deploy/maven2")
+    },
+    publishArtifact in Test := false,
+    pomIncludeRepository := { _ => false },
+    pomExtra := (
+        <scm>
+          <url>git@github.com:intelix/reactiveservices.git</url>
+          <connection>scm:git:git@github.com:intelix/reactiveservices.git</connection>
+        </scm>
+        <developers>
+          <developer>
+            <id>mglukh</id>
+            <name>Max Glukhovtsev</name>
+            <url>http://github.com/intelix</url>
+          </developer>
+        </developers>)
+  )
 
 }

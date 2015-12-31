@@ -114,7 +114,7 @@ lazy val examples_counter_service = Project(
 
 
 /** Examples: Stocks **/
-
+/*
 lazy val examples_stocks_statics = Project(
   id = "examples-stocks-node-statics",
   base = file("examples/stocks/node-statics"),
@@ -155,3 +155,4 @@ lazy val examples_stocks_pricesource = Project(
     node % "compile;test->test"
   )
 ).enablePlugins(JavaServerAppPackaging)
+*/
