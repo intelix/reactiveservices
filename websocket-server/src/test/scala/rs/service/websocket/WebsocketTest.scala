@@ -22,9 +22,9 @@ import rs.core.services.{CompoundStreamId, StreamId}
 import rs.node.core.ClusterNodeActorEvt
 import rs.service.auth.{AuthServiceEvt, AuthStageEvt}
 import rs.service.websocket.WebsocketClientStubService._
-import rs.testing._
-import rs.testing.components.TestServiceActor._
-import rs.testing.components.{TestServiceActor, TestServiceActorEvt}
+import rs.testkit._
+import rs.testkit.components.TestServiceActor._
+import rs.testkit.components.{TestServiceActor, TestServiceActorEvt}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

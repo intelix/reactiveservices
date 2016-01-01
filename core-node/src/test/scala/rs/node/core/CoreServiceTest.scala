@@ -22,10 +22,11 @@ import rs.core.services.BaseServiceActor.StopRequest
 import rs.core.services.{CompoundStreamId, StreamId}
 import rs.core.stream.ListStreamState.{ListSpecs, RejectAdd}
 import rs.node.core.discovery.UdpClusterManagerActorEvt
-import rs.testing.components.TestServiceActor._
-import rs.testing.components.TestServiceConsumer.{Close, Open, SendSignal}
-import rs.testing.components._
-import rs.testing._
+import rs.testkit.components.TestServiceActor._
+import rs.testkit.components.TestServiceConsumer.{Close, Open, SendSignal}
+import rs.testkit.components._
+import rs.testkit._
+import rs.testkit
 
 import scala.concurrent.duration._
 import scala.language.{implicitConversions, postfixOps}
@@ -45,23 +46,23 @@ class CoreServiceTest extends StandardMultiNodeSpec {
   trait WithClusterAwareServiceOn1 extends WithNode1 {
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
 
-    override def node1Services: Map[String, Class[_]] = super.node1Services + ("test" -> classOf[ClusterAwareService])
+    override def node1Services: Map[String, Class[_]] = super.node1Services + ("test" -> classOf[testkit.components.ClusterAwareService])
   }
 
   trait WithClusterAwareServiceOn2 extends WithNode2 {
     override def node2Configs: Seq[ConfigReference] = super.node2Configs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
 
-    override def node2Services: Map[String, Class[_]] = super.node2Services + ("test" -> classOf[ClusterAwareService])
+    override def node2Services: Map[String, Class[_]] = super.node2Services + ("test" -> classOf[testkit.components.ClusterAwareService])
   }
 
   trait WithClusterAwareServiceOn3 extends WithNode3 {
     override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
 
-    override def node3Services: Map[String, Class[_]] = super.node3Services + ("test" -> classOf[ClusterAwareService])
+    override def node3Services: Map[String, Class[_]] = super.node3Services + ("test" -> classOf[testkit.components.ClusterAwareService])
   }
 
 
-  import ClusterAwareServiceEvt._
+  import testkit.components.ClusterAwareServiceEvt._
 
   "Cluster-aware service on single node" should "receive MemberUp notification from own node" in new WithClusterAwareServiceOn1 {
     on node1 expectOne of MemberUp + ('addr -> node1Address)

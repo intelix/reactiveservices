@@ -18,8 +18,9 @@ package rs.node.core
 import org.scalatest.FlatSpec
 import rs.core.registry.ServiceRegistrySysevents
 import rs.node.core.discovery.UdpClusterManagerActorEvt
-import rs.testing.components._
-import rs.testing._
+import rs.testkit.components._
+import rs.testkit._
+import rs.testkit
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -77,10 +78,10 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
   }
 
   it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg service runtime failure)" in new With2Nodes {
-    ServiceWithRuntimeFailureActor.recoveryEnabled = false
+    testkit.components.ServiceWithRuntimeFailureActor.recoveryEnabled = false
     on node1 expectSome of ServiceClusterGuardianActorEvt.PostStop
     on node1 expect(1) of ServiceClusterBootstrapActorEvt.PostRestart
-    on node1 expect(3 + 1 + 3 + 1) of ServiceWithRuntimeFailureEvt.PreStart
+    on node1 expect(3 + 1 + 3 + 1) of testkit.components.ServiceWithRuntimeFailureEvt.PreStart
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+
       ConfigFromContents(
@@ -90,7 +91,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
           |node.cluster.discovery.timeout=0 seconds
           |        """.stripMargin)
 
-    override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithRuntimeFailureActor])
+    override def node1Services = super.node1Services ++ Map("test" -> classOf[testkit.components.ServiceWithRuntimeFailureActor])
   }
 
   it should "not terminate if service recover after several failures, if max not exceeded" in new With2Nodes {

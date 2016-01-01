@@ -34,10 +34,10 @@
 
 
     <logger name="scala.slick" level="OFF" />
+    <logger name="akka" level="OFF" />
 
     <logger name="akka.cluster.ClusterHeartbeatSender" level="OFF" />
     <logger name="akka.cluster.ClusterRemoteWatcher" level="OFF" />
-    <logger name="akka" level="OFF" />
 
     <root level="ERROR">
         <appender-ref ref="STDOUT" />

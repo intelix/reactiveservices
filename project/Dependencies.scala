@@ -142,7 +142,7 @@ object Dependencies {
   object Test {
     import Versions._
 
-    val scalaTest         = "org.scalatest"               %% "scalatest"                      % scalaTestVersion      % "test"
+    val scalaTest         = "org.scalatest"               %% "scalatest"                      % scalaTestVersion
     val akkaMultiNode     = "com.typesafe.akka"           %% "akka-multi-node-testkit"        % akkaVersion           % "test"
     val akkaTestKit       = "com.typesafe.akka"           %% "akka-testkit"                   % akkaVersion           % "test"
     val akkaMNTestkit     = "com.typesafe.akka"           %% "akka-multi-node-testkit"        % akkaVersion           % "test"
