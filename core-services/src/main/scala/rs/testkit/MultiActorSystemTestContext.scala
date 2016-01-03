@@ -121,7 +121,7 @@ trait MultiActorSystemTestContext
 
     override def stopActor(id: String) = {
       val futureActor = rootUserActorSelection(id).resolveOne(5.seconds)
-      val actor = Await.result(futureActor, 5.seconds)
+      val actor = Await.result(futureActor, 15.seconds)
       DestroyingActor('Actor -> actor)
       underlyingSystem.stop(actor)
       on anyNode expectSome of WatcherActor.WatchedActorGone +('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
@@ -131,8 +131,12 @@ trait MultiActorSystemTestContext
     def stop() = {
       TerminatingActorSystem('Name -> configName)
       val startCheckpoint = System.nanoTime()
-      Await.result(underlyingSystem.terminate(), 60.seconds)
-      ActorSystemTerminated('Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
+      try {
+        Await.result(underlyingSystem.terminate(), 60.seconds)
+        ActorSystemTerminated('Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
+      } catch {
+        case _: Throwable => Error('Name -> configName, 'Message -> "Unable to terminate actor system. Attempting to continue...")
+      }
     }
 
     def stopActors() = {
