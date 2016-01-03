@@ -18,11 +18,10 @@ package rs.service.websocket
 import play.api.libs.json.Json
 import rs.core.Subject
 import rs.core.services.BaseServiceActor.StopRequest
-import rs.core.services.{CompoundStreamId, StreamId}
+import rs.core.services.CompoundStreamId
 import rs.node.core.ClusterNodeActorEvt
 import rs.service.auth.{AuthServiceEvt, AuthStageEvt}
 import rs.service.websocket.WebsocketClientStubService._
-import rs.testkit.MultiActorSystemTestContext.OnlyThisTest
 import rs.testkit._
 import rs.testkit.components.TestServiceActor._
 import rs.testkit.components.{TestServiceActor, TestServiceActorEvt}
