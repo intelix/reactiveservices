@@ -22,6 +22,7 @@ import rs.core.services.{CompoundStreamId, StreamId}
 import rs.node.core.ClusterNodeActorEvt
 import rs.service.auth.{AuthServiceEvt, AuthStageEvt}
 import rs.service.websocket.WebsocketClientStubService._
+import rs.testkit.MultiActorSystemTestContext.OnlyThisTest
 import rs.testkit._
 import rs.testkit.components.TestServiceActor._
 import rs.testkit.components.{TestServiceActor, TestServiceActorEvt}
@@ -411,7 +412,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
 
 
-  it should "receive updates when subscribed with aggregation for a specific stream" in new WithClientConnected {
+  it should "receive updates when subscribed with aggregation for a specific stream" taggedAs OnlyThisTest in new WithClientConnected {
     serviceOnNode1("client/c1") ! OpenSubscriptionFromStub(Subject("test", "string"), aggregationIntervalMs = 3000)
     on node1 expectSome of WebsocketClientStubServiceEvt.StringUpdate +('topic -> "string", 'id -> "c1", 'value -> "hello")
     serviceOnNode1("test") ! PublishString("string", "update1")

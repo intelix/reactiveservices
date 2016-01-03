@@ -7,7 +7,7 @@ object Dependencies {
 
     val scalaVersion = "2.11.7"
     val scalaTestVersion = "2.2.1"
-    val playJsonVersion = "2.3.8"
+    val playJsonVersion = "2.3.9"
     val playJsonZipperVersion = "1.2"
     val guavaVersion = "15.0"
     val googleProtobufVersion = "2.5.0"

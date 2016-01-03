@@ -384,8 +384,6 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     serviceOnNode1("consumer1") ! Close("test", "stringWithId", UserId("id1"))
 
     on node1 expectOne of TestServiceActorEvt.StreamPassive + ('stream -> "string#id1")
-
-    collectAndPrintEvents()
   }
 
 
@@ -415,7 +413,6 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     serviceOnNode2("consumer3") ! StopRequest
     serviceOnNode2("consumer4") ! StopRequest
     on node1 expectOne of TestServiceActorEvt.StreamInterestRemoved + ('location -> node2Address)
-    printRaisedEvents()
   }
 
   it should "shut down stream when all consumers are gone" in new ServiceWith4ActiveConsumers {
