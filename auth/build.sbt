@@ -1,4 +1,1 @@
-ProjectBuild.coreSettings("rs-auth") ++: ProjectBuild.sonatypeSettings
-
-libraryDependencies ++= Dependencies.core
-
+Build.settings("rs-auth")

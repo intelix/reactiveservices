@@ -360,7 +360,7 @@ object BinaryCodec {
           case 1 => FromHead
           case 2 => FromTail
         }
-        ListSpecs(max, strategy)
+        ListSpecs(max.toInt, strategy)
       }
 
       def encode(value: ListSpecs, builder: ByteStringBuilder)(implicit byteOrder: ByteOrder): Unit = {
@@ -473,7 +473,7 @@ object BinaryCodec {
       }
 
       override def encode(value: BinaryDialectInbound, builder: ByteStringBuilder): Unit = {
-        def putId(id: Short) = idCodec.encode(id, builder)
+        def putId(id: Short) = idCodec.encode(id.toInt, builder)
         value match {
           case x: BinaryDialectOpenSubscription => putId(TypeOpenSubscription)
             builder.putInt(x.subjAlias)
@@ -521,7 +521,7 @@ object BinaryCodec {
       }
 
       override def encode(value: BinaryDialectOutbound, builder: ByteStringBuilder): Unit = {
-        def putId(id: Short) = idCodec.encode(id, builder)
+        def putId(id: Short) = idCodec.encode(id.toInt, builder)
         value match {
           case x: BinaryDialectServiceNotAvailable => putId(TypeServiceNotAvailable); ServiceKeyCodecLogic.encode(x.serviceKey, builder)
           case x: BinaryDialectInvalidRequest => putId(TypeInvalidRequest); builder.putInt(x.subjAlias)
@@ -548,15 +548,15 @@ object BinaryCodec {
 
 
     class ByteIdCodec(implicit byteOrder: ByteOrder) extends IdCodec {
-      override def decode(bytesIterator: ByteIterator): Int = bytesIterator.getByte
+      override def decode(bytesIterator: ByteIterator): Int = bytesIterator.getByte.toInt
 
       override def encode(msg: Int, builder: ByteStringBuilder): Unit = builder.putByte(msg.toByte)
     }
 
     class ShortIdCodec(implicit byteOrder: ByteOrder) extends IdCodec {
-      override def decode(bytesIterator: ByteIterator): Int = bytesIterator.getShort
+      override def decode(bytesIterator: ByteIterator): Int = bytesIterator.getShort.toInt
 
-      override def encode(msg: Int, builder: ByteStringBuilder): Unit = builder.putShort(msg.toShort)
+      override def encode(msg: Int, builder: ByteStringBuilder): Unit = builder.putShort(msg.toShort.toInt)
     }
 
     class IntIdCodec(implicit byteOrder: ByteOrder) extends IdCodec {
@@ -594,18 +594,18 @@ object BinaryCodec {
 
           case TypeListStreamState => ListStreamState(bytes.getInt, bytes.getInt, ListStringCodecLogic.decode(bytes), ListSpecsCodecLogic.decode(bytes), List.empty)
           case TypeListStreamTransitionPartial => ListStreamStateTransitionPartial(bytes.getInt, bytes.getInt, bytes.getInt, SeqAnyCodecLogic.decode[ListStreamState.Op](bytes))
-          case TypeListAddOp => ListStreamState.Add(bytes.getShort, StringCodecLogic.decode(bytes))
-          case TypeListRemoveOp => ListStreamState.Remove(bytes.getShort)
-          case TypeListReplaceOp => ListStreamState.Replace(bytes.getShort, StringCodecLogic.decode(bytes))
+          case TypeListAddOp => ListStreamState.Add(bytes.getShort.toInt, StringCodecLogic.decode(bytes))
+          case TypeListRemoveOp => ListStreamState.Remove(bytes.getShort.toInt)
+          case TypeListReplaceOp => ListStreamState.Replace(bytes.getShort.toInt, StringCodecLogic.decode(bytes))
         }
       }
 
       override def encode(value: Any, builder: ByteStringBuilder): Unit = {
-        def putId(id: Short) = idCodec.encode(id, builder)
+        def putId(id: Short) = idCodec.encode(id.toInt, builder)
         value match {
           case Nil => putId(TypeNil)
           case x: Byte => putId(TypeByte); builder.putByte(x)
-          case x: Short => putId(TypeShort); builder.putShort(x)
+          case x: Short => putId(TypeShort); builder.putShort(x.toInt)
           case x: Int => putId(TypeInt); builder.putInt(x)
           case x: Long => putId(TypeLong); builder.putLong(x)
           case x: Float => putId(TypeFloat); builder.putFloat(x)

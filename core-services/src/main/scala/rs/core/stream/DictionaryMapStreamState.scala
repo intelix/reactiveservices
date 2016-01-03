@@ -141,7 +141,7 @@ trait DictionaryMapStreamConsumer extends StreamConsumer {
   }
 
   onStreamUpdate {
-    case (s, x: DictionaryMapStreamState) => composedFunction(s, toMap(x.values, x.dict))
+    case (s, x: DictionaryMapStreamState) => composedFunction((s, toMap(x.values, x.dict)))
   }
 
   def toMap(values: Array[Any], dict: Dictionary): DictionaryMap = new DictionaryMap(dict, values)

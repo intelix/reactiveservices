@@ -136,7 +136,7 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
     def unapply(req: HttpRequest): Option[(UpgradeToWebsocket, HttpRequest)] = {
       if (req.header[UpgradeToWebsocket].isDefined) {
         req.header[UpgradeToWebsocket] match {
-          case Some(upgrade) => Some(upgrade, req)
+          case Some(upgrade) => Some((upgrade, req))
           case None => None
         }
       } else None

@@ -68,7 +68,7 @@ trait StringStreamConsumer extends StreamConsumer {
   type StringStreamConsumer = PartialFunction[(Subject, String), Unit]
 
   onStreamUpdate {
-    case (s, StringStreamState(value)) => composedFunction(s, value)
+    case (s, StringStreamState(value)) => composedFunction((s, value))
   }
 
   final def onStringRecord(f: StringStreamConsumer) =

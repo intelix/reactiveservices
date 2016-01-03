@@ -1,4 +1,2 @@
-ProjectBuild.coreSettings("rs-core-codec-binary") ++: ProjectBuild.sonatypeSettings
-
-libraryDependencies ++= Dependencies.core
+Build.settings("rs-core-codec-binary")
 

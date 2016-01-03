@@ -1,5 +1,8 @@
-ProjectBuild.coreSettings("reactiveservices")
+import com.typesafe.sbt.pgp.PgpKeys.pgpSigningKey
 
+lazy val root = project.in(file(".")).
+  aggregate(utils, sysevents, core, node, websocket_server, auth, codec_binary, js).
+  settings(Build.settings("reactiveservices", publishToSonatype = false))
 
 lazy val utils = Project(
   id = "core-utils",

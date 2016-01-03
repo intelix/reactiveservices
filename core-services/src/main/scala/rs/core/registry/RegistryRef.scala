@@ -114,7 +114,7 @@ trait RegistryRef extends BaseActor with RegistryRefEvt {
         if (was != maybeLocation) {
           ctx + ('new -> true)
           localLocation += name -> maybeLocation
-          localLocationHandlerFunc(name, maybeLocation)
+          localLocationHandlerFunc((name, maybeLocation))
         } else ctx + ('new -> false)
       }
   }

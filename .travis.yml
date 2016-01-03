@@ -1,0 +1,15 @@
+language: scala
+scala:
+   - 2.11.7
+
+env:
+   - SBT_OPTS="-XX:+UseConcMarkSweepGC -XX:+CMSClassUnloadingEnabled -XX:PermSize=256M -XX:MaxPermSize=512M -Xms2048M -Xmx4096M -Xss8M"
+
+before_script:
+   - ulimit -u 514029
+
+#coveralls disabled till they provide a proper multi-project sbt support
+#script: "sbt clean coverage test"
+#after_success:
+#  - "sbt coverageAggregate"
+#  - "sbt coveralls"

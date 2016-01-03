@@ -52,7 +52,7 @@ trait StreamConsumer {
       missingServices -= subj.service
       serviceAvailableHandlerFunc(subj.service)
     }
-    streamUpdateHandlerFunc(subj, tran)
+    streamUpdateHandlerFunc((subj, tran))
   }
 
   protected[endpoint] def processServiceNotAvailable(service: ServiceKey): Unit =

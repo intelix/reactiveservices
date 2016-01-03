@@ -1,4 +1,2 @@
-ProjectBuild.coreSettings("rs-core-services") ++: ProjectBuild.sonatypeSettings
-
-libraryDependencies ++= Dependencies.core
+Build.settings("rs-core-services")
 

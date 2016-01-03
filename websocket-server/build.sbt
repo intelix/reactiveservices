@@ -1,4 +1,2 @@
-ProjectBuild.coreSettings("rs-websocket-server") ++: ProjectBuild.sonatypeSettings
-
-libraryDependencies ++= Dependencies.core
+Build.settings("rs-websocket-server")
 

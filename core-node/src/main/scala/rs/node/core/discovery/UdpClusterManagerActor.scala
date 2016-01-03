@@ -78,10 +78,10 @@ object UdpClusterManagerActor {
       def unapply(bs: ByteString): Option[(String, String, Set[String], Long, Set[String], Option[Address])] =
         bs.utf8String match {
           case s if s.startsWith("!") => s drop 1 split ";" match {
-            case Array(n, addr, seed, "none", ut) => Some(n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed))
-            case Array(n, addr, seed, "none", ut, _) => Some(n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed))
-            case Array(n, addr, seed, m, ut, rs) => Some(n, addr, m.split(",").toSet, ut.toLong, rs.split(",").toSet, convertSeed(seed))
-            case Array(n, addr, seed, m, ut) => Some(n, addr, m.split(",").toSet, ut.toLong, Set.empty[String], convertSeed(seed))
+            case Array(n, addr, seed, "none", ut) => Some((n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed)))
+            case Array(n, addr, seed, "none", ut, _) => Some((n, addr, Set.empty[String], ut.toLong, Set.empty[String], convertSeed(seed)))
+            case Array(n, addr, seed, m, ut, rs) => Some((n, addr, m.split(",").toSet, ut.toLong, rs.split(",").toSet, convertSeed(seed)))
+            case Array(n, addr, seed, m, ut) => Some((n, addr, m.split(",").toSet, ut.toLong, Set.empty[String], convertSeed(seed)))
             case _ => None
           }
           case _ => None

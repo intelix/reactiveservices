@@ -164,7 +164,7 @@ trait BaseServiceActor
       SignalPayload('correlation -> m.correlationId, 'payload -> m.payload)
       if (m.expireAt > now) {
         val origin = sender()
-        signalHandlerFunc(m.subj, m.payload) match {
+        signalHandlerFunc((m.subj, m.payload)) match {
           case Some(SignalOk(p)) =>
             origin ! SignalAckOk(m.correlationId, m.subj, p)
             SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)

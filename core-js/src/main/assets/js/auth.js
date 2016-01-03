@@ -23,7 +23,6 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
 
 
     var validToken = false;
-    var authPending = false;
     var domainPermissions = false;
     var subjectPermissions = false;
 
@@ -36,7 +35,6 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
         token = newToken;
         Cookies.createCookie(securityCookie, newToken, defaultExpiryDays);
         validToken = newToken;
-        authPending = false;
         raiseAuthAccessChanged();
     }
 
@@ -46,7 +44,6 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
 
     function resetSession() {
         validToken = false;
-        authPending = false;
         domainPermissions = false;
         subjectPermissions = false;
         raiseAuthAccessChanged();
@@ -57,7 +54,6 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
     }
 
     function setAuthenticationPending() {
-        authPending = true;
         validToken = false;
         domainPermissions = false;
         subjectPermissions = false;
@@ -70,7 +66,6 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
 
     function setDomainPermissions(permSet) {
         domainPermissions = permSet;
-        authPending = !domainPermissions || !subjectPermissions;
         raisePermissionsChanged();
         raiseAuthAccessChanged();
     }
@@ -85,7 +80,6 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
                 pattern: _.startsWith(next, "-") || _.startsWith(next, "+") ? next.substring(1) : next
             };
         });
-        authPending = !domainPermissions || !subjectPermissions;
         raisePermissionsChanged();
         raiseAuthAccessChanged();
     }
@@ -95,7 +89,7 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
     }
 
     function isSessionValid() {
-        return !authPending && validToken && domainPermissions && subjectPermissions;
+        return !isAuthPending();
     }
 
     function raiseAuthAccessChanged() {
@@ -111,6 +105,22 @@ define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
            return !next.pattern || 0 === next.pattern.length || key.indexOf(next.pattern) > -1;
         });
         return found && found.allow;
+    }
+
+    function isAuthPending() {
+        return !(domainPermissionsReceived() && subjectPermissionsReceived() && tokenReceived());
+    }
+
+    function domainPermissionsReceived() {
+        return domainPermissions !== false;
+    }
+
+    function subjectPermissionsReceived() {
+        return _.isArray(subjectPermissions) && subjectPermissions.length > 0;
+    }
+
+    function tokenReceived() {
+        return validToken !== false;
     }
 
     return {

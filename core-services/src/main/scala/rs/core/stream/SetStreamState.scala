@@ -79,7 +79,7 @@ trait SetStreamConsumer extends StreamConsumer {
   type SetStreamConsumer = PartialFunction[(Subject, Set[String]), Unit]
 
   onStreamUpdate {
-    case (s, x: SetStreamState) => composedFunction(s, x.set)
+    case (s, x: SetStreamState) => composedFunction((s, x.set))
   }
   private var composedFunction: SetStreamConsumer = {
     case _ =>

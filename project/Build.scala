@@ -3,75 +3,76 @@ import com.typesafe.sbt.digest.Import.digest
 import com.typesafe.sbt.gzip.Import.gzip
 import com.typesafe.sbt.less.Import.LessKeys
 import com.typesafe.sbt.license.{DepModuleInfo, LicenseInfo}
-import com.typesafe.sbt.rjs.Import.{RjsKeys, rjs}
-import com.typesafe.sbt.web.Import.{WebJs, WebKeys}
+import com.typesafe.sbt.pgp.PgpKeys.pgpSigningKey
+import com.typesafe.sbt.rjs.Import.rjs
 import com.typesafe.sbt.web.SbtWeb.autoImport.{Assets, pipelineStages}
 import sbt.Keys._
 import sbt._
-import WebJs._
-import RjsKeys._
 
-object ProjectBuild {
-  def appName = "reactiveservices"
+
+private object Settings {
 
   lazy val baseSettings = Defaults.coreDefaultSettings
 
-  val (mavenLocalResolver, mavenLocalResolverSettings) =
-    System.getProperty("rms.build.M2Dir") match {
-      case null => (Resolver.mavenLocal, Seq.empty)
-      case path =>
-        // Maven resolver settings
-        val resolver = Resolver.file("user-publish-m2-local", new File(path))
-        (resolver, Seq(
-          otherResolvers := resolver :: publishTo.value.toList,
-          publishM2Configuration := Classpaths.publishConfig(packagedArtifacts.value, None, resolverName = resolver.name, checksums = checksums.in(publishM2).value, logging = ivyLoggingLevel.value)
-        ))
-    }
+  lazy val artifactSettings = Seq(
+    version := "0.1.2_3-SNAPSHOT",
+    organization := "au.com.intelix",
+    licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
+    homepage := Some(url("http://reactiveservices.org/"))
+  )
 
-  lazy val resolverSettings = {
-    if (System.getProperty("rms.build.useLocalMavenResolver", "false").toBoolean)
-      Seq(resolvers += mavenLocalResolver)
-    else Seq.empty
-  } ++ Seq(
-    pomIncludeRepository := (_ => false)
-  ) ++ Seq(
-    resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
-    resolvers += "Akka Snapshot Repository" at "http://repo.akka.io/snapshots/",
-    resolvers += "Typesafe Repo" at "http://repo.typesafe.com/typesafe/releases/",
-    resolvers += "mandubian maven bintray" at "http://dl.bintray.com/mandubian/maven",
-    resolvers += "Spray" at "http://repo.spray.io",
-    resolvers += "patriknw at bintray" at "http://dl.bintray.com/patriknw/maven"
+  lazy val resolverSettings = Seq(
+    resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/",
+    resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
   )
 
   lazy val compilerSettings = Seq(
-    scalacOptions in Compile ++= Seq("-encoding", "UTF-8", "-target:jvm-1.8", "-deprecation", "-feature", "-unchecked", "-Xlog-reflective-calls"),
-    javacOptions in compile ++= Seq("-encoding", "UTF-8", "-source", "1.8", "-target", "1.8", "-Xlint:unchecked", "-Xlint:deprecation"),
-    javacOptions in doc ++= Seq("-encoding", "UTF-8", "-source", "1.8"),
+    scalaVersion := "2.11.7",
+    scalacOptions in Compile ++= Seq(
+      "-encoding", "UTF-8",
+      "-target:jvm-1.8",
+      "-deprecation",
+      "-feature",
+      "-unchecked",
+      "-Xlog-reflective-calls",
+      "-Xlint",
+      "-Xfatal-warnings",
+      "-Ywarn-dead-code",
+      "-Ywarn-numeric-widen"),
+    javacOptions in compile ++= Seq(
+      "-encoding", "UTF-8",
+      "-source", "1.8",
+      "-target", "1.8",
+      "-Xlint:unchecked",
+      "-Xlint:deprecation"),
     incOptions := incOptions.value.withNameHashing(nameHashing = true),
-    evictionWarningOptions in update := EvictionWarningOptions.default.withWarnTransitiveEvictions(false).withWarnDirectEvictions(false).withWarnScalaVersionEviction(false)
-
-  )
-
-  lazy val sharedProjectSettings = Seq(
-    licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
-    homepage := Some(url("http://reactiveservices.org/"))
+    evictionWarningOptions in update := EvictionWarningOptions
+      .default.withWarnTransitiveEvictions(false).withWarnDirectEvictions(false).withWarnScalaVersionEviction(false),
+    doc in Compile <<= target.map(_ / "none")
   )
 
   lazy val testSettings = Seq(
     testOptions in Test += Tests.Argument("-oDF"),
     testListeners in(Test, test) := Seq(TestLogger(streams.value.log, { _ => streams.value.log }, logBuffered.value)),
-    testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a"),
-    parallelExecution in Test := false
+    testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a")
   )
 
   lazy val concurrencySettings = Seq(
     concurrentRestrictions in Global := Seq(
       Tags.limit(Tags.Test, 1),
       Tags.limitAll(1)
-    )
+    ),
+    parallelExecution in Global := false
   )
 
-  lazy val defaultSettings = baseSettings ++ resolverSettings ++ mavenLocalResolverSettings ++ compilerSettings ++ sharedProjectSettings ++ testSettings ++ concurrencySettings
+}
+
+
+object Build {
+
+  import Settings._
+
+  lazy val defaultSettings = baseSettings ++ resolverSettings ++ compilerSettings ++ testSettings ++ concurrencySettings
 
   licenseOverrides := {
     case DepModuleInfo(_, "prettytime", _) => LicenseInfo(LicenseCategory.Apache, "Apache 2", "http://www.apache.org/licenses/LICENSE-2.0")
@@ -110,36 +111,28 @@ object ProjectBuild {
   }
 
 
-  // Common settings for every project
-  def settings(theName: String) = defaultSettings ++: Seq(
-    name := theName,
-    organization := "au.com.intelix",
-    scalaVersion := "2.11.7",
-    version := "0.1.1",
-    doc in Compile <<= target.map(_ / "none")
-  )
+  def settings(module: String, publishToSonatype: Boolean = true) = defaultSettings ++ Seq(
+    name := module,
+    libraryDependencies ++= Dependencies.core
+  ) ++ (if (publishToSonatype) sonatypeSettings else Seq())
 
-  // Settings for the app, i.e. the root project
-  def coreSettings(appName: String) = settings(appName) ++: Seq(
-    parallelExecution in Global := false
-  )
-
-  def webModuleSettings(module: String) = settings(module) ++: Seq(
-    javaOptions in Test += s"-Dconfig.resource=application.conf",
-    resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/"
-  )
-
-  // Settings for every service, i.e. for admin and web subprojects
-  def serviceSettings(module: String) = webModuleSettings(module) ++: Seq(
+  def web = Seq(
     includeFilter in(Assets, LessKeys.less) := "*.less",
     excludeFilter in(Assets, LessKeys.less) := "_*.less",
-
-    pipelineStages := Seq(rjs, digest, gzip)
-    //    RjsKeys.mainModule := s"main-$module"
+    pipelineStages := Seq(rjs, digest, gzip),
+    libraryDependencies ++= Dependencies.web
   )
 
+  def disablePublishing = Seq(
+    publish := {},
+    publishLocal := {},
+    publishArtifact := false,
+    pgpSigningKey := None,
+    publishMavenStyle := false
+  )
 
-  lazy val sonatypeSettings = Seq(
+  //noinspection ScalaUnnecessaryParentheses
+  def sonatypeSettings = Seq(
     publishMavenStyle := true,
     publishTo := {
       val nexus = "https://oss.sonatype.org/"
@@ -151,10 +144,10 @@ object ProjectBuild {
     publishArtifact in Test := false,
     pomIncludeRepository := { _ => false },
     pomExtra := (
-        <scm>
-          <url>git@github.com:intelix/reactiveservices.git</url>
-          <connection>scm:git:git@github.com:intelix/reactiveservices.git</connection>
-        </scm>
+      <scm>
+        <url>git@github.com:intelix/reactiveservices.git</url>
+        <connection>scm:git:git@github.com:intelix/reactiveservices.git</connection>
+      </scm>
         <developers>
           <developer>
             <id>mglukh</id>

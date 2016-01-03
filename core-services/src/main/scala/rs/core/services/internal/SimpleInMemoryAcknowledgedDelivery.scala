@@ -199,7 +199,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
 
   case class SpecificDestination(ref: ActorRef) extends DestinationRoute
 
-  private case class GroupId(key: Any, route: DestinationRoute)
+  case class GroupId(key: Any, route: DestinationRoute)
 
   private case class DeliveryInfo(msg: Acknowledgeable, sender: ActorRef, sent: Long, route: DestinationRoute, sentTo: Option[ActorRef], attempts: Int)
 

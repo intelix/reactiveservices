@@ -236,7 +236,7 @@ trait ListStreamConsumer extends StreamConsumer {
   type ListStreamConsumer = PartialFunction[(Subject, List[String]), Unit]
 
   onStreamUpdate {
-    case (s, x: ListStreamState) => composedFunction(s, x.list)
+    case (s, x: ListStreamState) => composedFunction((s, x.list))
   }
   private var composedFunction: ListStreamConsumer = {
     case _ =>
