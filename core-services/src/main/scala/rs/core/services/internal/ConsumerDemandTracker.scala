@@ -17,11 +17,8 @@ package rs.core.services.internal
 
 import rs.core.sysevents.{EvtPublisherContext, CommonEvt}
 
-trait ConsumerDemandTrackerEvt extends CommonEvt {
-  val DemandRegistered = "DemandRegistered".trace
-  val DemandFulfilled = "DemandFulfilled".trace
-  val UnableToFulfillNoDemand = "UnableToFulfillNoDemand".trace
-}
+trait ConsumerDemandTrackerEvt extends CommonEvt
+
 
 trait ConsumerDemandTracker extends ConsumerDemandTrackerEvt {
 
@@ -29,10 +26,7 @@ trait ConsumerDemandTracker extends ConsumerDemandTrackerEvt {
 
   var currentDemand = 0L
 
-  def addConsumerDemand(count: Long) = {
-    currentDemand += count
-    DemandRegistered('new -> count, 'total -> currentDemand)
-  }
+  def addConsumerDemand(count: Long) = currentDemand += count
 
   def hasDemand = currentDemand > 0
 
@@ -40,9 +34,6 @@ trait ConsumerDemandTracker extends ConsumerDemandTrackerEvt {
     if (hasDemand) {
       f
       currentDemand -= 1
-      DemandFulfilled('count -> 1, 'remaining -> currentDemand)
-    } else {
-      UnableToFulfillNoDemand()
     }
   }
 }
