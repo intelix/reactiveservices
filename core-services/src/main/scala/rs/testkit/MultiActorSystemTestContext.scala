@@ -132,7 +132,7 @@ trait MultiActorSystemTestContext
       TerminatingActorSystem('Name -> configName)
       val startCheckpoint = System.nanoTime()
       try {
-        Await.result(underlyingSystem.terminate(), 60.seconds)
+        Await.result(underlyingSystem.terminate(), 120.seconds)
         ActorSystemTerminated('Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
       } catch {
         case _: Throwable => Error('Name -> configName, 'Message -> "Unable to terminate actor system. Attempting to continue...")
