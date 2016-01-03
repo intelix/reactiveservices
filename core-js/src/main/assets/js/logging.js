@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(function () {
+define(['module'], function (Module) {
 
 
     var DEBUG = 1;
@@ -22,8 +22,14 @@ define(function () {
     var WARN = 3;
     var ERROR = 4;
 
-    // TODO later: UI-side config
-    var defaultLogLevel = INFO;
+    function nameToID(name) {
+        if (name && "debug" == name.toLowerCase()) return DEBUG;
+        if (name && "info" == name.toLowerCase()) return INFO;
+        if (name && "warn" == name.toLowerCase()) return WARN;
+        return ERROR;
+    }
+
+    var logLevel = _.isUndefined(Module.config().logLevel) ? ERROR : nameToID(Module.config().logLevel);
 
     function format(prefix, msg) {
         return new Date().toISOString() + ": " + (prefix ? prefix + ": " + msg : msg);
@@ -32,15 +38,15 @@ define(function () {
     return {
 
         isDebug: function () {
-            return (this.logLevel && this.logLevel() <= DEBUG) || (!this.logLevel && defaultLogLevel <= DEBUG);
+            return (this.logLevel && this.logLevel() <= DEBUG) || (!this.logLevel && logLevel <= DEBUG);
         },
 
         isInfo: function () {
-            return (this.logLevel && this.logLevel() <= INFO) || (!this.logLevel && defaultLogLevel <= INFO);
+            return (this.logLevel && this.logLevel() <= INFO) || (!this.logLevel && logLevel <= INFO);
         },
 
         isWarn: function () {
-            return (this.logLevel && this.logLevel() <= WARN) || (!this.logLevel && defaultLogLevel <= WARN);
+            return (this.logLevel && this.logLevel() <= WARN) || (!this.logLevel && logLevel <= WARN);
         },
 
         logDebug: function (prefix, msg) {

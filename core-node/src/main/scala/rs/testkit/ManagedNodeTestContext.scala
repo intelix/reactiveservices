@@ -49,7 +49,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
        |  port = ${portFor(idx)}
        |  cluster {
        |    discovery {
-       |      pre-discovery-timeout = 2 seconds
+       |      pre-discovery-timeout = ${if (idx == 1) "2" else "5"} seconds
        |      timeout = 5 seconds
        |      udp-endpoint.port = ${udpPortFor(idx)}
        |      udp-contacts = [

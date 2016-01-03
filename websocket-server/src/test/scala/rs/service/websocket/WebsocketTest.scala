@@ -34,7 +34,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
   trait With4NodesAndTestOn1 extends With4Nodes {
 
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
+    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=5s")
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor], "client" -> classOf[WebsocketClientStubService])
 
@@ -45,6 +45,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
         ConfigFromFile("websocket-server-defaults"),
         ConfigFromContents(
           """
+            |node.cluster.discovery.timeout=1s
             |websocket-server.ping.enabled=off
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off
@@ -430,7 +431,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
   trait With3Clients extends With4Nodes {
 
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
+    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=5s")
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor], "client" -> classOf[WebsocketClientStubService], "client2" -> classOf[WebsocketClientStubService])
 
@@ -443,6 +444,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
         ConfigFromFile("websocket-server-defaults"),
         ConfigFromContents(
           """
+            |node.cluster.discovery.timeout=1s
             |websocket-server.ping.enabled=off
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off
@@ -540,7 +542,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
   it should "be able to connect to different endpoint, subscribe to stream and get updates" in new With4Nodes {
 
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
+    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=5s")
 
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor], "client" -> classOf[WebsocketClientStubService], "client2" -> classOf[WebsocketClientStubService])
 
@@ -553,6 +555,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
         ConfigFromFile("websocket-server-defaults"),
         ConfigFromContents(
           """
+            |node.cluster.discovery.timeout=1s
             |websocket-server.ping.enabled=off
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off

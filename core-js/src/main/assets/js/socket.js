@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['./logging', 'signals'], function (Log, Signal) {
+define(['module', './logging', 'signals'], function (Module, Log, Signal) {
 
     var signals = {
         connected: new Signal(),
@@ -26,13 +26,13 @@ define(['./logging', 'signals'], function (Log, Signal) {
 
     var componentId = "core/Websocket";
 
-    var endpoints = [];
+    var endpoints = _.isUndefined(Module.config().endpoints) ? [] : Module.config().endpoints;
 
     var endpointToTryIdx = 0;
     var endpointFailureCount = 0;
 
-    var reconnectInterval = 100;
-    var connectionEstablishTimeout = 4000;
+    var reconnectInterval = _.isUndefined(Module.config().reconnectInterval) ? 100 : Module.config().reconnectInterval;
+    var connectionEstablishTimeout = _.isUndefined(Module.config().connectionEstablishTimeout) ? 4000 : Module.config().connectionEstablishTimeout;
 
     var currentState = WebSocket.CLOSED;
 

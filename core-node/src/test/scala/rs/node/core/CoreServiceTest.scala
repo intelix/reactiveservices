@@ -44,19 +44,19 @@ class CoreServiceTest extends StandardMultiNodeSpec {
   }
 
   trait WithClusterAwareServiceOn1 extends WithNode1 {
-    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
+    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("node.cluster.discovery.timeout=5s")
 
     override def node1Services: Map[String, Class[_]] = super.node1Services + ("test" -> classOf[testkit.components.ClusterAwareService])
   }
 
   trait WithClusterAwareServiceOn2 extends WithNode2 {
-    override def node2Configs: Seq[ConfigReference] = super.node2Configs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
+    override def node2Configs: Seq[ConfigReference] = super.node2Configs :+ ConfigFromContents("node.cluster.discovery.timeout=5s")
 
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test" -> classOf[testkit.components.ClusterAwareService])
   }
 
   trait WithClusterAwareServiceOn3 extends WithNode3 {
-    override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
+    override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.cluster.discovery.timeout=5s")
 
     override def node3Services: Map[String, Class[_]] = super.node3Services + ("test" -> classOf[testkit.components.ClusterAwareService])
   }
