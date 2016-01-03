@@ -75,7 +75,7 @@ object Build {
 
   import Settings._
 
-  lazy val defaultSettings = baseSettings ++ resolverSettings ++ compilerSettings ++ testSettings ++ concurrencySettings
+  lazy val defaultSettings = baseSettings ++ artifactSettings ++ resolverSettings ++ compilerSettings ++ testSettings ++ concurrencySettings
 
   licenseOverrides := {
     case DepModuleInfo(_, "prettytime", _) => LicenseInfo(LicenseCategory.Apache, "Apache 2", "http://www.apache.org/licenses/LICENSE-2.0")

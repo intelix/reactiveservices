@@ -11,8 +11,8 @@ env:
 before_script:
    - ulimit -u 514029
 
-#coveralls disabled till they provide a proper multi-project sbt support
-#script: "sbt clean coverage test"
-#after_success:
-#  - "sbt coverageAggregate"
-#  - "sbt coveralls"
+script:
+  - sbt clean coverage test &&
+    sbt coverageAggregate
+after_success:
+  - sbt coveralls

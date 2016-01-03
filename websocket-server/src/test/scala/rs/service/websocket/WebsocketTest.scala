@@ -49,6 +49,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off
             |websocket-server.aggregator.enabled=off
+            |websocket-server.endpoint-host=localhost
           """.stripMargin)
       )
 
@@ -56,6 +57,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "websocket-server")
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "test")
     on node2 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "test2")
+
     clearEvents()
 
   }
@@ -445,6 +447,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off
             |websocket-server.aggregator.enabled=off
+            |websocket-server.endpoint-host=localhost
           """.stripMargin)
       )
 
@@ -554,7 +557,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off
             |websocket-server.aggregator.enabled=off
-          """.stripMargin)
+            |websocket-server.endpoint-host=localhost
+            """.stripMargin)
       )
 
     override def node2Configs: Seq[ConfigReference] = super.node2Configs ++
@@ -567,6 +571,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off
             |websocket-server.aggregator.enabled=off
+            |websocket-server.endpoint-host=localhost
           """.stripMargin)
       )
 
@@ -580,6 +585,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
             |websocket-server.partials.enabled=off
             |websocket-server.auth.enabled=off
             |websocket-server.aggregator.enabled=off
+            |websocket-server.endpoint-host=localhost
           """.stripMargin)
       )
 
@@ -640,7 +646,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
     serviceOnNode1("client2/c2") ! OpenSubscriptionFromStub(Subject("test", "string"))
     serviceOnNode3("client3/c3") ! OpenSubscriptionFromStub(Subject("test", "string"))
 
-    on node1 expect(3) of AuthStageEvt.AccessDenied + ('subj -> "test|string")
+    on node1 expect(1 to 3) of AuthStageEvt.AccessDenied + ('subj -> "test|string")
   }
 
   it should "be able to authenticate with credentials" in new With3ClientsConnectedAuthEnabled {
