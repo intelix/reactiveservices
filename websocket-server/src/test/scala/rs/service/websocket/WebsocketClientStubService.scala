@@ -151,7 +151,7 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
   }
 
   onMessage {
-    case TextFrame(bs) => // unsupported for now
+    case TextFrame(bs) => throw new UnsupportedOperationException(bs.utf8String)
     case BinaryFrame(bs) => decode(bs) foreach {
       case BinaryDialectPing(pid) =>
         self ! BinaryDialectPong(pid)

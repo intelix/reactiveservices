@@ -180,7 +180,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     on node2 expectSome of ClusterNodeActorEvt.StateChange + ('to -> "ClusterFormationPending")
 
     on node2 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node2Address.r)
-    on node3 expectSome of ClusterNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node2Address)")
+    on node3 expectSome of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node2Address.r)
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+
       ConfigFromContents("node.cluster.discovery.timeout=2 seconds")
@@ -200,16 +200,16 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     on node2 expectOne of ClusterNodeActorEvt.StateChange +('to -> "Joined", 'from -> "Joining")
     on node3 expectOne of ClusterNodeActorEvt.StateChange +('to -> "Joined", 'from -> "Joining")
     on node4 expectOne of ClusterNodeActorEvt.StateChange +('to -> "Joined", 'from -> "Joining")
-    on node2 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
-    on node3 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
-    on node4 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+    on node2 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node1Address.r)
+    on node3 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node1Address.r)
+    on node4 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node1Address.r)
   }
 
   it should "join formed cluster if discovered" in new WithNode2 {
     on node2 expectSome of ClusterNodeActorEvt.StateChange + ('to -> "Joined")
 
     new WithNode1 {
-      on node1 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node2Address)")
+      on node1 expectOne of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node2Address.r)
     }
 
 
@@ -247,7 +247,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
       on node2 expectOne of ClusterNodeActorEvt.ClusterMergeTrigger
       on node1 expectNone of ClusterNodeActorEvt.ClusterMergeTrigger
 
-      on node2 expectSome of ClusterNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+      on node2 expectSome of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node1Address.r)
     }
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
@@ -273,7 +273,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
       on node2 expectSome of ClusterNodeActorEvt.ClusterMergeTrigger
       on node1 expectNone of ClusterNodeActorEvt.ClusterMergeTrigger
 
-      on node2 expectSome of ClusterNodeActorEvt.JoiningCluster + ('seeds -> s"Set($node1Address)")
+      on node2 expectSome of ClusterNodeActorEvt.JoiningCluster + ('seeds -> node1Address.r)
     }
 
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff

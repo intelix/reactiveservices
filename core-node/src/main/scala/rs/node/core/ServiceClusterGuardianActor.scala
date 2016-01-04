@@ -67,14 +67,18 @@ class ServiceClusterGuardianActor(cfg: NodeConfig)
   private var clusterSystem: Option[ActorSystem] = None
 
   override def supervisorStrategy: SupervisorStrategy =
-    OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow) {
-      case _: RestartRequestException => Restart
-      case _: Exception => Restart
+    OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
+      case x: RestartRequestException =>
+        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        Restart
+      case x: Exception =>
+        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        Restart
       case _ => Escalate
     }
 
   onActorTerminated {
-    case _ => throw new Error("Unable to bootstrap the cluster system")
+    case _ => throw new Error("Unable to bootstrap the node")
   }
 
   @throws[Exception](classOf[Exception]) override

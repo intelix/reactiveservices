@@ -71,6 +71,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
        |    auto-down-unreachable-after = 2s
        |  }
        |}
+       |include "akka-test"
        |     """.stripMargin
 
 

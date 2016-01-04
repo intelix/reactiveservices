@@ -32,6 +32,7 @@ trait ServiceClusterBootstrapActorEvt extends CommonEvt with CommonActorEvt {
 
   val StartingCluster = "StartingCluster".info
   val StoppingCluster = "StoppingCluster".info
+  val RestartingCluster = "RestartingCluster".warn
 
   override def componentId: String = "Cluster.Bootstrap"
 }
@@ -47,13 +48,16 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with 
   private var clusterSystem: Option[ActorSystem] = None
 
   override def supervisorStrategy: SupervisorStrategy =
-    OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minutes) {
-      case _: Exception => Restart
+    OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minutes, loggingEnabled = false) {
+      case x: Exception =>
+        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        Restart
       case _ => Escalate
     }
 
   onActorTerminated {
     case ref =>
+      RestartingCluster()
       throw new Exception("Restarting cluster subsystem")
   }
 

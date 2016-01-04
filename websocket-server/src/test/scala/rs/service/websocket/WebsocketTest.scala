@@ -59,6 +59,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "test")
     on node2 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "test2")
 
+    expectFullyBuilt()
+
     clearEvents()
 
   }
@@ -453,6 +455,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
           """.stripMargin)
       )
 
+    expectFullyBuilt()
 
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "client")
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "client2")
@@ -460,8 +463,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "websocket-server")
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "test")
     on node2 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "test2")
-    clearEvents()
 
+    clearEvents()
   }
 
   "Multiple websocket clients" should "successfully connect to the same endpoint and upgrade to websocket" in new With3Clients {
@@ -592,6 +595,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
           """.stripMargin)
       )
 
+    expectFullyBuilt()
 
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "client")
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "client2")

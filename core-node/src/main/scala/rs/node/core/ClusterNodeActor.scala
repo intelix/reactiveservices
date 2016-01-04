@@ -111,8 +111,9 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
   private val startServicesBeforeCluster = nodeCfg.asBoolean("node.start-services-before-cluster", defaultValue = false)
 
   override def supervisorStrategy: SupervisorStrategy =
-    OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow) {
+    OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
       case x: Exception =>
+        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
         Restart
       case x =>
         Escalate

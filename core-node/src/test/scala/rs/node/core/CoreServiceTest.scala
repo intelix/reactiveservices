@@ -41,6 +41,8 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor])
 
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("test.idle-stream-threshold=1s")
+
+    expectFullyBuilt()
   }
 
   trait WithClusterAwareServiceOn1 extends WithNode1 {

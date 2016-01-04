@@ -21,5 +21,8 @@ trait CommonEvt extends EvtGroup {
   val Invalid = 'Invalid.warn
   val Warning = 'Warning.warn
   val Error = 'Error.error
+  val SupervisorRestartTrigger = "Supervisor.RestartTrigger".warn
+  val SupervisorStopTrigger = "Supervisor.StopTrigger".warn
+
 
 }
