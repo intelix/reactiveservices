@@ -114,6 +114,7 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
     OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
       case x: Exception =>
         ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        x.printStackTrace(); // !>>> REMOVE
         Restart
       case x =>
         Escalate

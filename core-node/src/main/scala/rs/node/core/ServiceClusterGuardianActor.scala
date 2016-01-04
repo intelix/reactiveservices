@@ -70,9 +70,13 @@ class ServiceClusterGuardianActor(cfg: NodeConfig)
     OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
       case x: RestartRequestException =>
         ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        x.printStackTrace(); // !>>> REMOVE
+
         Restart
       case x: Exception =>
         ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        x.printStackTrace(); // !>>> REMOVE
+
         Restart
       case _ => Escalate
     }

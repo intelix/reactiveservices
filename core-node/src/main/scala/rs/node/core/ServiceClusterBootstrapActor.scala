@@ -51,6 +51,8 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with 
     OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minutes, loggingEnabled = false) {
       case x: Exception =>
         ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        x.printStackTrace(); // !>>> REMOVE
+
         Restart
       case _ => Escalate
     }
