@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define([
+define(['lodash',
         './logging',
         'signals',
         './socket',
@@ -22,7 +22,8 @@ define([
         './handlers'
     ],
 
-    function (Log,
+    function (_,
+              Log,
               Signal,
               Socket,
               Codec,

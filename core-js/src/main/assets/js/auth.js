@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['./logging', 'signals', './cookies'], function (Log, Signal, Cookies) {
+define(['lodash', './logging', 'signals', './cookies'], function (_, Log, Signal, Cookies) {
 
     
     var securityCookie = "_session_token";

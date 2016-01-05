@@ -42,7 +42,9 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
 
   final def stateOf(key: StreamId): Option[StreamState] = streams get key flatMap (_.state)
 
-  final def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = targets get consumer foreach (_.addDemand(demand))
+  final def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = {
+    locateTarget(consumer).addDemand(demand)
+  }
 
   final def stateTransitionFor(key: StreamId, transition: => StreamStateTransition): Boolean = StreamStateTransition { ctx =>
     ctx + ('stream -> key)
@@ -57,11 +59,12 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
     }
   }
 
-  final def initiateTarget(ref: ActorRef) = if (!targets.contains(ref)) newTarget(ref)
+  final def initiateTarget(ref: ActorRef): Unit = if (!targets.contains(ref)) newTarget(ref)
+  private def locateTarget(ref: ActorRef) = targets.getOrElse(ref, newTarget(ref))
 
   final def initiateStreamFor(ref: ActorRef, key: StreamId) = InitiatingStreamForDestination { ctx =>
     ctx +('stream -> key, 'ref -> ref)
-    val target = targets getOrElse(ref, newTarget(ref))
+    val target = locateTarget(ref)
     val stream = streams getOrElse(key, {
       ctx + ('broadcaster -> "new")
       newStreamBroadcaster(key)
@@ -87,7 +90,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
   }
 
   private def newTarget(ref: ActorRef) = {
-    val target = new ConsumerWithStreamSinks(ref, self, componentId)
+    val target = new ConsumerWithStreamSinks(context.watch(ref), self, componentId)
     targets += ref -> target
     target
   }
@@ -103,6 +106,8 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
       }
     }
   }
+
+  onActorTerminated { ref => targets -= ref }
 
   private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentComponentId: String)(implicit val config: Config) extends ConsumerDemandTracker with EvtPublisherContext {
     private val streamKeyToSink: mutable.Map[StreamId, StreamSink] = mutable.HashMap()
@@ -203,7 +208,10 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
         pendingState = None
       }
 
-    private def updateFrom(newState: StreamState) = newState transitionFrom remoteView foreach update
+    private def updateFrom(newState: StreamState) = newState transitionFrom remoteView foreach { x =>
+      update(x)
+      remoteView = Some(newState)
+    }
 
     def onTransition(transition: StreamStateTransition, newState: StreamState) =
       if (canUpdate()) {

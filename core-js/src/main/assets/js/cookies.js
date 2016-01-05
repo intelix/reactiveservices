@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['./logging'], function (Log) {
+define(['lodash', './logging'], function (_, Log) {
 
     return {
         createCookie: function (name, value, days) {

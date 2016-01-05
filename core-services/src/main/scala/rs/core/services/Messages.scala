@@ -16,7 +16,7 @@
 package rs.core.services
 
 import rs.core.stream.StreamState
-import rs.core.{ServiceKey, Subject}
+import rs.core.{Ser, ServiceKey, Subject}
 
 object Messages {
 
@@ -26,9 +26,9 @@ object Messages {
 
   sealed trait ServiceOutbound extends ServiceDialect with OutboundMessage
 
-  trait InboundMessage
+  trait InboundMessage extends Ser
 
-  trait OutboundMessage
+  trait OutboundMessage extends Ser
 
   trait InboundSubjectMessage extends InboundMessage {
     val subj: Subject

@@ -15,9 +15,11 @@
  */
 package rs.core.services
 
+import rs.core.Ser
+
 import scala.language.implicitConversions
 
-trait StreamId
+trait StreamId extends Ser
 
 case class SimpleStreamId(id: String) extends StreamId {
   override lazy val toString: String = id

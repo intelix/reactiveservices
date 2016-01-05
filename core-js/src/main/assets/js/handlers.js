@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['./logging', 'signals', './codec_base'], function (Log, Signal, Codec) {
+define(['lodash', './logging', 'signals', './codec_base'], function (_, Log, Signal, Codec) {
 
     var signals = {
         dataRequested: new Signal(),

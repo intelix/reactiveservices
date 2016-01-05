@@ -15,11 +15,13 @@
  */
 package rs.core.stream
 
+import rs.core.Ser
+
 trait StreamState {
   def transitionFrom(olderState: Option[StreamState]): Option[StreamStateTransition]
 }
 
-trait StreamStateTransition {
+trait StreamStateTransition extends Ser {
   def toNewStateFrom(state: Option[StreamState]): Option[StreamState]
   def applicableTo(state: Option[StreamState]): Boolean
 }

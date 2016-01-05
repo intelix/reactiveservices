@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['./logging', './handlers', './codec_list'], function (Log, Streams, CodecList) {
+define(['lodash', './logging', './handlers', './codec_list'], function (_, Log, Streams, CodecList) {
 
     var streams = {};
 

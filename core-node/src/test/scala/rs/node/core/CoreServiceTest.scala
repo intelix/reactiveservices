@@ -456,52 +456,54 @@ class CoreServiceTest extends StandardMultiNodeSpec {
   }
 
 
-  trait With2Consumers1Service extends With4NodesAndTestOn1 {
+  trait With3Consumers1Service extends With4NodesAndTestOn1 {
     override def node1Services: Map[String, Class[_]] = super.node1Services +("consumer1" -> classOf[TestServiceConsumer], "consumer2" -> classOf[TestServiceConsumer])
+    override def node3Services = super.node1Services + ("consumer3" -> classOf[TestServiceConsumer])
 
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "consumer1")
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "consumer2")
+    on node3 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "consumer3")
     clearEvents()
   }
 
-  it should "receive a signal" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! SendSignal("test", "signal")
-    on node1 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer1")
-    on node1 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk
+  it should "receive a signal" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! SendSignal("test", "signal")
+    on node3 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer3")
+    on node3 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk
   }
-  it should "receive a signal with payload" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! SendSignal("test", "signal", payload = "payload")
-    on node1 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk +('payload -> "Some(payload1)", 'path -> "/user/node/consumer1")
+  it should "receive a signal with payload" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! SendSignal("test", "signal", payload = "payload")
+    on node3 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk +('payload -> "Some(payload1)", 'path -> "/user/node/consumer3")
   }
-  it should "receive a signal with payload and correlationId" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! SendSignal("test", "signal", payload = "payload", correlationId = Some("correlationId"))
-    on node1 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk +('payload -> "Some(payload1)", 'correlationId -> "Some(correlationId)", 'path -> "/user/node/consumer1")
+  it should "receive a signal with payload and correlationId" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! SendSignal("test", "signal", payload = "payload", correlationId = Some("correlationId"))
+    on node3 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk +('payload -> "Some(payload1)", 'correlationId -> "Some(correlationId)", 'path -> "/user/node/consumer3")
   }
-  it should "receive a signal with payload and correlationId, ordered group" in new With2Consumers1Service {
-    for (i <- 1 to 100) serviceOnNode1("consumer1") ! SendSignal("test", "signal", payload = s"payload$i:", correlationId = Some(s"correlation$i"), orderingGroup = Some("grp"))
-    for (i <- 1 to 100) on node1 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk +('payload -> s"Some(payload$i:$i)", 'correlationId -> s"Some(correlation$i)", 'path -> "/user/node/consumer1")
+  it should "receive a signal with payload and correlationId, ordered group" in new With3Consumers1Service {
+    for (i <- 1 to 100) serviceOnNode3("consumer3") ! SendSignal("test", "signal", payload = s"payload$i:", correlationId = Some(s"correlation$i"), orderingGroup = Some("grp"))
+    for (i <- 1 to 100) on node3 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckOk +('payload -> s"Some(payload$i:$i)", 'correlationId -> s"Some(correlation$i)", 'path -> "/user/node/consumer3")
   }
-  it should "receive a signal and respond with a failure" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! SendSignal("test", "signal_failure", payload = "payload")
-    on node1 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckFailed +('payload -> "Some(failure)", 'path -> "/user/node/consumer1")
+  it should "receive a signal and respond with a failure" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! SendSignal("test", "signal_failure", payload = "payload")
+    on node3 expectOne of TestServiceConsumerEvt.SignalResponseReceivedAckFailed +('payload -> "Some(failure)", 'path -> "/user/node/consumer3")
   }
-  it should "receive a signal and do not respond" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! SendSignal("test", "signal_no_response", payload = "payload")
+  it should "receive a signal and do not respond" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! SendSignal("test", "signal_no_response", payload = "payload")
     on node1 expectOne of TestServiceActorEvt.SignalReceived + ('subj -> "test|signal_no_response")
     within(3 seconds) {
-      on node1 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer1")
-      on node1 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer1")
+      on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer3")
+      on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer3")
     }
   }
 
-  it should "receive a signal and do not respond, client should timeout" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! SendSignal("test", "signal_no_response", payload = "payload", expiry = 2 seconds)
+  it should "receive a signal and do not respond, client should timeout" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! SendSignal("test", "signal_no_response", payload = "payload", expiry = 2 seconds)
     on node1 expectOne of TestServiceActorEvt.SignalReceived + ('subj -> "test|signal_no_response")
     within(3 seconds) {
-      on node1 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer1")
-      on node1 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer1")
+      on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer3")
+      on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer3")
     }
-    on node1 expectOne of TestServiceConsumerEvt.SignalTimeout + ('path -> "/user/node/consumer1")
+    on node3 expectOne of TestServiceConsumerEvt.SignalTimeout + ('path -> "/user/node/consumer3")
 
   }
 
@@ -514,13 +516,13 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "consumer1")
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "consumer2")
     on node3 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "consumer3")
+
+    expectFullyBuilt()
+    clearEvents()
   }
 
 
   "Service consumer" should "receive updates posted during network split (when cluster was not partitioned)" in new WithGremlin with With2Consumers1ServiceAndGremlins {
-
-    expectFullyBuilt()
-    clearEvents()
 
     serviceOnNode3("consumer3") ! Open("test", "string")
     on node3 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
@@ -574,9 +576,6 @@ class CoreServiceTest extends StandardMultiNodeSpec {
 
 
   it should "receve only the latest snapshot update if multiple updates been posted during network split" in new WithGremlin with With2Consumers1ServiceAndGremlins {
-
-    expectFullyBuilt()
-    clearEvents()
 
     serviceOnNode3("consumer3") ! Open("test", "string")
     on node3 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
@@ -640,154 +639,154 @@ class CoreServiceTest extends StandardMultiNodeSpec {
 
 
 
-  "String stream subscriber" should "receive an initial update when subscribed" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+  "String stream subscriber" should "receive an initial update when subscribed" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! Open("test", "string")
+    on node3 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
   }
 
-  it should "may or may not receive all updates, but must receive the very last one" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+  it should "may or may not receive all updates, but must receive the very last one" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! Open("test", "string")
+    on node3 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
 
     serviceOnNode1("test") ! PublishString("string", "update1")
     serviceOnNode1("test") ! PublishString("string", "update2")
     serviceOnNode1("test") ! PublishString("string", "update3")
-    on node1 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> "update3")
+    on node3 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update3")
 
   }
 
-  "Set stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! Open("test", "set")
-    on node1 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
+  "Set stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! Open("test", "set")
+    on node3 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
     clearEvents()
 
     serviceOnNode1("test") ! PublishSet("set", Set("c", "d"))
-    on node1 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
+    on node3 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
     clearEvents()
 
     serviceOnNode1("test") ! PublishSetAdd("set", Set("c", "x"))
-    on node1 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d,x")
+    on node3 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d,x")
     clearEvents()
 
     serviceOnNode1("test") ! PublishSetRemove("set", Set("c", "a"))
-    on node1 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "d,x")
+    on node3 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "set", 'value -> "d,x")
 
   }
 
-  it should "not conflict with string subscription" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! Open("test", "set")
-    on node1 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
+  it should "not conflict with string subscription" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! Open("test", "set")
+    on node3 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "set", 'value -> TestServiceActor.AutoSetReply.mkString(","))
     clearEvents()
 
-    serviceOnNode1("consumer1") ! Open("test", "string")
-    on node1 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
+    serviceOnNode3("consumer3") ! Open("test", "string")
+    on node3 expectOne of TestServiceConsumerEvt.StringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> TestServiceActor.AutoStringReply)
     clearEvents()
 
     serviceOnNode1("test") ! PublishSet("set", Set("c", "d"))
-    on node1 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
+    on node3 expectSome of TestServiceConsumerEvt.SetUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "set", 'value -> "c,d")
 
-    on node1 expectNone of TestServiceConsumerEvt.StringUpdate
+    on node3 expectNone of TestServiceConsumerEvt.StringUpdate
 
   }
 
-  "Map stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! Open("test", "map")
-    on node1 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> a, i -> 1, b -> true)")
+  "Map stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! Open("test", "map")
+    on node3 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> a, i -> 1, b -> true)")
     clearEvents()
 
     serviceOnNode1("test") ! PublishMap("map", Array("c", 123, false))
-    on node1 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> false)")
+    on node3 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> false)")
     clearEvents()
 
     serviceOnNode1("test") ! PublishMap("map", Array("c", 123, true))
-    on node1 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> true)")
+    on node3 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> c, i -> 123, b -> true)")
     clearEvents()
 
     serviceOnNode1("test") ! PublishMapAdd("map", "s" -> "bla")
-    on node1 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> bla, i -> 123, b -> true)")
+    on node3 expectSome of TestServiceConsumerEvt.MapUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "map", 'value -> "Map(s -> bla, i -> 123, b -> true)")
     clearEvents()
 
   }
 
-  "List stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With2Consumers1Service {
-    serviceOnNode1("consumer1") ! Open("test", "list1") // reject add when reached 5 items
-    serviceOnNode1("consumer1") ! Open("test", "list2") // remove from head when reached 5 items
-    serviceOnNode1("consumer1") ! Open("test", "list3") // remove from tail when reached 5 items
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "1,2,3,4")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4")
+  "List stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With3Consumers1Service {
+    serviceOnNode3("consumer3") ! Open("test", "list1") // reject add when reached 5 items
+    serviceOnNode3("consumer3") ! Open("test", "list2") // remove from head when reached 5 items
+    serviceOnNode3("consumer3") ! Open("test", "list3") // remove from tail when reached 5 items
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list1", 'value -> "1,2,3,4")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4")
     clearEvents()
 
     serviceOnNode1("test") ! PublishList("list1", List("a", "b"), ListSpecs(5, RejectAdd))
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", -1, "5")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", 0, "6")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,b,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", 2, "7")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list1", 2, "8")
     serviceOnNode1("test") ! PublishListAdd("list1", 0, "8")
     serviceOnNode1("test") ! PublishListAdd("list1", -1, "8")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list1", 'value -> "6,a,7,b,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishList("list1", List("a", "b", "c", "d", "e"), ListSpecs(6, RejectAdd))
     serviceOnNode1("test") ! PublishListAdd("list1", 2, "8")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,8,c,d,e")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list1", 'value -> "a,b,8,c,d,e")
     clearEvents()
 
 
     serviceOnNode1("test") ! PublishListAdd("list2", -1, "5")
     serviceOnNode1("test") ! PublishListAdd("list3", -1, "5")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list3", 'value -> "1,2,3,4,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list2", 0, "6")
     serviceOnNode1("test") ! PublishListAdd("list3", 0, "6")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,2,3,4")
+    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
+    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,2,3,4")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list2", 2, "7")
     serviceOnNode1("test") ! PublishListAdd("list3", 2, "7")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,3,4,5")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,7,2,3")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,3,4,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,7,2,3")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListRemove("list2", 2)
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,4,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,4,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListReplace("list2", -2, "x")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,x,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,7,x,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindReplace("list2", "7", "x")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,x,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,x,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindReplace("list2", "x", "a")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,a,x,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,a,x,5")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindRemove("list2", "z")
     within(1 seconds) {
-      on node1 expectNone of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2")
+      on node3 expectNone of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2")
     }
     clearEvents()
 
     serviceOnNode1("test") ! PublishListFindRemove("list2", "a")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "2,x,5")
     clearEvents()
 
   }

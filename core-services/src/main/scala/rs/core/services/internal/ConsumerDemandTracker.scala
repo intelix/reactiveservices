@@ -24,7 +24,7 @@ trait ConsumerDemandTracker extends ConsumerDemandTrackerEvt {
 
   self: EvtPublisherContext =>
 
-  var currentDemand = 0L
+  @volatile var currentDemand = 0L
 
   def addConsumerDemand(count: Long) = currentDemand += count
 

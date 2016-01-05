@@ -15,7 +15,7 @@
  */
 package rs.core
 
-case class Subject(service: ServiceKey, topic: TopicKey, tags: String = "") {
+case class Subject(service: ServiceKey, topic: TopicKey, tags: String = "") extends Ser {
   @transient private lazy val asString = service.toString + "|" + topic.toString + (if (tags == "") "" else "|" + tags)
 
   override def toString: String = asString

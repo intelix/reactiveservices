@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-define(['react', './logging', './appevents', './socket', './subscriptions', './auth'],
-    function (React, Log, AppEvents, Socket, Subscriptions, Auth) {
+define(['lodash', 'react', './logging', './appevents', './socket', './subscriptions', './auth'],
+    function (_, React, Log, AppEvents, Socket, Subscriptions, Auth) {
 
         function _subId2String(config) {
             return config ? config.service + "#" + config.topic : "Nil";

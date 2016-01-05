@@ -27,8 +27,8 @@ import scala.language.implicitConversions
 
 object SetStreamState {
 
-  private def calculateDiff(fromSet: Set[String], toSet: Set[String]): Seq[SetOp] = {
-    (fromSet diff toSet).map(Remove).toSeq ++ (toSet diff fromSet).map(Add).toSeq
+  private def calculateDiff(fromSet: Array[String], toSet: Array[String]): Array[SetOp] = {
+    ((fromSet diff toSet).map(Remove).toSeq ++ (toSet diff fromSet).map(Add).toSeq).toArray
   }
 
   sealed trait SetOp
@@ -41,11 +41,11 @@ object SetStreamState {
 
 }
 
-case class SetStreamState(seed: Int, seq: Int, set: Set[String], specs: SetSpecs) extends StreamState with StreamStateTransition {
+case class SetStreamState(seed: Int, seq: Int, set: Array[String], specs: SetSpecs) extends StreamState with StreamStateTransition {
   override def transitionFrom(olderState: Option[StreamState]): Option[StreamStateTransition] = olderState match {
     case Some(SetStreamState(otherSeed, otherSeq, otherSet, _)) if specs.allowPartialUpdates && otherSeed == seed =>
       val diffSet = SetStreamState.calculateDiff(otherSet, set)
-      if (diffSet.size < set.size)
+      if (diffSet.size < set.length)
         Some(SetStreamTransitionPartial(seed, otherSeq, seq, diffSet))
       else
         Some(this)
@@ -57,14 +57,14 @@ case class SetStreamState(seed: Int, seq: Int, set: Set[String], specs: SetSpecs
   override def applicableTo(state: Option[StreamState]): Boolean = true
 }
 
-case class SetStreamTransitionPartial(seed: Int, seq: Int, seq2: Int, list: Seq[SetOp]) extends StreamStateTransition {
+case class SetStreamTransitionPartial(seed: Int, seq: Int, seq2: Int, list: Array[SetOp]) extends StreamStateTransition {
   override def toNewStateFrom(state: Option[StreamState]): Option[StreamState] = state match {
     case Some(st@SetStreamState(otherSeed, otherSeq, set, _)) if otherSeed == seed && otherSeq == seq =>
-      val newSet = list.foldLeft[Set[String]](set) {
+      val newSet = list.foldLeft[Set[String]](set.toSet) {
         case (s, Add(e)) => s + e
         case (s, Remove(e)) => s - e
       }
-      Some(st.copy(seq = seq + 1, set = newSet))
+      Some(st.copy(seq = seq + 1, set = newSet.toArray))
     case _ => None
   }
 
@@ -79,7 +79,7 @@ trait SetStreamConsumer extends StreamConsumer {
   type SetStreamConsumer = PartialFunction[(Subject, Set[String]), Unit]
 
   onStreamUpdate {
-    case (s, x: SetStreamState) => composedFunction((s, x.set))
+    case (s, x: SetStreamState) => composedFunction((s, x.set.toSet))
   }
   private var composedFunction: SetStreamConsumer = {
     case _ =>
@@ -129,21 +129,21 @@ trait SetStreamPublisher {
     def streamSetSnapshot(l: => Set[String])(implicit specs: SetSpecs): Unit = !%(l)
 
     def !%(l: => Set[String])(implicit specs: SetSpecs): Unit = ?%(s) match {
-      case Some(x) => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
-      case None => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs))
+      case Some(x) => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l.toArray, specs))
+      case None => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l.toArray, specs))
     }
 
     def streamSetAdd(v: => String): Unit = !%+(v)
 
     def !%+(v: => String): Unit = ?%(s) match {
-      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Add(v))))
+      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, Array(Add(v))))
       case None =>
     }
 
     def streamSetRemove(v: => String): Unit = !%-(v)
 
     def !%-(v: => String): Unit = ?%(s) match {
-      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, List(Remove(v))))
+      case Some(x) => performStateTransition(s, SetStreamTransitionPartial(x.seed, x.seq, x.seq + 1, Array(Remove(v))))
       case None =>
     }
 

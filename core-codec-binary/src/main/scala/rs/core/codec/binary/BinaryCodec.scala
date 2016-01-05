@@ -161,7 +161,7 @@ object BinaryCodec {
         decoded
       }
       val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
-        val b = ByteString.newBuilder
+        val b = ByteString.newBuilder // TODO - Can we reuse it
         codec.encode(x, b)
         val encoded = b.result()
         MessageEncoded('original -> x, 'encoded -> encoded)

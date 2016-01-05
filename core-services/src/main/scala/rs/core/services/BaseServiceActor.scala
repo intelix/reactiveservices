@@ -26,7 +26,7 @@ import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
 import rs.core.stream.{StreamPublishers, StreamState, StreamStateTransition}
 import rs.core.utils.NanoTimer
-import rs.core.{ServiceKey, Subject}
+import rs.core.{Ser, ServiceKey, Subject}
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
@@ -35,17 +35,17 @@ import scala.util.{Failure, Success}
 
 object BaseServiceActor {
 
-  case class CloseStreamFor(streamKey: StreamId)
+  case class CloseStreamFor(streamKey: StreamId) extends Ser
 
-  case class OpenStreamFor(streamKey: StreamId)
+  case class OpenStreamFor(streamKey: StreamId) extends Ser
 
-  case class GetMappingFor(subj: Subject)
+  case class GetMappingFor(subj: Subject) extends Ser
 
-  case class StreamMapping(subj: Subject, mappedStreamKey: Option[StreamId])
+  case class StreamMapping(subj: Subject, mappedStreamKey: Option[StreamId]) extends Ser
 
-  case class StreamResyncRequest(streamKey: StreamId)
+  case class StreamResyncRequest(streamKey: StreamId) extends Ser
 
-  case class ServiceEndpoint(ref: ActorRef, address: Address)
+  case class ServiceEndpoint(ref: ActorRef, address: Address) extends Ser
 
   private case class OpenAgentAt(address: Address)
 

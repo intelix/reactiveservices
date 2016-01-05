@@ -15,7 +15,7 @@
  */
 package rs.core
 
-case class TopicKey(id: String) {
+case class TopicKey(id: String) extends Ser {
   override def toString: String = id
 }
 

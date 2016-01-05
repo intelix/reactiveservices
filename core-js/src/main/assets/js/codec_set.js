@@ -16,7 +16,7 @@
 
 
 
-define(['./logging', 'signals', './codec_base'], function (Log, Signal, Codec) {
+define(['lodash', './logging', 'signals', './codec_base'], function (_, Log, Signal, Codec) {
 
     var TypeSetStreamState = 55;
     var TypeSetStreamTransitionPartial = 56;

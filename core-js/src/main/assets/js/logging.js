@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['module'], function (Module) {
+define(['lodash', 'module'], function (_, Module) {
 
 
     var DEBUG = 1;

@@ -25,14 +25,12 @@ import scala.language.implicitConversions
 
 case class StringStreamState(value: String) extends StreamState with StreamStateTransition {
 
-  lazy val Self = Some(this)
-
   override def transitionFrom(olderState: Option[StreamState]): Option[StreamStateTransition] = olderState match {
     case Some(StringStreamState(x)) if x == value => None
-    case _ => Self
+    case _ => Some(this)
   }
 
-  override def toNewStateFrom(state: Option[StreamState]): Option[StreamState] = Self
+  override def toNewStateFrom(state: Option[StreamState]): Option[StreamState] = Some(this)
 
   override def applicableTo(state: Option[StreamState]): Boolean = true
 }

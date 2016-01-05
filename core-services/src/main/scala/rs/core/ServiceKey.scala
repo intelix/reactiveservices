@@ -15,7 +15,7 @@
  */
 package rs.core
 
-case class ServiceKey(id: String) {
+case class ServiceKey(id: String) extends Ser {
   override def toString: String = id
 }
 

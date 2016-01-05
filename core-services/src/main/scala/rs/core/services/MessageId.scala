@@ -15,6 +15,7 @@
  */
 package rs.core.services
 
+import rs.core.Ser
 import rs.core.tools.UUIDTools
 
 sealed trait MessageIdOrder
@@ -27,7 +28,7 @@ case object Newer extends MessageIdOrder
 
 case object Unknown extends MessageIdOrder
 
-trait MessageId {
+trait MessageId extends Ser{
   def compareWith(m: MessageId): MessageIdOrder
 }
 

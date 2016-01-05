@@ -15,7 +15,7 @@
  */
 
 
-define(['./logging', 'signals', './jdataview', './socket'], function (Log, Signal, JDataView, Socket) {
+define(['lodash', './logging', 'signals', './jdataview', './socket'], function (_, Log, Signal, JDataView, Socket) {
 
     var signals = {
         streamUpdateReceived: new Signal(),

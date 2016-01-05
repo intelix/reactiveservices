@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['module', './logging', 'signals'], function (Module, Log, Signal) {
+define(['lodash', 'module', './logging', 'signals'], function (_, Module, Log, Signal) {
 
     var signals = {
         connected: new Signal(),

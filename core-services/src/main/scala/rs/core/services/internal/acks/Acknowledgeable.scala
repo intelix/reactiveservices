@@ -16,6 +16,7 @@
 package rs.core.services.internal.acks
 
 import akka.actor.ActorRef
+import rs.core.Ser
 import rs.core.services.{MessageId, RandomStringMessageId, WithMessageId}
 
 object Acknowledgeable {
@@ -28,7 +29,7 @@ object Acknowledgeable {
 
 }
 
-trait Acknowledgeable {
+trait Acknowledgeable extends Ser {
   def messageId: MessageId
 
   def payload: Any

@@ -29,11 +29,13 @@ trait StreamDemandBinding extends BaseActor with DuplicateMessageTracker with Me
 
   def onConsumerDemand(sender: ActorRef, demand: Long)
 
-  private def processDemand(m: DownstreamDemandRequest) = if (isNotDuplicate(sender(), "DownstreamDemandRequest", m.messageId)) {
-    onConsumerDemand(sender(), m.count)
-  } else {
-    DuplicateDemandRequest('sender -> sender(), 'payload -> m)
-  }
+  private def processDemand(m: DownstreamDemandRequest) =
+    if (isNotDuplicate(sender(), "DownstreamDemandRequest", m.messageId)) {
+      onConsumerDemand(sender(), m.count)
+    } else {
+      DuplicateDemandRequest('sender -> sender(), 'payload -> m)
+    }
+
 
   onMessage {
     case m: DownstreamDemandRequest => processDemand(m)

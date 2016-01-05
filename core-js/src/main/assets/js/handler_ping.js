@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['./logging', './codec_base'], function (Log, Codec) {
+define(['lodash', './logging', './codec_base'], function (_, Log, Codec) {
 
 
     function _handlePing(id) {

@@ -80,6 +80,7 @@ case class DictionaryMapStreamState(seed: Int, seq: Int, values: Array[Any], dic
 
   override def toNewStateFrom(state: Option[StreamState]): Option[StreamState] = Some(this)
 
+
   override def applicableTo(state: Option[StreamState]): Boolean = true
 
   override def toString: String = asString
@@ -90,7 +91,8 @@ case class DictionaryMapStreamTransitionPartial(seed: Int, seq: Int, seq2: Int, 
   override def toNewStateFrom(state: Option[StreamState]): Option[StreamState] = state match {
     case Some(st@DictionaryMapStreamState(otherSeed, otherSeq, a, _)) if otherSeed == seed && otherSeq == seq && a.length == diffs.length =>
       Some(st.copy(seq = seq2, values = applyDiffsTo(a)))
-    case _ => None
+    case _ =>
+      None
   }
 
   private def applyDiffsTo(values: Array[Any]) = {

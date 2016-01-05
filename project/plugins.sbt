@@ -20,7 +20,7 @@ addSbtPlugin("org.xerial.sbt" % "sbt-sonatype" % "1.0")
 
 addSbtPlugin("net.virtual-void" % "sbt-dependency-graph" % "0.8.0")
 
-addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.3.7")
+addSbtPlugin("com.typesafe.play" % "sbt-plugin" % "2.4.4")
 
 addSbtPlugin("com.typesafe.sbt" % "sbt-web" % "1.2.2")
 

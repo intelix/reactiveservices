@@ -18,7 +18,7 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
-            <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%-40thread] %-45logger{28} - %msg%n</Pattern>
+            <Pattern>%msg%n</Pattern>
         </layout>
     </appender>
 
@@ -37,9 +37,9 @@
 
     <logger name="akka.cluster.ClusterHeartbeatSender" level="OFF" />
     <logger name="akka.cluster.ClusterRemoteWatcher" level="OFF" />
-    <logger name="akka" level="OFF" />
+    <logger name="akka" level="DEBUG" />
 
-    <root level="ERROR">
+    <root level="DEBUG">
         <appender-ref ref="STDOUT" />
     </root>
 

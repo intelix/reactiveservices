@@ -15,6 +15,7 @@
  */
 package rs.core.services.internal.acks
 
+import rs.core.Ser
 import rs.core.services.MessageId
 
-case class Acknowledgement(messageId: MessageId)
+case class Acknowledgement(messageId: MessageId) extends Ser

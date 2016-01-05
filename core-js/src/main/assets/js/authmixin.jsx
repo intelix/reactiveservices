@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-define(['react', './auth', './appevents'], function (React, Auth, Appevents) {
+define(['lodash', 'react', './auth', './appevents'], function (_, React, Auth, Appevents) {
 
     Auth.signals.accessChanged.add(function() {
         Appevents.signals.ApplicationRefreshRequest.dispatch();
