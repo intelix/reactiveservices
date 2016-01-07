@@ -1,11 +1,12 @@
 package rs.core.serializer
 
-import akka.actor.ExtendedActorSystem
+import akka.actor.{Extension, ActorRef, ExtendedActorSystem}
 import akka.serialization.Serializer
 import net.jpountz.lz4.LZ4Factory
 import rs.core.config.ConfigOps.wrap
+import rs.core.serializer.RSThreadUnsafeCodec.ExternalCodecs
 
-class AkkaSerializer(val system: ExtendedActorSystem) extends Serializer {
+class AkkaSerializer(val system: ExtendedActorSystem) extends Serializer with Extension {
 
   val config = system.settings.config
 
@@ -34,10 +35,10 @@ class AkkaSerializer(val system: ExtendedActorSystem) extends Serializer {
       }
       val size = lz4.compress(input, 0, inputSize, localBuffer, 4, maxCompressedLength)
 
-      localBuffer(0) = (size >> 24).toByte
-      localBuffer(1) = (size >> 16).toByte
-      localBuffer(2) = (size >> 8).toByte
-      localBuffer(3) = size.toByte
+      localBuffer(0) = (inputSize >> 24).toByte
+      localBuffer(1) = (inputSize >> 16).toByte
+      localBuffer(2) = (inputSize >> 8).toByte
+      localBuffer(3) = inputSize.toByte
 
       localBuffer.take(size + 4)
     }
@@ -51,14 +52,17 @@ class AkkaSerializer(val system: ExtendedActorSystem) extends Serializer {
         case _ => val newBuff = new Array[Byte](size); localBuffers.set(newBuff); newBuff
       }
       lz4.decompress(input, 4, localBuffer, 0, size)
-      localBuffer
+      localBuffer.take(size)
     }
   }
 
-  lazy val lz4Codec = new LZ4Codec
+  private lazy val lz4Codec = new LZ4Codec
+  implicit val ec: ExternalCodecs = new ExternalCodecs {
+    override def resolveActorRef(s: String): ActorRef = system.provider.resolveActorRef(s)
+  }
 
-  val localCodecs = new ThreadLocal[RSThreadSafeCodec] {
-    override def initialValue(): RSThreadSafeCodec = new RSThreadSafeCodec
+  val localCodecs = new ThreadLocal[RSThreadUnsafeCodec] {
+    override def initialValue(): RSThreadUnsafeCodec = new RSThreadUnsafeCodec
   }
 
   def fromBinary(bytes: Array[Byte], clazz: Option[Class[_]]): AnyRef =

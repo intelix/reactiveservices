@@ -33,7 +33,7 @@ define(['lodash', './logging', 'signals', './codec_base'], function (_, Log, Sig
             data: {
                 seed: Codec.readInt(frame),
                 seq: Codec.readInt(frame),
-                values: Codec.readArrayOfString(frame)
+                values: Codec.readArrayOfAny(frame)
             },
             dispatcher: signals.snapshotUpdateReceived
         };
@@ -54,13 +54,13 @@ define(['lodash', './logging', 'signals', './codec_base'], function (_, Log, Sig
     Codec.addDecoder(TypeSetAddOp, function (frame) {
         return {
             type: TypeSetAddOp,
-            value: Codec.readString(frame)
+            value: Codec.readNextIfAny(frame)
         };
     });
     Codec.addDecoder(TypeSetRemoveOp, function (frame) {
         return {
             type: TypeSetRemoveOp,
-            value: Codec.readString(frame)
+            value: Codec.readNextIfAny(frame)
         };
     });
 

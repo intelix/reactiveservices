@@ -62,7 +62,7 @@ class TestServiceConsumer(id: String) extends Terminal with TestServiceConsumerE
   }
 
   onSetRecord {
-    case (s, set) => SetUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> set.toList.sorted.mkString(","))
+    case (s, set) => SetUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> set.toList.map(_.toString).sorted.mkString(","))
   }
 
   onDictMapRecord {

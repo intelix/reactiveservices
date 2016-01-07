@@ -19,7 +19,7 @@ import rs.core.{Ser, Subject}
 import rs.core.services.{StreamId, Expirable, MessageId}
 import rs.core.stream.StreamStateTransition
 
-private[services] object InternalMessages {
+object InternalMessages {
 
   case class DownstreamDemandRequest(messageId: MessageId, count: Long) extends Ser
 

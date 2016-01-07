@@ -28,6 +28,7 @@ object BinaryProtocolMessages {
 
   sealed trait BinaryDialectOutbound extends BinaryDialect with OutboundMessage
 
+  trait HighPriority
 
 
   case class BinaryDialectAlias(id: Int, subj: Subject) extends BinaryDialectInbound

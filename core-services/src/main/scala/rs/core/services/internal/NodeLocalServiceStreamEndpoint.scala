@@ -479,7 +479,7 @@ class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: Strin
     super.preStart()
     actor = Some(context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId"))
     val cluster = Cluster.get(context.system)
-    acknowledgedDelivery(serviceRef, ServiceEndpoint(actor.get, cluster.selfAddress), SpecificDestination(serviceRef))
+    acknowledgedDelivery(serviceRef, ServiceEndpoint(actor.get, cluster.selfAddress.toString), SpecificDestination(serviceRef))
     AgentStarted('proxy -> actor)
   }
 

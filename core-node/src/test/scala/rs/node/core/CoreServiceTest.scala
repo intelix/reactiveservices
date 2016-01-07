@@ -753,8 +753,8 @@ class CoreServiceTest extends StandardMultiNodeSpec {
 
     serviceOnNode1("test") ! PublishListAdd("list2", 0, "6")
     serviceOnNode1("test") ! PublishListAdd("list3", 0, "6")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
-    on node1 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,2,3,4")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list2", 'value -> "1,2,3,4,5")
+    on node3 expectSome of TestServiceConsumerEvt.ListUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "list3", 'value -> "6,1,2,3,4")
     clearEvents()
 
     serviceOnNode1("test") ! PublishListAdd("list2", 2, "7")

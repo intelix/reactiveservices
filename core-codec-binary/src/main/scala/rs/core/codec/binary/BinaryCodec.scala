@@ -340,10 +340,10 @@ object BinaryCodec {
         var cnt = 0
         var list = List[T]()
         while (cnt < len) {
-          list = list :+ commonCodec.decode(bytes).asInstanceOf[T]
+          list = commonCodec.decode(bytes).asInstanceOf[T] +: list
           cnt += 1
         }
-        list
+        list.reverse
       }
 
       def encode(value: Seq[Any], builder: ByteStringBuilder)(implicit commonCodec: CommonDataBinaryCodec, byteOrder: ByteOrder): Unit = {
@@ -372,6 +372,7 @@ object BinaryCodec {
         })
       }
     }
+
 
 
     object ListStringCodecLogic {
@@ -587,16 +588,16 @@ object BinaryCodec {
           case TypeDictionaryMapNoChange => NoChange
           case TypeDictionaryMapStreamTransitionPartial => DictionaryMapStreamTransitionPartial(bytes.getInt, bytes.getInt, bytes.getInt, ArrayAnyCodecLogic.decode(bytes))
 
-          case TypeSetStreamState => SetStreamState(bytes.getInt, bytes.getInt, SetStringsCodecLogic.decode(bytes), SetSpecs(BooleanCodecLogic.decode(bytes)))
+          case TypeSetStreamState => SetStreamState(bytes.getInt, bytes.getInt, SetAnyCodecLogic.decode(bytes), SetSpecs(BooleanCodecLogic.decode(bytes)))
           case TypeSetStreamTransitionPartial => SetStreamTransitionPartial(bytes.getInt, bytes.getInt, bytes.getInt, SeqAnyCodecLogic.decode[SetOp](bytes))
-          case TypeSetAddOp => Add(StringCodecLogic.decode(bytes))
-          case TypeSetRemoveOp => Remove(StringCodecLogic.decode(bytes))
+          case TypeSetAddOp => Add(decode(bytes))
+          case TypeSetRemoveOp => Remove(decode(bytes))
 
-          case TypeListStreamState => ListStreamState(bytes.getInt, bytes.getInt, ListStringCodecLogic.decode(bytes), ListSpecsCodecLogic.decode(bytes), List.empty)
+          case TypeListStreamState => ListStreamState(bytes.getInt, bytes.getInt, SeqAnyCodecLogic.decode(bytes), ListSpecsCodecLogic.decode(bytes), List.empty)
           case TypeListStreamTransitionPartial => ListStreamStateTransitionPartial(bytes.getInt, bytes.getInt, bytes.getInt, SeqAnyCodecLogic.decode[ListStreamState.Op](bytes))
-          case TypeListAddOp => ListStreamState.Add(bytes.getShort.toInt, StringCodecLogic.decode(bytes))
+          case TypeListAddOp => ListStreamState.Add(bytes.getShort.toInt, decode(bytes))
           case TypeListRemoveOp => ListStreamState.Remove(bytes.getShort.toInt)
-          case TypeListReplaceOp => ListStreamState.Replace(bytes.getShort.toInt, StringCodecLogic.decode(bytes))
+          case TypeListReplaceOp => ListStreamState.Replace(bytes.getShort.toInt, decode(bytes))
         }
       }
 
@@ -630,29 +631,29 @@ object BinaryCodec {
           case x: SetStreamState => putId(TypeSetStreamState)
             builder.putInt(x.seed)
             builder.putInt(x.seq)
-            SetStringsCodecLogic.encode(x.set, builder)
+            SetAnyCodecLogic.encode(x.set, builder)
             BooleanCodecLogic.encode(x.specs.allowPartialUpdates, builder)
           case x: SetStreamTransitionPartial => putId(TypeSetStreamTransitionPartial)
             builder.putInt(x.seed)
             builder.putInt(x.seq)
             builder.putInt(x.seq2)
             SeqAnyCodecLogic.encode(x.list, builder)
-          case x: Add => putId(TypeSetAddOp); StringCodecLogic.encode(x.el, builder)
-          case x: Remove => putId(TypeSetRemoveOp); StringCodecLogic.encode(x.el, builder)
+          case x: Add => putId(TypeSetAddOp); encode(x.el, builder)
+          case x: Remove => putId(TypeSetRemoveOp); encode(x.el, builder)
 
           case x: ListStreamState => putId(TypeListStreamState)
             builder.putInt(x.seed)
             builder.putInt(x.seq)
-            ListStringCodecLogic.encode(x.list, builder)
+            SeqAnyCodecLogic.encode(x.list, builder)
             ListSpecsCodecLogic.encode(x.specs, builder)
           case x: ListStreamStateTransitionPartial => putId(TypeListStreamTransitionPartial)
             builder.putInt(x.seed)
             builder.putInt(x.seq)
             builder.putInt(x.seq2)
             SeqAnyCodecLogic.encode(x.list, builder)
-          case x: ListStreamState.Add => putId(TypeListAddOp); builder.putShort(x.pos); StringCodecLogic.encode(x.v, builder)
+          case x: ListStreamState.Add => putId(TypeListAddOp); builder.putShort(x.pos); encode(x.v, builder)
           case x: ListStreamState.Remove => putId(TypeListRemoveOp); builder.putShort(x.pos)
-          case x: ListStreamState.Replace => putId(TypeListReplaceOp); builder.putShort(x.pos); StringCodecLogic.encode(x.v, builder)
+          case x: ListStreamState.Replace => putId(TypeListReplaceOp); builder.putShort(x.pos); encode(x.v, builder)
           case _ => putId(TypeNone)
         }
       }

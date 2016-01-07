@@ -29,7 +29,7 @@ object TestServiceActorEvt extends TestServiceActorEvt
 object TestServiceActor {
 
   val AutoStringReply = "hello"
-  val AutoSetReply = Set("a", "b")
+  val AutoSetReply = Set[Any]("a", "b")
   val AutoMapReply = Array("a", 1, true)
   val AutoListReply = List("1", "2", "3", "4")
 
@@ -130,7 +130,7 @@ class TestServiceActor(id: String) extends StatelessServiceActor(id) with TestSe
 
   onMessage {
     case PublishString(sId, v) => sId !~ v
-    case PublishSet(sId, v) => sId !% v
+    case PublishSet(sId, v) => sId !% v.asInstanceOf[Set[Any]]
     case PublishSetAdd(sId, v) => v.foreach(sId !%+ _)
     case PublishSetRemove(sId, v) => v.foreach(sId !%- _)
     case PublishMap(sId, v) => sId !# v

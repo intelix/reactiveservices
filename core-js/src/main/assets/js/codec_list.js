@@ -34,7 +34,7 @@ define(['lodash', './logging', 'signals', './codec_base'], function (_, Log, Sig
             data: {
                 seed: Codec.readInt(frame),
                 seq: Codec.readInt(frame),
-                values: Codec.readArrayOfString(frame),
+                values: Codec.readArrayOfAny(frame),
                 max: Codec.readShort(frame),
                 eviction: Codec.readByte(frame)
             },
@@ -56,7 +56,7 @@ define(['lodash', './logging', 'signals', './codec_base'], function (_, Log, Sig
         return {
             type: TypeListAddOp,
             position: Codec.readShort(frame),
-            value: Codec.readString(frame)
+            value: Codec.readNextIfAny(frame)
         };
     });
     Codec.addDecoder(TypeListRemoveOp, function (frame) {
@@ -69,7 +69,7 @@ define(['lodash', './logging', 'signals', './codec_base'], function (_, Log, Sig
         return {
             type: TypeListReplaceOp,
             position: Codec.readShort(frame),
-            value: Codec.readString(frame)
+            value: Codec.readNextIfAny(frame)
         };
     });
 

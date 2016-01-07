@@ -146,7 +146,7 @@ class AuthStage extends ServiceDialectStageBuilder {
           if (closeOnServiceDown) userId = None
           Some(s)
         case StreamStateUpdate(SubjectPermissionsSubSubject, SetStreamState(_, _, set, _)) =>
-          permissions = convertPermissions(set)
+          permissions = convertPermissions(set.asInstanceOf[Set[String]])
           if (permissions.isEmpty) SubjectPermissionsReset() else SubjectPermissionsProvided()
           None
         case StreamStateUpdate(InfoSubSubject, DictionaryMapStreamState(_, _, values, d)) =>

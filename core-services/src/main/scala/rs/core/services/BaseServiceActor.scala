@@ -45,7 +45,7 @@ object BaseServiceActor {
 
   case class StreamResyncRequest(streamKey: StreamId) extends Ser
 
-  case class ServiceEndpoint(ref: ActorRef, address: Address) extends Ser
+  case class ServiceEndpoint(ref: ActorRef, id: String) extends Ser
 
   private case class OpenAgentAt(address: Address)
 
@@ -117,7 +117,7 @@ trait BaseServiceActor
     case _ => None
   }
   private var activeStreams: Set[StreamId] = Set.empty
-  private var activeAgents: Map[Address, AgentView] = Map.empty
+  private var activeAgents: Map[String, AgentView] = Map.empty
 
   final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
 
@@ -191,7 +191,7 @@ trait BaseServiceActor
         }
       } else SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
 
-    case ServiceEndpoint(ref, address) => addEndpointAddress(address, ref)
+    case ServiceEndpoint(ref, id) => addEndpointAddress(id, ref)
     case OpenAgentAt(address) => if (isAddressReachable(address)) ensureAgentIsRunningAt(address)
     case GetMappingFor(subj) =>
       subjectToStreamKeyMapperFunc(subj) match {
@@ -214,11 +214,11 @@ trait BaseServiceActor
   }
 
   onActorTerminated { ref =>
-    activeAgents get ref.path.address foreach { loc =>
+    activeAgents get ref.path.address.toString foreach { loc =>
       if (loc.agent == ref) {
         RemoveAgentTerminated('location -> ref.path.address, 'ref -> ref)
         cancelMessages(SpecificDestination(ref))
-        activeAgents -= ref.path.address
+        activeAgents -= ref.path.address.toString
         loc.endpoint foreach { epRef =>
           loc.currentStreams foreach { streamKey => closeStreamAt(epRef, streamKey) }
         }
@@ -230,7 +230,7 @@ trait BaseServiceActor
   protected def terminate(reason: String) = throw new RuntimeException(reason)
 
   private def ensureAgentIsRunningAt(address: Address) =
-    if (!activeAgents.contains(address))
+    if (!activeAgents.contains(address.toString))
       StartingRemoveAgent { ctx =>
 
         val id = randomUUID
@@ -248,12 +248,12 @@ trait BaseServiceActor
         ctx + ('remotePath -> newAgent.path)
 
         val newActiveLocation = new AgentView(newAgent)
-        activeAgents += address -> newActiveLocation
+        activeAgents += address.toString -> newActiveLocation
       }
 
   private def reinitialiseStreams(address: Address) =
     for (
-      agent <- activeAgents.get(address);
+      agent <- activeAgents.get(address.toString);
       endpoint <- agent.endpoint
     ) agent.currentStreams.foreach { streamId => reopenStream(endpoint, streamId) }
 
@@ -298,9 +298,9 @@ trait BaseServiceActor
 
   final def isStreamActive(streamKey: StreamId) = activeStreams.contains(streamKey)
 
-  private def addEndpointAddress(address: Address, endpoint: ActorRef): Unit = RemoteEndpointRegistered { ctx =>
-    ctx +('location -> address, 'ref -> endpoint)
-    activeAgents get address foreach { agentView =>
+  private def addEndpointAddress(id: String, endpoint: ActorRef): Unit = RemoteEndpointRegistered { ctx =>
+    ctx +('location -> id, 'ref -> endpoint)
+    activeAgents get id foreach { agentView =>
       agentView.addEndpoint(endpoint)
       initiateTarget(endpoint)
     }
