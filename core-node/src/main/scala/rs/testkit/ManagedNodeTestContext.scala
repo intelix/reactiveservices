@@ -20,7 +20,7 @@ import akka.remote.MgmtService
 import akka.remote.MgmtService.{Block, Unblock}
 import org.scalatest.Suite
 import rs.core.config.NodeConfig
-import rs.core.tools.UUIDTools
+import rs.core.utils.UUIDTools
 import rs.node.core.discovery.UdpClusterManagerActor.Messages.{BlockCommunicationWith, UnblockCommunicationWith}
 import rs.node.core.discovery.UdpClusterManagerActorEvt
 import rs.node.core.{ClusterNodeActor, ClusterNodeActorEvt, ServiceClusterGuardianActor}

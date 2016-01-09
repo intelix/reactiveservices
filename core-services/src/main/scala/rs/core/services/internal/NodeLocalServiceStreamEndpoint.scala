@@ -32,7 +32,7 @@ import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
 import rs.core.services.internal.acks.Acknowledgeable
 import rs.core.stream.{StreamState, StreamStateTransition}
 import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
-import rs.core.tools.NowProvider
+import rs.core.utils.NowProvider
 import rs.core.{ServiceKey, Subject}
 
 import scala.collection.mutable

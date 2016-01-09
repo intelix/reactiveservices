@@ -22,7 +22,8 @@ import rs.core.config.ConfigOps.wrap
 import rs.core.services.{CompoundStreamIdTemplate, StatelessServiceActor}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.SetStreamState.SetSpecs
-import rs.core.tools.JsonTools.jsToExtractorOps
+import rs.core.utils.JsonTools
+import JsonTools.jsToExtractorOps
 import rs.core.{Subject, TopicKey}
 import rs.service.auth.AuthServiceActor.InfoUserId
 import rs.service.auth.api.AuthenticationMessages.{Authenticate, AuthenticationResponse, Invalidate}

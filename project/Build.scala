@@ -55,7 +55,7 @@ private object Settings {
   )
 
   lazy val testSettings = Seq(
-    testOptions in Test += Tests.Argument("-oDF"),
+    testOptions in Test += Tests.Argument("-oDF", "-Devt-config=evt-test"),
     testListeners in(Test, test) := Seq(TestLogger(streams.value.log, { _ => streams.value.log }, logBuffered.value)),
     testOptions += Tests.Argument(TestFrameworks.JUnit, "-v", "-a")
   )

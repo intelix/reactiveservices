@@ -14,19 +14,24 @@
  * limitations under the License.
  */
 
-package rs.core.tools
+package rs.core.utils
 
-import java.util.Date
+import java.nio.ByteBuffer
 
-import org.ocpsoft.prettytime.PrettyTime
+import com.eaio.uuid.UUID
+import org.apache.commons.codec.binary.Base64
 
-trait NowProvider {
+object UUIDTools {
 
-  def now = java.lang.System.currentTimeMillis()
-  def prettyTime = new PrettyTime()
-  def prettyTimeFormat(l:Long) = prettyTime.format(new Date(l))
+   def generateShortUUID: String = {
+     val uuid = new UUID()
+     val bb = ByteBuffer allocate 16
+     bb putLong uuid.getClockSeqAndNode
+     bb putLong uuid.getTime
+     bb.flip
+     val result = Base64 encodeBase64URLSafeString bb.array
+     bb.clear
+     result
+   }
 
-}
-
-object NowProvider extends NowProvider
-
+ }
