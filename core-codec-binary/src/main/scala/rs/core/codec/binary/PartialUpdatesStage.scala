@@ -31,8 +31,8 @@ class PartialUpdatesStage extends BinaryDialectStageBuilder {
     if (serviceCfg.asBoolean("partials.enabled", defaultValue = true)) Some(BidiFlow.fromGraph(new PartialUpdatesProducer(serviceCfg))) else None
 
   private class PartialUpdatesProducer(serviceCfg: ServiceConfig) extends GraphStage[BidiShape[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound]] {
-    val outBuffer = serviceCfg.asInt("partials.out-buffer-msg", defaultValue = 8)
-    val inBuffer = serviceCfg.asInt("partials.in-buffer-msg", defaultValue = 8)
+    val outBuffer = serviceCfg.asInt("partials.out-buffer-msg", defaultValue = 1)
+    val inBuffer = serviceCfg.asInt("partials.in-buffer-msg", defaultValue = 1)
     val in1: Inlet[BinaryDialectInbound] = Inlet("ServiceBoundIn")
     val out1: Outlet[BinaryDialectInbound] = Outlet("ServiceBoundOut")
     val in2: Inlet[BinaryDialectOutbound] = Inlet("ClientBoundIn")

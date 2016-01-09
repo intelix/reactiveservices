@@ -48,6 +48,7 @@ class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
 
   onMessage {
     case Request(n) =>
+//      println(s"!>>> Requested demand: $n")
       DemandProduced('new -> n, 'total -> totalDemand)
       streamAggregator ! DownstreamDemandRequest(messageIdGenerator.next(), n)
     case Cancel =>
@@ -55,6 +56,7 @@ class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
       streamAggregator ! PoisonPill
       context.stop(self)
     case m: ServiceOutbound =>
+//      println(s"!>>> Produced: $m")
       OnNext('demand -> totalDemand)
       onNext(m)
   }

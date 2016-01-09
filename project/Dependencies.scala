@@ -48,6 +48,8 @@ object Dependencies {
     
     import Versions._
 
+    val scalaReflect      = "org.scala-lang"              %  "scala-reflect"                 % scalaVersion
+
 
     val playJson          = "com.typesafe.play"           %%  "play-json"                     % playJsonVersion
     val playJsonZipper    = "com.mandubian"               %%  "play-json-zipper"              % playJsonZipperVersion
@@ -106,6 +108,7 @@ object Dependencies {
   import Compile._
 
   lazy val core = Seq(
+    scalaReflect,
     ficus,
     scalaz,
     uuid,

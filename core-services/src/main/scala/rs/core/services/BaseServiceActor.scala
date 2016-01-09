@@ -214,8 +214,10 @@ trait BaseServiceActor
   }
 
   onActorTerminated { ref =>
+    println(s"!>>> Terminated $ref")
     activeAgents get ref.path.address.toString foreach { loc =>
       if (loc.agent == ref) {
+        println(s"!>>> RemoveAgentTerminated ${ref.path.address}")
         RemoveAgentTerminated('location -> ref.path.address, 'ref -> ref)
         cancelMessages(SpecificDestination(ref))
         activeAgents -= ref.path.address.toString
@@ -230,26 +232,29 @@ trait BaseServiceActor
   protected def terminate(reason: String) = throw new RuntimeException(reason)
 
   private def ensureAgentIsRunningAt(address: Address) =
-    if (!activeAgents.contains(address.toString))
-      StartingRemoveAgent { ctx =>
+    {
+      println(s"!>>> Agent available ${address.toString}? ${activeAgents.contains(address.toString)}")
+      if (!activeAgents.contains(address.toString))
+        StartingRemoveAgent { ctx =>
 
-        val id = randomUUID
+          val id = randomUUID
 
-        val name = s"agt-$serviceKey-$id"
+          val name = s"agt-$serviceKey-$id"
 
-        ctx +('address -> address, 'host -> address.host, 'name -> name)
+          ctx +('address -> address, 'host -> address.host, 'name -> name)
 
-        val newAgent = context.watch(
-          context.actorOf(NodeLocalServiceStreamEndpoint
-            .remoteStreamAgentProps(serviceKey, self, id)
-            .withDeploy(Deploy(scope = RemoteScope(address))), name)
-        )
+          val newAgent = context.watch(
+            context.actorOf(NodeLocalServiceStreamEndpoint
+              .remoteStreamAgentProps(serviceKey, self, id)
+              .withDeploy(Deploy(scope = RemoteScope(address))), name)
+          )
 
-        ctx + ('remotePath -> newAgent.path)
+          ctx + ('remotePath -> newAgent.path)
 
-        val newActiveLocation = new AgentView(newAgent)
-        activeAgents += address.toString -> newActiveLocation
-      }
+          val newActiveLocation = new AgentView(newAgent)
+          activeAgents += address.toString -> newActiveLocation
+        }
+    }
 
   private def reinitialiseStreams(address: Address) =
     for (

@@ -30,16 +30,20 @@ private class SimpleThrottledFlow(serviceCfg: ServiceConfig) extends GraphStage[
 
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new TimerGraphStageLogic(shape) {
 
-    val msgSec = serviceCfg.asInt("throttling.total-msg-sec-per-session", 1000)
+    val msgSec = serviceCfg.asInt("throttling.target-msg-sec-per-session", 1000)
     println(s"!>>>> $msgSec ")
-    val tokenReplenishInterval = serviceCfg.asFiniteDuration("throttling.token-replenish-interval", 200 millis)
+
+    val tokenReplenishInterval = serviceCfg.asFiniteDuration("throttling.token-refresh-interval", 200 millis) match {
+      case i if msgSec * i.toMillis / 1000 < 1 => (1000 / msgSec) millis
+      case i => i
+    }
 
     case object TokensTimer
 
-    val TokensCount = msgSec * tokenReplenishInterval.toMillis / 1000
+    val TokensCount = (msgSec * tokenReplenishInterval.toMillis / 1000).toInt
+
 
     var tokens = 0
-    var lastTokensIssuedAt = 0L
 
     var maybeNext: Option[BinaryDialectOutbound] = None
 
@@ -50,10 +54,7 @@ private class SimpleThrottledFlow(serviceCfg: ServiceConfig) extends GraphStage[
 
     override protected def onTimer(timerKey: Any): Unit = {
       val now = System.currentTimeMillis()
-      val elapsedTime = if (lastTokensIssuedAt == 0) tokenReplenishInterval.toMillis else now - lastTokensIssuedAt
-      tokens = (elapsedTime * TokensCount / tokenReplenishInterval.toMillis ).toInt
-      lastTokensIssuedAt = now
-      println(s"!>>>> $elapsedTime, $tokenReplenishInterval, $TokensCount ")
+      tokens = TokensCount
       forwardThrottled()
     }
 
