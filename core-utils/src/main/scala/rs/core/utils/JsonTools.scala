@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package rs.core.tools
+package rs.core.utils
 
 import play.api.libs.json._
 

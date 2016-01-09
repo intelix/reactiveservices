@@ -3,7 +3,7 @@ package rs.testkit
 import akka.actor.{ActorRef, ActorSystem, Props}
 import org.scalatest.Suite
 import rs.core.sysevents.Sysevent
-import rs.core.tools.UUIDTools
+import rs.core.utils.UUIDTools
 
 trait ActorSystemTestContext extends EvtAssertions {
   self: Suite =>

@@ -70,7 +70,8 @@ trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with
     log.error("*" * 60 + " RAISED EVENTS: " + "*" * 60)
     TestEvtPublisher.withOrderedEvents { events =>
       events.foreach { next =>
-        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
+        // TODO !>>>> COMPLETE!!!
+//        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
       }
     }
     log.error("*" * 120 + "\n\n\n\n")
@@ -84,7 +85,8 @@ trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with
     log2.error("Raised sysevents:")
     TestEvtPublisher.withOrderedEvents { events =>
       events.foreach { next =>
-        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
+        // TODO !>>>> COMPLETE!!!
+//        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
       }
     }
     log2.error("*" * 120 + "\n\n\n\n")

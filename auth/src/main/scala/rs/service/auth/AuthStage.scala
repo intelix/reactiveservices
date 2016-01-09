@@ -25,7 +25,7 @@ import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
 import rs.core.stream.{DictionaryMapStreamState, SetStreamState}
 import rs.core.sysevents.{CommonEvt, EvtPublisher}
-import rs.core.tools.UUIDTools
+import rs.core.utils.UUIDTools
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 import scala.collection.mutable

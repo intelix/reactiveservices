@@ -30,5 +30,5 @@ trait EvtPublisherContext {
 }
 
 private object EvtPublisherContext extends WithSyseventsConfig {
-  val publisher = syseventsConfig.asClass("sysevents.publisher-provider", classOf[LoggerEvtPublisher]).newInstance().asInstanceOf[EvtPublisher]
+  val publisher = syseventsConfig.asConfigurableInstance[EvtPublisher]("sysevents.publisher-provider", classOf[LoggerEvtPublisher])
 }

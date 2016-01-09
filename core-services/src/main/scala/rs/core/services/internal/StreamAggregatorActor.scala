@@ -23,7 +23,7 @@ import rs.core.services.Messages._
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
 import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
 import rs.core.stream.StreamState
-import rs.core.tools.NowProvider
+import rs.core.utils.NowProvider
 import rs.core.{ServiceKey, Subject}
 
 import scala.annotation.tailrec

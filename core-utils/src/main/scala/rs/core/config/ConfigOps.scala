@@ -21,6 +21,7 @@ import net.ceedubs.ficus.Ficus._
 
 import scala.concurrent.duration.FiniteDuration
 import scala.language.implicitConversions
+import scala.util.Try
 import scalaz.Scalaz._
 
 object ConfigOps {
@@ -57,19 +58,25 @@ class ConfigOps(cfg: Config) {
 
   def asConfig(key: String) = cfg.as[Option[Config]](fieldFor(key)) | ConfigFactory.empty()
 
-  def asString(key: String, defaultValue: String) = cfg.as[Option[String]](fieldFor(key)) | defaultValue
+  def asString(key: String, defaultValue: String) = asOptString(key) | defaultValue
 
   def asInt(key: String, defaultValue: Int) = asOptInt(key) | defaultValue
 
   def asLong(key: String, defaultValue: Long) = asOptLong(key) | defaultValue
 
   def asBoolean(key: String, defaultValue: Boolean) = cfg.as[Option[Boolean]](fieldFor(key)) | defaultValue
+  def asOptBoolean(key: String) = cfg.as[Option[Boolean]](fieldFor(key))
 
   def asOptFiniteDuration(key: String) = cfg.as[Option[FiniteDuration]](fieldFor(key))
 
   def asFiniteDuration(key: String, defaultValue: FiniteDuration) = cfg.as[Option[FiniteDuration]](fieldFor(key)) | defaultValue
 
-  def asClass(key: String, defaultValue: Class[_]) = asOptClass(key) | defaultValue
+  def asClass[T](key: String, defaultValue: Class[_]) = asOptClass[T](key) | defaultValue.asInstanceOf[Class[T]]
+
+  def asConfigurableInstance[T](key: String, defaultClass: Class[_]): T = {
+    val cl = asClass[T](key, defaultClass)
+    Try(cl.getConstructor(classOf[Config])).map(_.newInstance(cfg)).getOrElse(cl.newInstance())
+  }
 
   def asOptLong(key: String) = cfg.as[Option[Long]](fieldFor(key))
 
@@ -79,11 +86,11 @@ class ConfigOps(cfg: Config) {
 
   def asClassesList(key: String) = asStringList(key).map(Class.forName)
 
-  def asOptClass(key: String) = cfg.as[Option[String]](fieldFor(key)).map(Class.forName)
+  def asOptClass[T](key: String): Option[Class[T]] = cfg.as[Option[String]](fieldFor(key)).map(Class.forName(_).asInstanceOf[Class[T]])
 
-  def asOptProps(key: String, args: Any*) = asOptClass(key).map(Props(_, args: _*))
+  def asOptProps[T](key: String, args: Any*) = asOptClass[T](key).map(Props(_, args: _*))
 
-  def asRequiredProps(key: String, args: Any*)  = required(asOptClass(key).map(Props(_, args: _*)), key)
+  def asRequiredProps[T](key: String, args: Any*)  = required(asOptClass[T](key).map(Props(_, args: _*)), key)
 
   private def required[T](o: Option[T], key: String) = o.getOrElse(throw new RuntimeException(s"$key not provided"))
 

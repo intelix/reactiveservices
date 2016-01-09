@@ -16,7 +16,7 @@
 package rs.core.services
 
 import rs.core.Ser
-import rs.core.tools.UUIDTools
+import rs.core.utils.UUIDTools
 
 sealed trait MessageIdOrder
 

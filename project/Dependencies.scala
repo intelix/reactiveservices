@@ -30,6 +30,8 @@ object Dependencies {
 
     val sprayWebsocketVersion = "0.1.4"
 
+    val disruptorVersion = "3.3.2"
+
     val webjarsJqueryVersion = "2.1.4"
     val webjarsPlayVersion = "2.3.0-2"
     val webjarsBootstrapVersion = "3.3.6"
@@ -81,6 +83,7 @@ object Dependencies {
     val netty             = "io.netty"                    %   "netty"                         % nettyVersion force()
     val trove             = "net.sf.trove4j"              %   "trove4j"                       % troveVersion
     val guava             = "com.google.guava"            %   "guava"                         % guavaVersion force()
+    val disruptor         = "com.lmax"                    %   "disruptor"                     % disruptorVersion
     val sprayWebsocket    = "com.wandoulabs.akka"         %%   "spray-websocket"              % sprayWebsocketVersion
     val webjarsPlay       = "org.webjars"                 %% "webjars-play"                   % webjarsPlayVersion
     val webjarsJquery     = "org.webjars"                 %  "jquery"                         % webjarsJqueryVersion
@@ -123,6 +126,7 @@ object Dependencies {
     trove,
     guava,
     netty,
+    disruptor,
     akkaActor,
     akkaAgent,
     akkaKernel,
@@ -138,7 +142,8 @@ object Dependencies {
     Test.akkaTestKit,
     commonsCodec,
     metricsScala,
-    sprayWebsocket
+    sprayWebsocket,
+    "com.google.code.findbugs" % "jsr305" % "2.0.3"  // !>>> DO PROPERLY!
   )
 
   lazy val web = core ++ Seq(

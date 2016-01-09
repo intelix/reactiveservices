@@ -15,24 +15,22 @@
  */
 package rs.testkit
 
-import rs.core.sysevents._
-import rs.core.sysevents.log.LoggerEvtPublisher
+import rs.core.evt.{Evt, EvtPublisher, EvtSource}
+import rs.core.sysevents.{Sysevent, FieldAndValue}
 
-case class RaisedEvent(timestamp: Long, event: Sysevent, values: Seq[FieldAndValue])
+case class RaisedEvent(timestamp: Long, source: EvtSource, event: Evt, values: Seq[(String, Any)])
 
 object TestEvtPublisher {
+  def clearComponentEvents(componentId: String) = {} // TODO !>>>>
 
+
+  // TODO REMOVE !!!! !>>>>>
   @volatile var events = Map[Sysevent, List[Seq[FieldAndValue]]]()
+
   private var eventsInOrder = List[RaisedEvent]()
 
   def clear() = TestEvtPublisher.synchronized {
-    events = Map()
     eventsInOrder = List()
-  }
-
-  def clearComponentEvents(componentId: String) = TestEvtPublisher.synchronized {
-    events = events.filter(_._1.componentId == componentId)
-    eventsInOrder = eventsInOrder.filter(_.event.componentId != componentId)
   }
 
   def withOrderedEvents(f: List[RaisedEvent] => Unit) = this.synchronized {
@@ -41,19 +39,14 @@ object TestEvtPublisher {
 
 }
 
-class TestEvtPublisher extends LoggerEvtPublisher {
+class TestEvtPublisher extends EvtPublisher {
 
-  override def publish(ctx: EvtContext): Unit = {
+  override def raise(s: EvtSource, e: Evt, fields: Seq[(String, Any)]): Unit =
     TestEvtPublisher.synchronized {
-      val cwf = ctx.asInstanceOf[EvtContextWithFields]
-      TestEvtPublisher.eventsInOrder = TestEvtPublisher.eventsInOrder :+ RaisedEvent(System.currentTimeMillis(), cwf.event, cwf.fields)
-      TestEvtPublisher.events += (cwf.event -> (TestEvtPublisher.events.getOrElse(cwf.event, List()) :+ cwf.fields.map {
-        case (f, v) => f -> transformValue(v)
-      }))
+      TestEvtPublisher.eventsInOrder :+= RaisedEvent(System.currentTimeMillis(), s, e, fields)
     }
-  }
 
-
+  override def canPublish(s: EvtSource, e: Evt): Boolean = true
 }
 
 

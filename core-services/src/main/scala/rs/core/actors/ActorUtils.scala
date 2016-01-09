@@ -18,7 +18,7 @@ package rs.core.actors
 
 import akka.actor.{Actor, ActorRef}
 import rs.core.config.{WithActorSystemConfig, WithSomeConfig, WithNodeConfig, NodeConfig}
-import rs.core.tools.{NowProvider, UUIDTools}
+import rs.core.utils.{UUIDTools, NowProvider}
 
 import scala.concurrent.duration.FiniteDuration
 

@@ -6,7 +6,7 @@ import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import rs.core.actors.StatelessActor
 import rs.core.config.WithBlankConfig
 import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
-import rs.core.tools.UUIDTools
+import rs.core.utils.UUIDTools
 import rs.testkit
 
 import scala.concurrent.Await
