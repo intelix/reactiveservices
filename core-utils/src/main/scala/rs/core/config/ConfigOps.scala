@@ -16,13 +16,14 @@
 package rs.core.config
 
 import akka.actor.Props
-import com.typesafe.config.{Config, ConfigFactory}
+import com.typesafe.config.{ConfigValue, Config, ConfigFactory}
 import net.ceedubs.ficus.Ficus._
 
 import scala.concurrent.duration.FiniteDuration
-import scala.language.implicitConversions
+import scala.language.{postfixOps, implicitConversions}
 import scala.util.Try
 import scalaz.Scalaz._
+import scala.collection.JavaConversions._
 
 object ConfigOps {
   implicit def wrap(cfg: Config): ConfigOps = new ConfigOps(cfg)
@@ -91,6 +92,10 @@ class ConfigOps(cfg: Config) {
   def asOptProps[T](key: String, args: Any*) = asOptClass[T](key).map(Props(_, args: _*))
 
   def asRequiredProps[T](key: String, args: Any*)  = required(asOptClass[T](key).map(Props(_, args: _*)), key)
+
+  def asMap(key: String): Map[String, ConfigValue] =
+    if (cfg.hasPath(key)) cfg.getConfig(key).entrySet().toSet[java.util.Map.Entry[String, ConfigValue]].map { x => x.getKey -> x.getValue } toMap
+    else Map.empty
 
   private def required[T](o: Option[T], key: String) = o.getOrElse(throw new RuntimeException(s"$key not provided"))
 

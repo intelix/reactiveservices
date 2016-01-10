@@ -1,3 +1,8 @@
+/tmp/reactivefx/web/target
+/tmp/reactivefx/websocket/target
+/tmp/reactivefx/priceservice/target
+/tmp/reactivefx/legacyservice-api/target
+/tmp/reactivefx/legacyservice/target
 /auth/target
 /auth-js/target
 /auth-api/target

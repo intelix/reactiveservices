@@ -1,12 +1,16 @@
 package experiment
 
+import akka.actor.ActorSystem
 import experiment.ComponentEvt.SomeEvent
 import rs.core.evt._
 
 
-object ComponentEvt  {
+object ComponentEvt {
+
   case object SomeEvent extends InfoE
+
   case object SomeOtherEvent extends WarningE
+
 }
 
 object Component extends App with EvtContext {
@@ -19,10 +23,38 @@ object Component extends App with EvtContext {
   raise(SomeEvent, "k" -> 1, "a" -> true)
 
 
+  val start = System.nanoTime()
+  for (i <- 1 to 100000)
+  raiseWith(SomeEvent, "djjj" -> "bla1") { x =>
+    123
+  }
 
-    run(SomeEvent, "jjj" -> "bla1"){ x =>
-      println(s"I am here $x")
-      x + ("oh" -> "bla!")
-    }
+  println(s"!>>>> ${((System.nanoTime() - start)/1000).toDouble / 1000} ")
+
+/*
+  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
+    println(s"I am here $x")
+    x + ("oh" -> "bla!")
+    123
+  }
+
+  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
+    println(s"I am here $x")
+    x + ("oh" -> "bla!")
+    123
+  }
+
+  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
+    println(s"I am here $x")
+    x + ("oh" -> "bla!")
+    123
+  }
+  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
+    println(s"I am here $x")
+    x + ("oh" -> "bla!")
+    123
+  }
+*/
+
 
 }

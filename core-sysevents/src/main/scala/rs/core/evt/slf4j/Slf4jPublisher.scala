@@ -9,17 +9,19 @@ import rs.core.evt.{EvtPublisher, _}
 import rs.core.utils.UUIDTools
 
 
-class Slf4jPublisher(cfg: Config) extends EvtPublisher {
+class Slf4jPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport {
 
   private case class EventKey(source: EvtSource, event: Evt)
 
-  val eventLoggerName: String = cfg.asString("evt.log.logger-name", "evt.logger")
-  val exceptionLoggerName: Option[String] = cfg.asOptString("evt.log.exceptions-logger-name")
-  val logFormat: String = cfg.asString("evt.log.format", "%35s - %-30s : %s")
-  val fieldPrefix: String = cfg.asString("evt.log.field-prefix", "#")
-  val fieldPostfix: String = cfg.asString("evt.log.field-postfix", "=")
-  val exceptionLogging: Option[String] = cfg.asOptString("evt.log.exception-logging-logger-name-prefix")
-  val fieldsSeparator: String = cfg.asString("evt.log.field-separator", "  ")
+  override val eventsConfig: Config = cfg.getConfig("evt.log")
+
+  val eventLoggerName: String = eventsConfig.asString("logger-name", "evt.logger")
+  val exceptionLoggerName: Option[String] = eventsConfig.asOptString("exceptions-logger-name")
+  val logFormat: String = eventsConfig.asString("format", "%35s - %-30s : %s")
+  val fieldPrefix: String = eventsConfig.asString("field-prefix", "#")
+  val fieldPostfix: String = eventsConfig.asString("field-postfix", "=")
+  val exceptionLogging: Option[String] = eventsConfig.asOptString("exception-logging-logger-name-prefix")
+  val fieldsSeparator: String = eventsConfig.asString("field-separator", "  ")
 
   val staticEventLoggerName = eventLoggerName.indexOf('$') == -1
   val staticExceptionLoggerName = exceptionLoggerName.isDefined && exceptionLoggerName.get.indexOf('$') == -1
@@ -28,43 +30,17 @@ class Slf4jPublisher(cfg: Config) extends EvtPublisher {
     .build(new CacheLoader[String, Logger] {
       override def load(k: String): Logger = LoggerFactory.getLogger(k)
     })
-  var eventChecks = CacheBuilder.newBuilder.maximumSize(10000).concurrencyLevel(4)
-    .build(new CacheLoader[Object, Object] {
-      override def load(x: Object): Object = {
-        println(s"!>>>> eventChecks for $x ")
-        val k = x.asInstanceOf[EventKey]
-        val srcId = "evt.log.events." + k.source.evtSourceId
-        val b: Boolean = cfg.asOptBoolean(srcId + "." + k.event.name) orElse cfg.asOptBoolean(srcId) orElse cfg.asOptBoolean("evt.log.events." + k.event.name) getOrElse true
-        b.asInstanceOf[Object]
-      }
-    })
-  var fieldsChecks = CacheBuilder.newBuilder.maximumSize(10000).concurrencyLevel(1)
-    .build(new CacheLoader[Object,Object] {
-      override def load(x: Object): Object = {
-        val k = x.asInstanceOf[String]
-        (cfg.asOptBoolean("evt.log.fields." + k) getOrElse true).asInstanceOf[Object]
-      }
-    })
-  var eventLevels = CacheBuilder.newBuilder.maximumSize(10000).concurrencyLevel(1)
-    .build(new CacheLoader[Evt, EvtLevel] {
-      def toLevel(s: String): EvtLevel = s.toLowerCase match {
-        case "info" => EvtLevelInfo
-        case "debug" | "trace" => EvtLevelTrace
-        case "warn" | "warning" => EvtLevelWarning
-        case "error" => EvtLevelError
-        case _ => EvtLevelTrace
-      }
-      override def load(k: Evt): EvtLevel = cfg.asOptString("evt.log.levels." + k.name).map(toLevel) getOrElse k.level
-    })
+  val eventLevelOverrides = eventsConfig.asMap("levels").map {
+    case (k,v) => println(s"!>>>> $k -> $v "); k -> EvtLevelTrace
+  }
+  val disabledFields = eventsConfig.asStringList("disabled-fields").toSet
+
+  override def raise(s: EvtSource, e: Evt, fields: Seq[(String, Any)]): Unit = if (canPublish(s,e)) logEvent(s, e, fields)
 
 
-  override def raise(s: EvtSource, e: Evt, fields: Seq[(String, Any)]): Unit = logEvent(s, e, fields)
-
-
-
-  private def logEvent(source: EvtSource, event: Evt, values: Seq[(String, Any)]) = if (isEventEnabled(source, event)) {
+  private def logEvent(source: EvtSource, event: Evt, values: Seq[(String, Any)]) = {
     val logger = loggerFor(buildEventLoggerName(source.evtSourceId, event.name))
-    eventLevels.get(event) match {
+    eventLevelOverrides.getOrElse(event.name, event.level) match {
       case EvtLevelTrace => if (logger.isDebugEnabled) logger.debug(buildEventLogMessage(source, event, values))
       case EvtLevelInfo => if (logger.isInfoEnabled) logger.info(buildEventLogMessage(source, event, values))
       case EvtLevelWarning => if (logger.isWarnEnabled) logger.warn(buildEventLogMessage(source, event, values))
@@ -93,9 +69,7 @@ class Slf4jPublisher(cfg: Config) extends EvtPublisher {
     logFormat.format(source.evtSourceId, event.name, fields.toString())
   }
 
-  private def isFieldEnabled(f: String): Boolean = fieldsChecks.get(f).asInstanceOf[Boolean]
-
-  private def isEventEnabled(source: EvtSource, evt: Evt): Boolean = eventChecks.get(EventKey(source, evt)).asInstanceOf[Boolean]
+  private def isFieldEnabled(f: String): Boolean = disabledFields.isEmpty || disabledFields.contains(f)
 
   private def loggerFor(s: String) = loggersCache.get(s)
 
@@ -128,5 +102,4 @@ class Slf4jPublisher(cfg: Config) extends EvtPublisher {
     case other => String.valueOf(other)
   }
 
-  override def canPublish(s: EvtSource, e: Evt): Boolean = isEventEnabled(s, e)
 }
