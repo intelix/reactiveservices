@@ -1,48 +1,55 @@
 package rs.testkit.components
 
 import rs.core.actors.ClusterAwareness
+import rs.core.evt.{EvtSource, InfoE}
 import rs.core.services.{ServiceEvt, StatelessServiceActor}
+import rs.testkit.components.ClusterAwareServiceEvt._
 
-trait ClusterAwareServiceEvt extends ServiceEvt {
+object ClusterAwareServiceEvt  {
 
-  val LeaderChanged = "LeaderChanged".info
-  val LeaderHandover = "LeaderHandover".info
-  val LeaderTakeover = "LeaderTakeover".info
+  case object EvtLeaderChanged extends InfoE
+  case object EvtLeaderHandover extends InfoE
+  case object EvtLeaderTakeover extends InfoE
 
-  val MemberRemoved = "MemberRemoved".info
-  val MemberUnreachable = "MemberUnreachable".info
-  val MemberUp = "MemberUp".info
+  case object EvtMemberRemoved extends InfoE
+  case object EvtMemberUnreachable extends InfoE
+  case object EvtMemberUp extends InfoE
 
-  override def componentId: String = "Test.ClusterAwareService"
 }
 
-object ClusterAwareServiceEvt extends ClusterAwareServiceEvt
+object ClusterAwareService {
+  val EvtSourceId = "Test.ClusterAwareService"
+}
 
-class ClusterAwareService(id: String) extends StatelessServiceActor(id) with ClusterAwareness with ClusterAwareServiceEvt {
+
+class ClusterAwareService(id: String) extends StatelessServiceActor(id) with ClusterAwareness {
+
+  import ClusterAwareService._
 
   onLeaderChanged {
-    case a => LeaderChanged('addr -> a)
+    case a => raise(EvtLeaderChanged, 'addr -> a)
   }
 
   onLeaderHandover {
-    LeaderHandover()
+    raise(EvtLeaderHandover)
   }
 
   onLeaderTakeover {
-    LeaderTakeover()
+    raise(EvtLeaderTakeover)
   }
 
   onClusterMemberRemoved {
-    case (a, r) => MemberRemoved('addr -> a, 'roles -> r)
+    case (a, r) => raise(EvtMemberRemoved, 'addr -> a, 'roles -> r)
   }
 
   onClusterMemberUnreachable {
-    case (a, r) => MemberUnreachable('addr -> a, 'roles -> r)
+    case (a, r) => raise(EvtMemberUnreachable, 'addr -> a, 'roles -> r)
   }
 
   onClusterMemberUp {
-    case (a, r) => MemberUp('addr -> a, 'roles -> r)
+    case (a, r) => raise(EvtMemberUp, 'addr -> a, 'roles -> r)
   }
 
+  override val evtSource: EvtSource = EvtSourceId
 }
 

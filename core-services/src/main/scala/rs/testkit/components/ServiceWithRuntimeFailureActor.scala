@@ -1,19 +1,17 @@
 package rs.testkit.components
 
+import rs.core.evt.EvtSource
 import rs.core.services.{ServiceEvt, StatelessServiceActor}
-
-trait ServiceWithRuntimeFailureEvt extends ServiceEvt {
-  override def componentId: String = "Test.ServiceWithRuntimeFailure"
-}
-
-object ServiceWithRuntimeFailureEvt extends ServiceWithRuntimeFailureEvt
 
 object ServiceWithRuntimeFailureActor {
   var recoveryEnabled = false
   var failureCounter = 0
+
+  val EvtSourceId = "Test.ServiceWithRuntimeFailure"
 }
 
-class ServiceWithRuntimeFailureActor(id: String) extends StatelessServiceActor(id) with ServiceWithRuntimeFailureEvt {
+class ServiceWithRuntimeFailureActor(id: String) extends StatelessServiceActor(id) {
+  import ServiceWithRuntimeFailureActor._
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()
@@ -28,5 +26,6 @@ class ServiceWithRuntimeFailureActor(id: String) extends StatelessServiceActor(i
         throw new RuntimeException("simulated failure on first tick")
 
   }
+  override val evtSource: EvtSource = EvtSourceId
 }
 

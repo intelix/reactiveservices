@@ -3,30 +3,31 @@ package rs.core.evt
 import com.typesafe.config.Config
 import rs.core.config.ConfigOps.wrap
 
-import scala.collection.mutable.ListBuffer
 import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 trait EvtPublisher {
   def canPublish(s: EvtSource, e: Evt): Boolean = true
 
-  def raise(s: EvtSource, e: Evt, fields: Seq[(String, Any)])
+  def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue])
 }
 
 class EvtFieldBuilder {
-  def +(f: (String, Any)): Unit = macro EvtFieldBuilderMacro.+
+  def +(f: EvtFieldValue): Unit = macro EvtFieldBuilderMacro.+
 }
+
 object MuteEvtFieldBuilder extends EvtFieldBuilder
 
-class EvtFieldBuilderWithList(var list: List[(String, Any)]) extends EvtFieldBuilder {
-  def add(f: (String, Any)) = list +:= f
+class EvtFieldBuilderWithList(var list: List[EvtFieldValue]) extends EvtFieldBuilder {
+  def add(f: EvtFieldValue) = list +:= f
+
   def result = list.reverse
 }
 
 private object EvtFieldBuilderMacro {
   type MyContext = blackbox.Context {type PrefixType = EvtFieldBuilder}
 
-  def +(c: MyContext)(f: c.Expr[(String, Any)]) = {
+  def +(c: MyContext)(f: c.Expr[EvtFieldValue]) = {
     import c.universe._
     val enabled = q"${c.prefix}.isInstanceOf[EvtFieldBuilderWithList]"
     val doAdd = q"${c.prefix}.asInstanceOf[EvtFieldBuilderWithList].add"

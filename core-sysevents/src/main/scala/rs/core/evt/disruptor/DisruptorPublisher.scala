@@ -16,7 +16,7 @@ trait DetachedEvent {
 
   def evt: Evt
 
-  def fields: Seq[(String, Any)]
+  def fields: Seq[EvtFieldValue]
 
 }
 
@@ -27,7 +27,7 @@ class DisruptorPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport
   class Event extends DetachedEvent {
     var source: EvtSource = null
     var evt: Evt = null
-    var fields: Seq[(String, Any)] = null
+    var fields: Seq[EvtFieldValue] = null
   }
 
   class CleaningWrapper(h: EventHandler[DetachedEvent]) extends EventHandler[Event] {
@@ -68,7 +68,7 @@ class DisruptorPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport
     disruptor.shutdown(10, TimeUnit.SECONDS)
   }
 
-  override def raise(s: EvtSource, e: Evt, fields: Seq[(String, Any)]): Unit = {
+  override def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue]): Unit = {
     val id = rb.next()
     try {
       val entry = rb.get(id)

@@ -108,7 +108,7 @@ class CoreServiceTest extends StandardMultiNodeSpec {
   "Service configuration" should "be accessible from the service" in new With4NodesAndTestOn1 {
     override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("test.int-config-value=123")
 
-    on node1 expectOne of TestServiceActorEvt.IntConfigValue + ('value -> 123)
+    on node1 expectOne of TestServiceActorEvt.EvtIntConfigValue + ('value -> 123)
   }
 
 
@@ -172,29 +172,29 @@ class CoreServiceTest extends StandardMultiNodeSpec {
   it should "be able to register for other service location updates, and get update when service become available" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
   }
 
   it should "be able to register for other service location updates, and get update when service become unavailable" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     clearEvents()
     stopNode2()
-    on node1 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "None", 'service -> "test1")
+    on node1 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "None", 'service -> "test1")
   }
 
   it should "not receive other service location updates if previously selected location is still active, even when new locations become available" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     clearEvents()
     new WithNode5 {
       override def node5Services: Map[String, Class[_]] = super.node5Services + ("test1" -> classOf[TestServiceActor])
 
-      on node5 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+      on node5 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
       within(3 seconds) {
-        on node1 expectNone of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+        on node1 expectNone of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
       }
     }
   }
@@ -202,18 +202,18 @@ class CoreServiceTest extends StandardMultiNodeSpec {
   it should "receive other service location updates if previously selected location becomes unavailable and other service locations are available" in new With4NodesAndTestOn1 {
     override def node2Services: Map[String, Class[_]] = super.node2Services + ("test1" -> classOf[TestServiceActor])
 
-    on node1 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+    on node1 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     clearEvents()
     new WithNode5 {
       override def node5Services: Map[String, Class[_]] = super.node5Services + ("test1" -> classOf[TestServiceActor])
 
-      on node5 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+      on node5 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
       within(3 seconds) {
-        on node1 expectNone of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+        on node1 expectNone of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
       }
 
       stopNode2()
-      on node1 expectOne of TestServiceActorEvt.OtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
+      on node1 expectOne of TestServiceActorEvt.EvtOtherServiceLocationChanged +('addr -> "Some".r, 'service -> "test1")
     }
   }
 
@@ -369,7 +369,7 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     on node1 expectOne of ClusterNodeActorEvt.StartingService + ('service -> "consumer1")
     serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id1"))
 
-    on node1 expectOne of TestServiceActorEvt.StreamActive + ('stream -> "string#id1")
+    on node1 expectOne of TestServiceActorEvt.EvtStreamActive + ('stream -> "string#id1")
 
   }
 
@@ -385,7 +385,7 @@ class CoreServiceTest extends StandardMultiNodeSpec {
 
     serviceOnNode1("consumer1") ! Close("test", "stringWithId", UserId("id1"))
 
-    on node1 expectOne of TestServiceActorEvt.StreamPassive + ('stream -> "string#id1")
+    on node1 expectOne of TestServiceActorEvt.EvtStreamPassive + ('stream -> "string#id1")
   }
 
 
@@ -489,7 +489,7 @@ class CoreServiceTest extends StandardMultiNodeSpec {
   }
   it should "receive a signal and do not respond" in new With3Consumers1Service {
     serviceOnNode3("consumer3") ! SendSignal("test", "signal_no_response", payload = "payload")
-    on node1 expectOne of TestServiceActorEvt.SignalReceived + ('subj -> "test|signal_no_response")
+    on node1 expectOne of TestServiceActorEvt.EvtSignalReceived + ('subj -> "test|signal_no_response")
     within(3 seconds) {
       on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer3")
       on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer3")
@@ -498,7 +498,7 @@ class CoreServiceTest extends StandardMultiNodeSpec {
 
   it should "receive a signal and do not respond, client should timeout" in new With3Consumers1Service {
     serviceOnNode3("consumer3") ! SendSignal("test", "signal_no_response", payload = "payload", expiry = 2 seconds)
-    on node1 expectOne of TestServiceActorEvt.SignalReceived + ('subj -> "test|signal_no_response")
+    on node1 expectOne of TestServiceActorEvt.EvtSignalReceived + ('subj -> "test|signal_no_response")
     within(3 seconds) {
       on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckOk + ('path -> "/user/node/consumer3")
       on node3 expectNone of TestServiceConsumerEvt.SignalResponseReceivedAckFailed + ('path -> "/user/node/consumer3")

@@ -3,6 +3,7 @@ package rs.testkit.components
 import rs.core.SubjectTags.UserId
 import rs.core.actors.ClusterAwareness
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.InfoE
 import rs.core.registry.RegistryRef
 import rs.core.services._
 import rs.core.stream.DictionaryMapStreamState.Dictionary
@@ -12,21 +13,17 @@ import rs.core.{Subject, TopicKey}
 import rs.testkit.components.TestServiceActor._
 
 
-trait TestServiceActorEvt extends ServiceEvt {
-
-  val IntConfigValue = "IntConfigValue".info
-  val OtherServiceLocationChanged = "OtherServiceLocationChanged".info
-  val StreamActive = "StreamActive".info
-  val StreamPassive = "StreamPassive".info
-  val SignalReceived = "SignalReceived".info
-
-  override def componentId: String = "Test.Service"
+object TestServiceActorEvt {
+  case object EvtIntConfigValue extends InfoE
+  case object EvtOtherServiceLocationChanged extends InfoE
+  case object EvtStreamActive extends InfoE
+  case object EvtStreamPassive extends InfoE
+  case object EvtSignalReceived extends InfoE
 }
 
-object TestServiceActorEvt extends TestServiceActorEvt
-
-
 object TestServiceActor {
+
+  val EvtSourceId = "Test.Service"
 
   val AutoStringReply = "hello"
   val AutoSetReply = Set[Any]("a", "b")
@@ -58,14 +55,19 @@ object TestServiceActor {
 
   case class PublishListFindReplace(streamId: StreamId, original: String, v: String)
 
-
 }
 
-class TestServiceActor(id: String) extends StatelessServiceActor(id) with TestServiceActorEvt with ClusterAwareness with RegistryRef {
+class TestServiceActor(id: String) extends StatelessServiceActor(id) with ClusterAwareness with RegistryRef {
+  import TestServiceActor._
+  import TestServiceActorEvt._
 
   var signalCounter = 0
 
-  IntConfigValue('value -> serviceCfg.asInt("int-config-value", 0))
+  @throws[Exception](classOf[Exception]) override
+  def preStart(): Unit = {
+    super.preStart()
+    raise(EvtIntConfigValue, 'value -> serviceCfg.asInt("int-config-value", 0))
+  }
 
   implicit val setSpecs = SetSpecs(allowPartialUpdates = true)
   implicit val mapDictionary = Dictionary("s", "i", "b")
@@ -76,42 +78,42 @@ class TestServiceActor(id: String) extends StatelessServiceActor(id) with TestSe
 
   onStreamActive {
     case s@CompoundStreamId("string", x) =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       CompoundStreamId("string", x) !~ TestServiceActor.AutoStringReply
     case s@SimpleStreamId("string") =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       SimpleStreamId("string") !~ TestServiceActor.AutoStringReply
     case s@SimpleStreamId("stringX") =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       SimpleStreamId("stringX") !~ TestServiceActor.AutoStringReply + "X"
     case s@SimpleStreamId("set") =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       SimpleStreamId("set") !% TestServiceActor.AutoSetReply
     case s@SimpleStreamId("map") =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       SimpleStreamId("map") !# TestServiceActor.AutoMapReply
     case s@SimpleStreamId("list1") =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       implicit val specs = listSpecsRejectAdd
       SimpleStreamId("list1") !:! TestServiceActor.AutoListReply
     case s@SimpleStreamId("list2") =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       implicit val specs = listSpecsFromHead
       SimpleStreamId("list2") !:! TestServiceActor.AutoListReply
     case s@SimpleStreamId("list3") =>
-      StreamActive('stream -> s)
+      raise(EvtStreamActive, 'stream -> s)
       implicit val specs = listSpecsFromTail
       SimpleStreamId("list3") !:! TestServiceActor.AutoListReply
   }
 
   onStreamPassive {
-    case s@CompoundStreamId("string", x) => StreamPassive('stream -> s)
-    case s@SimpleStreamId("string") => StreamPassive('stream -> s)
-    case s@SimpleStreamId("set") => StreamPassive('stream -> s)
-    case s@SimpleStreamId("map") => StreamPassive('stream -> s)
-    case s@SimpleStreamId("list1") => StreamPassive('stream -> s)
-    case s@SimpleStreamId("list2") => StreamPassive('stream -> s)
-    case s@SimpleStreamId("list3") => StreamPassive('stream -> s)
+    case s@CompoundStreamId("string", x) => raise(EvtStreamPassive, 'stream -> s)
+    case s@SimpleStreamId("string") => raise(EvtStreamPassive, 'stream -> s)
+    case s@SimpleStreamId("set") => raise(EvtStreamPassive, 'stream -> s)
+    case s@SimpleStreamId("map") => raise(EvtStreamPassive, 'stream -> s)
+    case s@SimpleStreamId("list1") => raise(EvtStreamPassive, 'stream -> s)
+    case s@SimpleStreamId("list2") => raise(EvtStreamPassive, 'stream -> s)
+    case s@SimpleStreamId("list3") => raise(EvtStreamPassive, 'stream -> s)
   }
 
   onSubjectMapping {
@@ -148,20 +150,20 @@ class TestServiceActor(id: String) extends StatelessServiceActor(id) with TestSe
   onSignal {
     case (subj@Subject(_, TopicKey("signal"), _), s) =>
       signalCounter += 1
-      SignalReceived('subj -> subj, 'payload -> s)
+      raise(EvtSignalReceived, 'subj -> subj, 'payload -> s)
       Some(SignalOk(Some(s.toString + signalCounter)))
     case (subj@Subject(_, TopicKey("signal_no_response"), _), _) =>
-      SignalReceived('subj -> subj)
+      raise(EvtSignalReceived, 'subj -> subj)
       None
     case (subj@Subject(_, TopicKey("signal_failure"), _), _) =>
-      SignalReceived('subj -> subj)
+      raise(EvtSignalReceived, 'subj -> subj)
       Some(SignalFailed(Some("failure")))
   }
 
   registerServiceLocationInterest("test1")
 
   onServiceLocationChanged {
-    case (s, l) => OtherServiceLocationChanged('addr -> l, 'service -> s.id)
+    case (s, l) => raise(EvtOtherServiceLocationChanged, 'addr -> l, 'service -> s.id)
   }
 
 }

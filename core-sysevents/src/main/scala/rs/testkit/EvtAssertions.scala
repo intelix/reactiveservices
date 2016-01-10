@@ -15,36 +15,61 @@
  */
 package rs.testkit
 
-import com.typesafe.scalalogging.StrictLogging
+import java.text.SimpleDateFormat
+import java.util.Date
+
 import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, Matchers}
 import org.slf4j.LoggerFactory
-import rs.core.sysevents._
-import rs.core.sysevents.log.StandardLogMessageFormatterWithDate
+import rs.core.evt.{Evt, EvtFieldValue, EvtSource}
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.language.{implicitConversions, postfixOps}
 
-trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with BeforeAndAfterEach with BeforeAndAfterAll with StrictLogging with StandardLogMessageFormatterWithDate {
+trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with BeforeAndAfterEach with BeforeAndAfterAll {
   self: org.scalatest.Suite =>
 
-  def clearEvents() = TestEvtPublisher.clear()
+  private val logger = LoggerFactory.getLogger("test")
 
-  def clearComponentEvents(componentId: String) = TestEvtPublisher.clearComponentEvents(componentId)
+  private val logFormat = "%35s - %-30s : %s"
+  private val fieldPrefix = "#"
+  private val fieldPostfix = "="
+  private val fieldsSeparator = "  "
 
-  def events = TestEvtPublisher.events
+  private def buildEventLogMessage(source: EvtSource, e: Evt, values: Seq[EvtFieldValue]): String = {
+    val fields = values.foldLeft(new StringBuilder) {
+      (aggr, next) => aggr.append(fieldPrefix).append(next._1).append(fieldPostfix).append(next._2).append(fieldsSeparator)
+    }
+    logFormat.format(source.evtSourceId, e.name, fields.toString())
+  }
+
+  private def buildEventLogMessage(timestamp: Long, source: EvtSource, e: Evt, values: Seq[EvtFieldValue]): String = {
+
+    val date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+    val d = date.format(new Date(timestamp))
+
+    d + ": " + buildEventLogMessage(source, e, values)
+  }
+
+  def publisher = TestEvtPublisher
+
+  def clearEvents() = publisher.clear()
+
+  def clearComponentEvents(componentId: String) = publisher.clearComponentEvents(componentId)
+
 
   override protected def beforeAll(): Unit = {
-    logger.warn("**** > Starting " + this.getClass)
+    logger.info(("*" * 10) + "Starting " + this.getClass)
     super.beforeAll()
   }
 
   override protected def afterAll() {
     super.afterAll()
-    logger.warn("**** > Finished " + this.getClass)
+    logger.warn(("*" * 10) + "Finished " + this.getClass)
   }
 
+  implicit def fd2ewt(d: FiniteDuration): EventWaitTimeout = EventWaitTimeout(d)
 
   override protected def afterEach(): Unit = {
     super.afterEach()
@@ -66,30 +91,18 @@ trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with
   }
 
   def printRaisedEvents() = {
-    val log = LoggerFactory.getLogger("history")
-    log.error("*" * 60 + " RAISED EVENTS: " + "*" * 60)
-    TestEvtPublisher.withOrderedEvents { events =>
+    logger.info("*" * 60 + " RAISED EVENTS: " + "*" * 60)
+    publisher.withOrderedEvents { events =>
       events.foreach { next =>
-        // TODO !>>>> COMPLETE!!!
-//        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
+        logger.info(buildEventLogMessage(next.timestamp, next.source, next.event, next.values))
       }
     }
-    log.error("*" * 120 + "\n\n\n\n")
+    logger.info("*" * 120 + "\n" * 4)
   }
 
   def report(x: Throwable) = {
-    val log = LoggerFactory.getLogger("history")
-    val log2 = LoggerFactory.getLogger("test")
-    log2.error("Test failed", x)
-    log2.error("*" * 60 + " RAISED EVENTS: " + "*" * 60)
-    log2.error("Raised sysevents:")
-    TestEvtPublisher.withOrderedEvents { events =>
-      events.foreach { next =>
-        // TODO !>>>> COMPLETE!!!
-//        log.error(buildEventLogMessage(next.timestamp, next.event, next.values))
-      }
-    }
-    log2.error("*" * 120 + "\n\n\n\n")
+    logger.error("Test failed", x)
+    printRaisedEvents()
   }
 
   private def checkForSpecificDuration(millis: Long)(f: => Unit) = {
@@ -110,40 +123,27 @@ trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with
       f
     } catch {
       case x: Throwable =>
-        // TODO Remove
-        //        val ctx = evtPublisher.contextFor(ErrorSysevent("ExpectationFailed", "Test"), Seq())
-        //        evtPublisher.publish(ctx)
         report(x)
         throw x
     }
   }
 
-  def locateAllEvents(event: Sysevent) = {
-    on anyNode expectSome of event
-    events.get(event)
+  def locateAllEvents(s: EvtSelection): List[RaisedEvent] = {
+    on anyNode expectSome of s
+    publisher.eventsFor(s)
   }
 
-  def locateLastEvent(event: Sysevent) = locateAllEvents(event).map(_.head)
+  def locateLastEvent(event: EvtSelection): RaisedEvent = locateAllEvents(event).reverse.head
 
-  def locateFirstEvent(event: Sysevent) = locateAllEvents(event).map(_.head)
+  def locateFirstEvent(event: EvtSelection): RaisedEvent = locateAllEvents(event).head
 
-  def locateFirstEventFieldValue(event: Sysevent, field: String) = {
-    val maybeValue = for (
-      all <- locateAllEvents(event);
-      first = all.head;
-      (f, v) <- first.find { case (f, v) => f.name == field }
-    ) yield v
-    maybeValue.get
-  }
+  def locateFirstEventFieldValue[T](event: EvtSelection, field: String) =
+    locateFirstEvent(event).values.find(_._1 == field).get._2.asInstanceOf[T]
 
-  def locateLastEventFieldValue[T](event: Sysevent, field: String) = {
-    val maybeValue = for (
-      all <- locateAllEvents(event);
-      first = all.last;
-      (f, v) <- first.find { case (f, v) => f.name == field }
-    ) yield v
-    maybeValue.get.asInstanceOf[T]
-  }
+
+  def locateLastEventFieldValue[T](event: EvtSelection, field: String) =
+    locateLastEvent(event).values.find(_._1 == field).get._2.asInstanceOf[T]
+
 
   def within(duration: FiniteDuration)(f: => Unit): Unit = within(duration.toMillis)(f)
 
@@ -155,19 +155,19 @@ trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with
     }
   }
 
-  private type EventCheck = (FiniteDuration, Sysevent, Seq[FieldAndValue]) => Unit
+  private type EventCheck = (FiniteDuration, EvtSelection, Seq[EvtFieldValue]) => Unit
 
   private def eventsExpected(count: Range) =
-    (timeout: FiniteDuration, event: Sysevent, values: Seq[FieldAndValue]) =>
+    (timeout: FiniteDuration, event: EvtSelection, values: Seq[EvtFieldValue]) =>
       checkForSpecificDuration(timeout.toMillis) {
-        val e = events
-        e should contain key event
-        e.get(event).get should haveAllValues(event, count, values)
+        val e = publisher.eventsFor(event)
+        if (e.isEmpty) fail(s"Event has not been raised: $event")
+        e should haveAllValues(event, count, values)
       }
 
-  private val eventsNotExpected = (timeout: FiniteDuration, event: Sysevent, values: Seq[FieldAndValue]) =>
+  private val eventsNotExpected = (timeout: FiniteDuration, event: EvtSelection, values: Seq[EvtFieldValue]) =>
     try {
-      events.get(event).foreach(_ shouldNot haveAllValues(event, values))
+      publisher.eventsFor(event) shouldNot haveAllValues(event, values)
     } catch {
       case x: Throwable =>
         report(x)
@@ -187,12 +187,12 @@ trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with
 
   def expectNone: BaseExpectation = BaseExpectation(eventsNotExpected)
 
-  implicit def convertToEventSpec(e: Sysevent): EventSpec = EventSpec(e)
+  implicit def convertToEventSpec(e: EvtSelection): EventSpec = EventSpec(e)
 
-  case class EventSpec(e: Sysevent, fields: Seq[(Symbol, Any)] = Seq()) {
-    def withFields(x: (Symbol, Any)*) = copy(fields = fields ++ x)
+  case class EventSpec(e: EvtSelection, fields: Seq[EvtFieldValue] = Seq()) {
+    def withFields(x: EvtFieldValue*) = copy(fields = fields ++ x)
 
-    def +(x: (Symbol, Any)*) = withFields(x: _*)
+    def +(x: EvtFieldValue*) = withFields(x: _*)
   }
 
   case class EventAssertionKey()
@@ -201,9 +201,9 @@ trait EvtAssertions extends Matchers with WithEvtCollector with EvtMatchers with
 
   case class EventWaitTimeout(duration: FiniteDuration)
 
-  implicit var eventTimeout = EventWaitTimeout(15 seconds)
+  implicit var eventTimeout: EventWaitTimeout = 15 seconds
 
-  case class ExecutableExpectation(expectation: BaseExpectation, requiredFields: Seq[(Symbol, Any)]) {
+  case class ExecutableExpectation(expectation: BaseExpectation, requiredFields: Seq[EvtFieldValue]) {
     def of(spec: EventSpec)(implicit t: EventWaitTimeout): Unit = expectation.check(t.duration, spec.e, spec.fields ++ requiredFields)
 
     def ofEach(specs: EventSpec*)(implicit t: EventWaitTimeout): Unit = specs foreach (of(_)(t))

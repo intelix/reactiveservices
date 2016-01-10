@@ -18,6 +18,7 @@ package rs.core.actors
 
 import akka.actor.{Actor, ActorRef, FSM, Terminated}
 import rs.core.config.{NodeConfig, WithActorSystemConfig}
+import rs.core.evt.EvtContext
 import rs.core.sysevents.EvtPublisherContext
 
 trait ActorState
@@ -74,7 +75,7 @@ trait JBaseActor extends BaseActor {
 }
 
 
-trait BaseActor extends WithActorSystemConfig with ActorUtils with CommonActorEvt with EvtPublisherContext {
+trait BaseActor extends WithActorSystemConfig with ActorUtils with EvtContext {
 
   private val pathAsString = self.path.toStringWithoutAddress
   protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty

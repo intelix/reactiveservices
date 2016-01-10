@@ -14,7 +14,7 @@ trait ActorSystemTestContext extends EvtAssertions {
 
   def start(props: Props, id: String = UUIDTools.generateShortUUID) = system.map(_.actorOf(props, id))
 
-  def stop(actor: Option[ActorRef], terminationEvent: Sysevent) = system.flatMap { s =>
+  def stop(actor: Option[ActorRef], terminationEvent: EvtSelection) = system.flatMap { s =>
     actor.foreach { a =>
       s.stop(a)
       on anyNode expectSome of terminationEvent

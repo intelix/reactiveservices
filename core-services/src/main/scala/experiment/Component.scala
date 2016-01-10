@@ -1,8 +1,9 @@
 package experiment
 
-import akka.actor.ActorSystem
 import experiment.ComponentEvt.SomeEvent
 import rs.core.evt._
+
+// TODO !>>>> REMOVE
 
 
 object ComponentEvt {
@@ -16,45 +17,19 @@ object ComponentEvt {
 object Component extends App with EvtContext {
   override val evtSource: EvtSource = "Some component"
 
-  println("!>>>> HELLO")
 
   raise(SomeEvent)
-  raise(SomeEvent, "k" -> 1)
-  raise(SomeEvent, "k" -> 1, "a" -> true)
+  raise(SomeEvent, 'k -> 1)
+  raise(SomeEvent, 'k -> 1, 'a -> true)
 
 
-  val start = System.nanoTime()
-  for (i <- 1 to 100000)
-  raiseWith(SomeEvent, "djjj" -> "bla1") { x =>
+
+
+  raiseWithTimer(SomeEvent, 'a -> "1") { x =>
+    println(s"Thunk executed")
+    x + ('b -> "2")
     123
   }
-
-  println(s"!>>>> ${((System.nanoTime() - start)/1000).toDouble / 1000} ")
-
-/*
-  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
-    println(s"I am here $x")
-    x + ("oh" -> "bla!")
-    123
-  }
-
-  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
-    println(s"I am here $x")
-    x + ("oh" -> "bla!")
-    123
-  }
-
-  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
-    println(s"I am here $x")
-    x + ("oh" -> "bla!")
-    123
-  }
-  raiseWithTimer(SomeEvent, "djjj" -> "bla1") { x =>
-    println(s"I am here $x")
-    x + ("oh" -> "bla!")
-    123
-  }
-*/
 
 
 }

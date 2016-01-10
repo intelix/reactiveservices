@@ -100,7 +100,7 @@ case class ConfigFromContents(contents: String) extends ConfigReference {
 trait MultiActorSystemTestContext
   extends BeforeAndAfterEach
     with MultiActorSystemTestContextSysevents
-    with testkit.WithEvtCollector
+    with testkit.TestEvtContext
     with WithBlankConfig
     with EvtPublisherContext
     with WithTestSeparator {

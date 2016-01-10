@@ -15,36 +15,41 @@
  */
 package rs.testkit
 
-import rs.core.evt.{Evt, EvtPublisher, EvtSource}
-import rs.core.sysevents.{Sysevent, FieldAndValue}
+import rs.core.evt.{EvtFieldValue, Evt, EvtPublisher, EvtSource}
 
-case class RaisedEvent(timestamp: Long, source: EvtSource, event: Evt, values: Seq[(String, Any)])
+case class RaisedEvent(timestamp: Long, source: EvtSource, event: Evt, values: Seq[EvtFieldValue])
 
 object TestEvtPublisher {
-  def clearComponentEvents(componentId: String) = {} // TODO !>>>>
 
+  private var evts = List[RaisedEvent]()
 
-  // TODO REMOVE !!!! !>>>>>
-  @volatile var events = Map[Sysevent, List[Seq[FieldAndValue]]]()
+  def +(r: RaisedEvent) = TestEvtPublisher.synchronized {
+    evts +:= r
+  }
 
-  private var eventsInOrder = List[RaisedEvent]()
+  def clearComponentEvents(sourceId: String) = TestEvtPublisher.synchronized {
+    evts = evts filter(_.source.evtSourceId != sourceId)
+  }
 
   def clear() = TestEvtPublisher.synchronized {
-    eventsInOrder = List()
+    evts = List()
   }
 
   def withOrderedEvents(f: List[RaisedEvent] => Unit) = this.synchronized {
-    f(eventsInOrder)
+    f(evts.reverse)
   }
+
+  def events = evts.reverse
+
+  def eventsFor(s: EvtSelection) = evts.filter{ e => e.event == s.e && (s.s.isEmpty || s.s.contains(e.source))}.reverse
 
 }
 
 class TestEvtPublisher extends EvtPublisher {
 
-  override def raise(s: EvtSource, e: Evt, fields: Seq[(String, Any)]): Unit =
-    TestEvtPublisher.synchronized {
-      TestEvtPublisher.eventsInOrder :+= RaisedEvent(System.currentTimeMillis(), s, e, fields)
-    }
+  override def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue]): Unit =
+    TestEvtPublisher + RaisedEvent(System.currentTimeMillis(), s, e, fields)
+
 
   override def canPublish(s: EvtSource, e: Evt): Boolean = true
 }

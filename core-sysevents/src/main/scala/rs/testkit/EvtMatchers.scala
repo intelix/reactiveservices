@@ -16,7 +16,7 @@
 package rs.testkit
 
 import org.scalatest.matchers.{MatchResult, Matcher}
-import rs.core.sysevents._
+import rs.core.evt.EvtFieldValue
 
 import scala.util.matching.Regex
 
@@ -24,13 +24,14 @@ case class EventFieldMatcher(f: String => Boolean)
 
 trait EvtMatchers {
 
-  class ContainsAllFields(e: Sysevent, count: Option[Range], values: Seq[FieldAndValue]) extends Matcher[List[Seq[FieldAndValue]]] {
-    def apply(left: List[Seq[FieldAndValue]]) = {
+  class ContainsAllFields(e: EvtSelection, count: Option[Range], values: Seq[EvtFieldValue]) extends Matcher[List[RaisedEvent]] {
+    def apply(all: List[RaisedEvent]) = {
+      val left = all.filter { x => x.event == e.e && (e.s.isEmpty || e.s.contains(x.source)) }
       val found = if (values.isEmpty) left.size
-      else left.count(next =>
-        !values.exists { k =>
-          !next.exists { v =>
-            v._1 == k._1 && (k._2 match {
+      else left.count(nextRaised =>
+        !values.exists { kv =>
+          !nextRaised.values.exists { v =>
+            v._1 == kv._1 && (kv._2 match {
               case x: Regex => x.findFirstMatchIn(v._2.toString).isDefined
               case EventFieldMatcher(f) => f(v._2.toString)
               case x => v._2 == x
@@ -47,7 +48,7 @@ trait EvtMatchers {
     }
   }
 
-  def haveAllValues(e: Sysevent, count: Range, values: Seq[FieldAndValue]) = new ContainsAllFields(e, Some(count), values)
+  def haveAllValues(e: EvtSelection, count: Range, values: Seq[EvtFieldValue]) = new ContainsAllFields(e, Some(count), values)
 
-  def haveAllValues(e: Sysevent, values: Seq[FieldAndValue]) = new ContainsAllFields(e, None, values)
+  def haveAllValues(e: EvtSelection, values: Seq[EvtFieldValue]) = new ContainsAllFields(e, None, values)
 }
