@@ -137,12 +137,16 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
 
   def locateFirstEvent(event: EvtSelection): RaisedEvent = locateAllEvents(event).head
 
-  def locateFirstEventFieldValue[T](event: EvtSelection, field: String) =
+  def locateFirstEventFieldValue[T](event: EvtSelection, field: String): T =
     locateFirstEvent(event).values.find(_._1 == field).get._2.asInstanceOf[T]
 
+  def locateFirstEventFieldValue[T](event: Evt, field: String): T = locateFirstEventFieldValue(EvtSelection(event, None), field)
 
-  def locateLastEventFieldValue[T](event: EvtSelection, field: String) =
+
+  def locateLastEventFieldValue[T](event: EvtSelection, field: String): T =
     locateLastEvent(event).values.find(_._1 == field).get._2.asInstanceOf[T]
+
+  def locateLastEventFieldValue[T](event: Evt, field: String): T = locateLastEventFieldValue(EvtSelection(event, None), field)
 
 
   def within(duration: FiniteDuration)(f: => Unit): Unit = within(duration.toMillis)(f)
@@ -196,8 +200,9 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
 
     def +(x: EvtFieldValue*) = withFields(x: _*)
 
-    def +(x: String) = this + StringEvtSource(x)
-    def +(x: EvtSource) = copy(e = e.copy(s = Some(x)))
+    def +(x: String): EventSpec = this.+(StringEvtSource(x))
+
+    def +(x: EvtSource): EventSpec = copy(e = e.copy(s = Some(x)))
   }
 
   case class EventAssertionKey()

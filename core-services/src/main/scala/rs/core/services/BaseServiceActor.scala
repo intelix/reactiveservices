@@ -21,7 +21,6 @@ import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.ServiceConfig
 import rs.core.evt.{InfoE, WarningE}
-import rs.core.services.BaseServiceActor._
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.internal.InternalMessages.SignalPayload
 import rs.core.services.internal._
@@ -104,6 +103,7 @@ trait BaseServiceActor
     with RemoteStreamsBroadcaster
     with MessageAcknowledging
     with StreamPublishers {
+  import BaseServiceActor._
 
   type SubjectToStreamIdMapper = PartialFunction[Subject, Option[StreamId]]
   type StreamEventCallback = PartialFunction[StreamId, Unit]

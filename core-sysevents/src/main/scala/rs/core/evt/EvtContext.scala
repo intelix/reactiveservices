@@ -64,7 +64,7 @@ private object EvtContextMacro {
     val pub = q"${c.prefix}.evtPublisher"
     val src = q"${c.prefix}.evtSource"
     val initialList = toList(c)(fields: _*)
-    q"""import rs.core.evt
+    q"""
         if ($pub.canPublish($src, $e)) $pub.raise($src, $e, $initialList)"""
   }
 
@@ -74,16 +74,19 @@ private object EvtContextMacro {
     val src = q"${c.prefix}.evtSource"
 
     val initialList = toList(c)(fields: _*)
-    q"""import rs.core.evt
+    q"""
         if ($pub.canPublish($src, $e)) {
-          val b = new EvtFieldBuilderWithList($initialList)
+          val b = new rs.core.evt.EvtFieldBuilderWithList($initialList)
           val result = $f(b)
           $pub.raise ($src, $e, b.result)
           result
         } else {
-          $f(MuteEvtFieldBuilder)
+          $f(rs.core.evt.MuteEvtFieldBuilder)
         }
       """
+//    q"""
+//          $f(rs.core.evt.MuteEvtFieldBuilder)
+//      """
 
   }
 
@@ -92,19 +95,22 @@ private object EvtContextMacro {
     val pub = q"${c.prefix}.evtPublisher"
     val src = q"${c.prefix}.evtSource"
     val initialList = toList(c)(fields: _*)
-    q"""import rs.core.evt
-        if ($pub.canPublish($src, $e)) {
-          val b = new EvtFieldBuilderWithList($initialList)
-          val start = java.lang.System.nanoTime()
-          val result = $f(b)
-          val diff = java.lang.System.nanoTime() - start
-          b + ('ms -> (diff / 1000).toDouble / 1000)
-          $pub.raise ($src, $e, b.result)
-          result
-        } else {
-          $f(MuteEvtFieldBuilder)
-        }
+    q"""
+          $f(rs.core.evt.MuteEvtFieldBuilder)
       """
+//    q"""
+//        if ($pub.canPublish($src, $e)) {
+//          val b = new rs.core.evt.EvtFieldBuilderWithList($initialList)
+//          val start = java.lang.System.nanoTime()
+//          val result = $f(b)
+//          val diff = java.lang.System.nanoTime() - start
+//          b + ('ms -> (diff / 1000).toDouble / 1000)
+//          $pub.raise ($src, $e, b.result)
+//          result
+//        } else {
+//          $f(rs.core.evt.MuteEvtFieldBuilder)
+//        }
+//      """
   }
 
 }

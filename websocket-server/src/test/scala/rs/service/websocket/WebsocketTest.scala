@@ -17,8 +17,9 @@ package rs.service.websocket
 
 import play.api.libs.json.Json
 import rs.core.Subject
+import rs.core.actors.CommonActorEvt
 import rs.core.services.BaseServiceActor.StopRequest
-import rs.core.services.CompoundStreamId
+import rs.core.services.{ServiceEvt, CompoundStreamId}
 import rs.node.core.ClusterNodeActor
 import rs.service.auth.{AuthServiceActor, AuthStage}
 import rs.service.websocket.WebSocketClient._
@@ -195,7 +196,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
       on node1 expectNone of EvtStringUpdate
     }
 
-    on node1 expectOne of TestServiceActorEvt.IdleStream + ('stream -> "string")
+    on node1 expectOne of ServiceEvt.EvtIdleStream + TestServiceActor.EvtSourceId + ('stream -> "string")
 
   }
 
@@ -536,7 +537,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
     clearEvents()
 
     serviceOnNode1("client") ! StopRequest
-    on node1 expectSome of EvtPostStop + ('id -> "c1")
+    on node1 expectSome of CommonActorEvt.EvtPostStop + ('id -> "c1")
     clearEvents()
 
     serviceOnNode1("test") ! PublishString("string", "update1")

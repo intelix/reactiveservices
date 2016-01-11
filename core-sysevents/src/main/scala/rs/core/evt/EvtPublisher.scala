@@ -12,17 +12,28 @@ trait EvtPublisher {
   def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue])
 }
 
-class EvtFieldBuilder {
+trait EvtFieldBuilder {
+  def add(f: EvtFieldValue): Unit
+  def add(f: List[EvtFieldValue]): Unit
+  def canBuild: Boolean
   def +(f: EvtFieldValue*): Unit = macro EvtFieldBuilderMacro.+
 }
 
-object MuteEvtFieldBuilder extends EvtFieldBuilder
+object MuteEvtFieldBuilder extends EvtFieldBuilder {
+  override val canBuild: Boolean = false
+
+  override def add(f: (Symbol, Any)): Unit = {}
+
+  override def add(f: List[(Symbol, Any)]): Unit = {}
+}
 
 class EvtFieldBuilderWithList(var list: List[EvtFieldValue]) extends EvtFieldBuilder {
   def add(f: EvtFieldValue) = list +:= f
   def add(f: List[EvtFieldValue]) = list = f.reverse ++ list
 
   def result = list.reverse
+
+  override val canBuild: Boolean = true
 }
 
 private object EvtFieldBuilderMacro {
@@ -30,10 +41,10 @@ private object EvtFieldBuilderMacro {
 
   def +(c: MyContext)(f: c.Expr[EvtFieldValue]*) = {
     import c.universe._
-    val enabled = q"${c.prefix}.isInstanceOf[EvtFieldBuilderWithList]"
-    val doAdd = q"${c.prefix}.asInstanceOf[EvtFieldBuilderWithList].add"
+    val enabled = q"${c.prefix}.canBuild"
+    val doAdd = q"${c.prefix}.add"
     if (f.length == 1) {
-      q"if ($enabled) $doAdd($f)"
+      q"if ($enabled) $doAdd(${f(0)})"
     } else {
       q"if ($enabled) $doAdd(List(..$f))"
     }
