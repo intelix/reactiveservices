@@ -18,12 +18,13 @@ package rs.service.auth
 import akka.pattern.Patterns.ask
 import play.api.libs.json.Json
 import rs.core.SubjectTags.UserToken
-import rs.core.config.ConfigOps.wrap
+import rs.core.config.ConfigOps._
+import rs.core.evt.{EvtSource, InfoE, TraceE}
 import rs.core.services.{CompoundStreamIdTemplate, StatelessServiceActor}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.SetStreamState.SetSpecs
 import rs.core.utils.JsonTools
-import JsonTools.jsToExtractorOps
+import rs.core.utils.JsonTools.jsToExtractorOps
 import rs.core.{Subject, TopicKey}
 import rs.service.auth.AuthServiceActor.InfoUserId
 import rs.service.auth.api.AuthenticationMessages.{Authenticate, AuthenticationResponse, Invalidate}
@@ -36,9 +37,30 @@ import scala.language.postfixOps
 
 object AuthServiceActor {
   val InfoUserId = "id"
+
+
+  case object EvtAuthToken extends TraceE
+  case object EvtUserInfo extends TraceE
+  case object EvtUserDomainPermissions extends TraceE
+  case object EvtUserSubjectsPermissions extends TraceE
+  case object EvtUserTokenAdded extends InfoE
+  case object EvtSessionCreated extends InfoE
+  case object EvtUserSessionExpired extends InfoE
+  case object EvtUserSessionInvalidated extends InfoE
+  case object EvtAuthRequest extends InfoE
+  case object EvtSuccessfulCredentialsAuth extends InfoE
+  case object EvtSuccessfulTokenAuth extends InfoE
+  case object EvtFailedCredentialsAuth extends InfoE
+  case object EvtFailedTokenAuth extends InfoE
+
+  val EvtSourceId = "Auth"
+
+
 }
 
-class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthServiceEvt {
+class AuthServiceActor(id: String) extends StatelessServiceActor(id) {
+
+  import AuthServiceActor._
 
   implicit val specs = SetSpecs(allowPartialUpdates = true)
   implicit val infoDict = Dictionary(InfoUserId)
@@ -77,11 +99,10 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
 
   onSignalAsync {
     case (Subject(_, TopicKey("cauth"), UserToken(ut)), body: String) =>
-      AuthRequest { ctx =>
-        ctx + ('token -> ut)
+      raiseWithTimer(EvtAuthRequest, 'token -> ut) { ctx =>
         parseCredentials(body) match {
           case None =>
-            FailedCredentialsAuth('reason -> "invalid request")
+            raise(EvtFailedCredentialsAuth, 'reason -> "invalid request")
             Future.successful(SignalOk(false))
           case Some((user, pass)) =>
             authenticateWithCredentials(user, pass, ut) map {
@@ -97,15 +118,14 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
 
   onSignal {
     case (Subject(_, TopicKey("tauth"), UserToken(ut)), securityToken: String) =>
-      AuthRequest { ctx =>
-        ctx +('token -> ut, 'authkey -> securityToken)
+      raiseWithTimer(EvtAuthRequest, 'token -> ut, 'authkey -> securityToken) { ctx =>
         authenticateWithToken(securityToken, ut) match {
           case Some(sess) =>
-            SuccessfulTokenAuth('token -> ut, 'authkey -> securityToken, 'userid -> sess.user)
+            raise(EvtSuccessfulTokenAuth, 'token -> ut, 'authkey -> securityToken, 'userid -> sess.user)
             publishAllForUserToken(ut)
             SignalOk(true)
           case _ =>
-            FailedTokenAuth('token -> ut, 'authkey -> securityToken, 'reason -> "access denied")
+            raise(EvtFailedTokenAuth, 'token -> ut, 'authkey -> securityToken, 'reason -> "access denied")
             SignalOk(false)
         }
       }
@@ -126,10 +146,10 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
       }
     case AuthOk(ut, user) =>
       val sess = createSession(ut, user)
-      SuccessfulCredentialsAuth('token -> ut, 'authkey -> sess.securityToken, 'userid -> user)
+      raise(EvtSuccessfulCredentialsAuth, 'token -> ut, 'authkey -> sess.securityToken, 'userid -> user)
       publishAllForUserToken(ut)
     case AuthFailed(ut, user) =>
-      FailedCredentialsAuth('token -> ut, 'userid -> user, 'reason -> "access denied")
+      raise(EvtFailedCredentialsAuth, 'token -> ut, 'userid -> user, 'reason -> "access denied")
   }
 
 
@@ -143,12 +163,12 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
     authorisationProviderRef ! PermissionsRequestCancel(sess.user)
     sessions -= sess.user
     sess.userTokens foreach publishAllForUserToken
-    UserSessionInvalidated('userid -> sess.user, 'authkey -> sess.securityToken)
+    raise(EvtUserSessionInvalidated, 'userid -> sess.user, 'authkey -> sess.securityToken)
   }
 
   def sessionsHousekeeping() = sessions = sessions filter {
     case (_, s@Session(ut, uid, at, Some(t), _, _)) if now - t > SessionTimeout.toMillis =>
-      UserSessionExpired('userid -> uid, 'authkey -> at)
+      raise(EvtUserSessionExpired, 'userid -> uid, 'authkey -> at)
       authorisationProviderRef ! PermissionsRequestCancel(uid)
       false
     case _ => true
@@ -168,25 +188,25 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
   def publishToken(userToken: String): Unit = {
     val securityToken = sessionByUserToken(userToken).map(_.securityToken).getOrElse("")
     TokenStream(userToken) !~ securityToken
-    AuthToken('token -> userToken, 'authkey -> securityToken)
+    raise(EvtAuthToken, 'token -> userToken, 'authkey -> securityToken)
   }
 
   def publishInfo(userToken: String): Unit = {
     val id = sessionByUserToken(userToken).map(_.user).getOrElse("")
     InfoStream(userToken) !# (InfoUserId -> id)
-    UserInfo('token -> userToken, 'userid -> id)
+    raise(EvtUserInfo, 'token -> userToken, 'userid -> id)
   }
 
   def publishDomainPermissions(userToken: String): Unit = {
     val set = sessionByUserToken(userToken).map(_.domains).getOrElse(Set())
     DomainPermissionsStream(userToken) !% set
-    UserDomainPermissions('token -> userToken, 'userid -> id, 'set -> set)
+    raise(EvtUserDomainPermissions, 'token -> userToken, 'userid -> id, 'set -> set)
   }
 
   def publishSubjectPermissions(userToken: String): Unit = {
     val set = sessionByUserToken(userToken).map(_.subjectPatterns).getOrElse(Set())
     SubjectPermissionsStream(userToken) !% set
-    UserSubjectsPermissions('token -> userToken, 'userid -> id, 'set -> set)
+    raise(EvtUserSubjectsPermissions, 'token -> userToken, 'userid -> id, 'set -> set)
   }
 
   def sessionByUserToken(userToken: String) = sessions.values.find(_.userTokens.contains(userToken))
@@ -199,7 +219,7 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
         val newSess = Session(Set(ut), user, randomUUID, None)
         sessions += user -> newSess
         authorisationProviderRef ! PermissionsRequest(user)
-        SessionCreated('token -> ut, 'userid -> user, 'authkey -> newSess.securityToken)
+        EvtSessionCreated('token -> ut, 'userid -> user, 'authkey -> newSess.securityToken)
         newSess
       case Some(s) => addUserToken(s, ut)
     }
@@ -207,7 +227,7 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
   def addUserToken(session: Session, ut: String) = {
     val newSess = session.copy(userTokens = session.userTokens + ut, idleSince = None)
     sessions += session.user -> newSess
-    UserTokenAdded('token -> ut, 'userid -> newSess.user, 'authkey -> newSess.securityToken)
+    EvtUserTokenAdded('token -> ut, 'userid -> newSess.user, 'authkey -> newSess.securityToken)
     newSess
   }
 
@@ -244,4 +264,5 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) with AuthSe
 
   case class AuthFailed(ut: String, user: String)
 
+  override val evtSource: EvtSource = EvtSourceId
 }

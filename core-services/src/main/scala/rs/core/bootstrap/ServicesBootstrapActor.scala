@@ -16,27 +16,24 @@
 package rs.core.bootstrap
 
 import akka.actor.Props
-import rs.core.actors.{CommonActorEvt, StatelessActor}
-import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
+import rs.core.actors.StatelessActor
+import rs.core.evt.{EvtSource, InfoE}
 
 import scala.collection.JavaConversions
 
-trait ServicesBootstrapEvt extends CommonActorEvt {
-
-  val StartingService = "StartingService".trace
-
-  override def componentId: String = "ServiceBootstrap"
-}
-
-object ServicesBootstrapEvt extends ServicesBootstrapEvt
-
 object ServicesBootstrapActor {
+
+  val EvtSourceId = "ServiceBootstrap"
+
+  case object EvtStartingService extends InfoE
 
   case class ForwardToService(id: String, m: Any)
 
 }
 
-class ServicesBootstrapActor extends StatelessActor with ServicesBootstrapEvt {
+class ServicesBootstrapActor extends StatelessActor {
+
+  import ServicesBootstrapActor._
 
   case class ServiceMeta(id: String, cl: String)
 
@@ -46,7 +43,7 @@ class ServicesBootstrapActor extends StatelessActor with ServicesBootstrapEvt {
 
   var servicesCounter = 0
 
-  private def startProvider(sm: ServiceMeta) = StartingService { ctx =>
+  private def startProvider(sm: ServiceMeta) = raiseWithTimer(EvtStartingService) { ctx =>
     val actor = context.actorOf(Props(Class.forName(sm.cl), sm.id), sm.id)
     ctx +('service -> sm.id, 'class -> sm.cl, 'ref -> actor)
   }
@@ -60,4 +57,5 @@ class ServicesBootstrapActor extends StatelessActor with ServicesBootstrapEvt {
   onMessage {
     case ForwardToService(id, m) => context.actorSelection(id).forward(m)
   }
+  override val evtSource: EvtSource = EvtSourceId
 }

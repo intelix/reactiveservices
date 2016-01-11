@@ -17,23 +17,23 @@ package rs.core.services.internal
 
 import akka.actor.ActorRef
 import rs.core.actors.{BaseActor, StatelessActor}
+import rs.core.evt.TraceE
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
 import rs.core.services.internal.acks.Acknowledgeable
 import rs.core.sysevents.CommonEvt
 
-trait StreamDemandBindingEvt extends CommonEvt {
-  val DuplicateDemandRequest = "DuplicateDemandRequest".trace
+object StreamDemandBinding {
+  case object EvtDuplicateDemandRequest extends TraceE
 }
 
-trait StreamDemandBinding extends BaseActor with DuplicateMessageTracker with MessageAcknowledging with StreamDemandBindingEvt {
-
+trait StreamDemandBinding extends BaseActor with DuplicateMessageTracker with MessageAcknowledging {
   def onConsumerDemand(sender: ActorRef, demand: Long)
 
   private def processDemand(m: DownstreamDemandRequest) =
     if (isNotDuplicate(sender(), "DownstreamDemandRequest", m.messageId)) {
       onConsumerDemand(sender(), m.count)
     } else {
-      DuplicateDemandRequest('sender -> sender(), 'payload -> m)
+      raise(StreamDemandBinding.EvtDuplicateDemandRequest, 'sender -> sender(), 'payload -> m)
     }
 
 

@@ -23,26 +23,27 @@ import akka.stream.stage._
 import akka.stream.{Attributes, FlowShape, UniformFanOutShape}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
+import rs.core.evt.{EvtContext, InfoE, WarningE}
 import rs.core.services.Messages._
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
-import rs.core.sysevents.{CommonEvt, EvtPublisher}
+import rs.core.sysevents.CommonEvt
 
 
-trait ServicePortEvt extends CommonEvt {
+object ServicePort {
 
-  val FlowStarting = "FlowStarting".info
-  val FlowStopping = "FlowStopping".info
-  val SignalRequest = "SignalRequest".info
-  val SignalResponse = "SignalResponse".info
-  val SignalExpired = "SignalExpired".info
-  val SignalFailure = "SignalFailure".warn
+  val EvtSourceId = "ServicePort"
 
-  override def componentId: String = "ServicePort"
-}
+  case object EvtFlowStarting extends InfoE
 
+  case object EvtFlowStopping extends InfoE
 
-object ServicePort extends ServicePortEvt {
+  case object EvtSignalRequest extends InfoE
 
+  case object EvtSignalResponse extends InfoE
+
+  case object EvtSignalExpired extends InfoE
+
+  case object EvtSignalFailure extends WarningE
 
   def buildFlow(tokenId: String)(implicit context: ActorRefFactory, nodeCfg: NodeConfig) = Flow.fromGraph(GraphDSL.create() { implicit b =>
 
@@ -50,7 +51,7 @@ object ServicePort extends ServicePortEvt {
 
     implicit val ec = context.dispatcher
 
-    implicit val evtPublisher = EvtPublisher(nodeCfg)
+    val evtCtx = EvtContext(EvtSourceId, nodeCfg.config)
 
     val signalParallelism = nodeCfg.asInt("signal-parallelism", 100)
 
@@ -120,14 +121,13 @@ object ServicePort extends ServicePortEvt {
 
       @throws[Exception](classOf[Exception])
       override def preStart(ctx: LifecycleContext): Unit = {
-        FlowStarting('token -> tokenId)
+        evtCtx.raise(EvtFlowStarting, 'token -> tokenId)
         super.preStart(ctx)
       }
 
       @throws[Exception](classOf[Exception])
       override def postStop(): Unit = {
-        FlowStopping { ctx =>
-          ctx + ('token -> tokenId)
+        evtCtx.raiseWithTimer(EvtFlowStopping, 'token -> tokenId) { ctx =>
           context.stop(aggregator)
           context.stop(signalPort)
         }
@@ -143,33 +143,33 @@ object ServicePort extends ServicePortEvt {
       case m: Signal =>
         val start = System.nanoTime()
         val expiredIn = m.expireAt - System.currentTimeMillis()
-        SignalRequest('correlation -> m.correlationId, 'expiry -> m.expireAt, 'expiredin -> expiredIn, 'subj -> m.subj, 'group -> m.orderingGroup)
+        evtCtx.raise(EvtSignalRequest, 'correlation -> m.correlationId, 'expiry -> m.expireAt, 'expiredin -> expiredIn, 'subj -> m.subj, 'group -> m.orderingGroup)
         expiredIn match {
           case expireInMillis if expireInMillis > 0 =>
             Patterns.ask(signalPort, m, expireInMillis).recover {
               case t =>
-                SignalExpired('correlation -> m.correlationId, 'subj -> m.subj)
+                evtCtx.raise(EvtSignalExpired, 'correlation -> m.correlationId, 'subj -> m.subj)
                 SignalAckFailed(m.correlationId, m.subj, None)
             }.map {
               case t: SignalAckOk =>
                 val diff = System.nanoTime() - start
-                SignalResponse('success -> true, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
+                evtCtx.raise(EvtSignalResponse, 'success -> true, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
                 t
               case t: SignalAckFailed =>
                 val diff = System.nanoTime() - start
-                SignalResponse('success -> false, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
+                evtCtx.raise(EvtSignalResponse, 'success -> false, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
                 t
               case t =>
-                SignalFailure('correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t))
+                evtCtx.raise(EvtSignalFailure, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t))
                 SignalAckFailed(m.correlationId, m.subj, None)
             }
           case _ => Futures.successful(SignalAckFailed(m.correlationId, m.subj, None))
         }
       case m: CloseSubscription =>
-        Invalid('type -> m.getClass, 'reason -> "Signal expected")
+        evtCtx.raise(CommonEvt.EvtInvalid, 'type -> m.getClass, 'reason -> "Signal expected")
         Futures.successful(SignalAckFailed(None, m.subj, None))
       case m: OpenSubscription =>
-        Invalid('type -> m.getClass, 'reason -> "Signal expected")
+        evtCtx.raise(CommonEvt.EvtInvalid, 'type -> m.getClass, 'reason -> "Signal expected")
         Futures.successful(SignalAckFailed(None, m.subj, None))
     })
 
@@ -182,10 +182,10 @@ object ServicePort extends ServicePortEvt {
 
     val monitor = b.add(Flow[ServiceInbound].transform(() => lifecycleMonitor))
 
-    monitor ~>  router.in
-                router.out(0) ~>  requestSink // stream subscriptions
-                router.out(1) ~>  signalExecStage ~>  merge.preferred // signals
-                                                      merge <~ publisherSource
+    monitor ~> router.in
+    router.out(0) ~> requestSink // stream subscriptions
+    router.out(1) ~> signalExecStage ~> merge.preferred // signals
+    merge <~ publisherSource
 
     FlowShape(monitor.in, merge.out)
 

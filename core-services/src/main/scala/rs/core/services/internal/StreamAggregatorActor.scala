@@ -18,10 +18,10 @@ package rs.core.services.internal
 import java.util
 
 import akka.actor.{ActorRef, Props}
-import rs.core.actors.{CommonActorEvt, StatelessActor}
+import rs.core.actors.StatelessActor
+import rs.core.evt.{EvtSource, TraceE}
 import rs.core.services.Messages._
 import rs.core.services.internal.NodeLocalServiceStreamEndpoint._
-import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
 import rs.core.stream.StreamState
 import rs.core.utils.NowProvider
 import rs.core.{ServiceKey, Subject}
@@ -33,6 +33,16 @@ import scala.language.postfixOps
 
 
 object StreamAggregatorActor {
+  val EvtSourceId = "StreamAggregator"
+
+  case object EvtSubjectUpdateReceived extends TraceE
+
+  case object EvtDownstreamConsumer extends TraceE
+
+  case object EvtSentDownstream extends TraceE
+
+  case object EvtServiceLocationUpdated extends TraceE
+
   def props(consumerId: String) = Props(classOf[StreamAggregatorActor], consumerId)
 
   case class ServiceLocationChanged(serviceKey: ServiceKey, location: Option[ActorRef])
@@ -40,20 +50,10 @@ object StreamAggregatorActor {
 }
 
 
-trait StreamAggregatorActorEvt extends CommonActorEvt {
-
-  val SubjectUpdateReceived = "SubjectUpdateReceived".trace
-  val DownstreamConsumer = "DownstreamConsumer".trace
-  val SentDownstream = "SentDownstream".trace
-  val ServiceLocationUpdated = "ServiceLocationUpdated".trace
-
-  override def componentId: String = "StreamAggregator"
-}
-
 final class StreamAggregatorActor(consumerId: String)
-  extends StatelessActor
-    with DemandProducerContract with StreamDemandBinding with ConsumerDemandTracker with StreamAggregatorActorEvt {
+  extends StatelessActor with DemandProducerContract with StreamDemandBinding with ConsumerDemandTracker {
 
+  import StreamAggregatorActor._
 
   private val streamToBucket: mutable.Map[Subject, Bucket] = mutable.HashMap()
   private val priorityKeysToBuckets: mutable.Map[Option[String], PriorityBucketGroup] = mutable.HashMap()
@@ -135,7 +135,7 @@ final class StreamAggregatorActor(consumerId: String)
 
   override def onConsumerDemand(sender: ActorRef, demand: Long): Unit = {
     if (!lastDemandRequestor.contains(sender)) {
-      DownstreamConsumer('ref -> sender)
+      raise(EvtDownstreamConsumer, 'ref -> sender)
       lastDemandRequestor = Some(sender)
     }
     addConsumerDemand(demand)
@@ -150,7 +150,7 @@ final class StreamAggregatorActor(consumerId: String)
     super.postStop()
   }
 
-  private def onUpdate(key: Subject, tran: StreamState): Unit = SubjectUpdateReceived { ctx =>
+  private def onUpdate(key: Subject, tran: StreamState): Unit = raiseWith(EvtSubjectUpdateReceived) { ctx =>
     ctx +('subj -> key, 'payload -> tran)
     upstreamDemandFulfilled(sender(), 1)
     streamToBucket get key foreach { b =>
@@ -163,7 +163,7 @@ final class StreamAggregatorActor(consumerId: String)
       lastDemandRequestor foreach {
         ref =>
           ref ! msg
-          SentDownstream('ref -> ref, 'payload -> msg)
+          raise(EvtSentDownstream, 'ref -> ref, 'payload -> msg)
       }
     }
   }
@@ -190,7 +190,7 @@ final class StreamAggregatorActor(consumerId: String)
     }
   }
 
-  private def switchLocation(service: ServiceKey, location: Option[ActorRef]): Unit = ServiceLocationUpdated { ctx =>
+  private def switchLocation(service: ServiceKey, location: Option[ActorRef]): Unit = raiseWith(EvtServiceLocationUpdated) { ctx =>
     closeLocation(service)
     serviceLocations += service -> location
     openLocation(service)
@@ -247,6 +247,7 @@ final class StreamAggregatorActor(consumerId: String)
 
   private case object SendPending
 
+  override val evtSource: EvtSource = EvtSourceId
 }
 
 

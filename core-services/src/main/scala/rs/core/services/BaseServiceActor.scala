@@ -20,6 +20,7 @@ import akka.remote.RemoteScope
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.ServiceConfig
+import rs.core.evt.{InfoE, WarningE}
 import rs.core.services.BaseServiceActor._
 import rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import rs.core.services.internal.InternalMessages.SignalPayload
@@ -53,20 +54,34 @@ object BaseServiceActor {
 
 }
 
-trait ServiceEvt extends CommonActorEvt with RemoteStreamsBroadcasterEvt {
-  val ServiceRunning = "ServiceRunning".info
-  val NodeAvailable = "NodeAvailable".info
-  val StartingRemoveAgent = "StartingRemoveAgent".info
-  val RemoveAgentTerminated = "RemoveAgentTerminated".info
-  val SignalProcessed = "SignalProcessed".info
-  val SignalPayload = "SignalPayload".trace
-  val RemoteEndpointRegistered = "RemoteEndpointRegistered".info
-  val StreamInterestAdded = "StreamInterestAdded".info
-  val StreamInterestRemoved = "StreamInterestRemoved".info
-  val StreamResync = "StreamResync".info
-  val IdleStream = "IdleStream".info
-  val SubjectMapped = "SubjectMapped".info
-  val SubjectMappingError = "SubjectMappingError".warn
+object ServiceEvt {
+
+  case object EvtServiceRunning extends InfoE
+
+  case object EvtNodeAvailable extends InfoE
+
+  case object EvtStartingRemoveAgent extends InfoE
+
+  case object EvtRemoveAgentTerminated extends InfoE
+
+  case object EvtSignalProcessed extends InfoE
+
+  case object EvtSignalPayload extends InfoE
+
+  case object EvtRemoteEndpointRegistered extends InfoE
+
+  case object EvtStreamInterestAdded extends InfoE
+
+  case object EvtStreamInterestRemoved extends InfoE
+
+  case object EvtStreamResync extends InfoE
+
+  case object EvtIdleStream extends InfoE
+
+  case object EvtSubjectMapped extends InfoE
+
+  case object EvtSubjectMappingError extends WarningE
+
 }
 
 
@@ -88,8 +103,7 @@ trait BaseServiceActor
     with StreamDemandBinding
     with RemoteStreamsBroadcaster
     with MessageAcknowledging
-    with StreamPublishers
-    with ServiceEvt {
+    with StreamPublishers {
 
   type SubjectToStreamIdMapper = PartialFunction[Subject, Option[StreamId]]
   type StreamEventCallback = PartialFunction[StreamId, Unit]
@@ -140,20 +154,22 @@ trait BaseServiceActor
   implicit def futureOfSignalResponseToOptionWrapper(x: Future[SignalResponse]): Option[Future[SignalResponse]] = Some(x)
 
   implicit def streamIdToOptionWrapper(x: StreamId): Option[StreamId] = Some(x)
+
   implicit def stringToOptionStreamIdWrapper(x: String): Option[StreamId] = Some(x)
-  implicit def tupleToOptionStreamIdWrapper[T](x: (String,T)): Option[StreamId] = Some(x)
+
+  implicit def tupleToOptionStreamIdWrapper[T](x: (String, T)): Option[StreamId] = Some(x)
 
   addEvtFields('service -> serviceKey)
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
     super.preStart()
-    ServiceRunning()
+    raise(ServiceEvt.EvtServiceRunning)
   }
 
   onClusterMemberUp {
     case (address, roles) if nodeRoles.isEmpty || roles.exists(nodeRoles.contains) =>
-      NodeAvailable('address -> address, 'host -> address.host, 'roles -> roles)
+      raise(ServiceEvt.EvtNodeAvailable, 'address -> address, 'host -> address.host, 'roles -> roles)
       ensureAgentIsRunningAt(address)
       reinitialiseStreams(address)
   }
@@ -161,35 +177,35 @@ trait BaseServiceActor
   onMessage {
     case m: SignalPayload =>
       val timer = NanoTimer()
-      SignalPayload('correlation -> m.correlationId, 'payload -> m.payload)
+      raise(ServiceEvt.EvtSignalPayload, 'correlation -> m.correlationId, 'payload -> m.payload)
       if (m.expireAt > now) {
         val origin = sender()
         signalHandlerFunc((m.subj, m.payload)) match {
           case Some(SignalOk(p)) =>
             origin ! SignalAckOk(m.correlationId, m.subj, p)
-            SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
+            raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
           case Some(SignalFailed(p)) =>
             origin ! SignalAckFailed(m.correlationId, m.subj, p)
-            SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+            raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
           case Some(f: Future[_]) =>
             f.onComplete {
               case Success(SignalOk(p)) =>
                 origin ! SignalAckOk(m.correlationId, m.subj, p)
-                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
               case Success(SignalFailed(p)) =>
                 origin ! SignalAckFailed(m.correlationId, m.subj, p)
-                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
               case Success(_) =>
-                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
               case Failure(t) =>
                 origin ! SignalAckFailed(m.correlationId, m.subj, None)
-                SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'reason -> t, 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'reason -> t, 'ms -> timer.toMillis)
             }
           case None =>
-            SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+            raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
           case _ =>
         }
-      } else SignalProcessed('correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
+      } else raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
 
     case ServiceEndpoint(ref, id) => addEndpointAddress(id, ref)
     case OpenAgentAt(address) => if (isAddressReachable(address)) ensureAgentIsRunningAt(address)
@@ -197,16 +213,15 @@ trait BaseServiceActor
       subjectToStreamKeyMapperFunc(subj) match {
         case None =>
           sender() ! StreamMapping(subj, None)
-          SubjectMappingError('subj -> subj)
+          raise(ServiceEvt.EvtSubjectMappingError, 'subj -> subj)
         case x@Some(streamKey) =>
           sender() ! StreamMapping(subj, x)
-          SubjectMapped('stream -> streamKey, 'subj -> subj)
+          raise(ServiceEvt.EvtSubjectMapped, 'stream -> streamKey, 'subj -> subj)
       }
     case OpenStreamFor(streamKey) =>
       registerStreamInterest(streamKey, sender())
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
-    case StreamResyncRequest(key) => StreamResync { ctx =>
-      ctx +('stream -> key, 'ref -> sender())
+    case StreamResyncRequest(key) => raiseWithTimer(ServiceEvt.EvtStreamResync, 'stream -> key, 'ref -> sender()) { ctx =>
       reopenStream(sender(), key)
     }
     case StopRequest => context.parent ! StopRequest
@@ -214,11 +229,9 @@ trait BaseServiceActor
   }
 
   onActorTerminated { ref =>
-    println(s"!>>> Terminated $ref")
     activeAgents get ref.path.address.toString foreach { loc =>
       if (loc.agent == ref) {
-        println(s"!>>> RemoveAgentTerminated ${ref.path.address}")
-        RemoveAgentTerminated('location -> ref.path.address, 'ref -> ref)
+        raise(ServiceEvt.EvtRemoveAgentTerminated, 'location -> ref.path.address, 'ref -> ref)
         cancelMessages(SpecificDestination(ref))
         activeAgents -= ref.path.address.toString
         loc.endpoint foreach { epRef =>
@@ -231,30 +244,28 @@ trait BaseServiceActor
 
   protected def terminate(reason: String) = throw new RuntimeException(reason)
 
-  private def ensureAgentIsRunningAt(address: Address) =
-    {
-      println(s"!>>> Agent available ${address.toString}? ${activeAgents.contains(address.toString)}")
-      if (!activeAgents.contains(address.toString))
-        StartingRemoveAgent { ctx =>
+  private def ensureAgentIsRunningAt(address: Address) = {
+    if (!activeAgents.contains(address.toString))
+      raiseWithTimer(ServiceEvt.EvtStartingRemoveAgent) { ctx =>
 
-          val id = randomUUID
+        val id = randomUUID
 
-          val name = s"agt-$serviceKey-$id"
+        val name = s"agt-$serviceKey-$id"
 
-          ctx +('address -> address, 'host -> address.host, 'name -> name)
+        ctx +('address -> address, 'host -> address.host, 'name -> name)
 
-          val newAgent = context.watch(
-            context.actorOf(NodeLocalServiceStreamEndpoint
-              .remoteStreamAgentProps(serviceKey, self, id)
-              .withDeploy(Deploy(scope = RemoteScope(address))), name)
-          )
+        val newAgent = context.watch(
+          context.actorOf(NodeLocalServiceStreamEndpoint
+            .remoteStreamAgentProps(serviceKey, self, id)
+            .withDeploy(Deploy(scope = RemoteScope(address))), name)
+        )
 
-          ctx + ('remotePath -> newAgent.path)
+        ctx + ('remotePath -> newAgent.path)
 
-          val newActiveLocation = new AgentView(newAgent)
-          activeAgents += address.toString -> newActiveLocation
-        }
-    }
+        val newActiveLocation = new AgentView(newAgent)
+        activeAgents += address.toString -> newActiveLocation
+      }
+  }
 
   private def reinitialiseStreams(address: Address) =
     for (
@@ -269,15 +280,14 @@ trait BaseServiceActor
 
   private def closeStreamAt(endpoint: ActorRef, streamKey: StreamId) = {
     agentWithEndpointAt(endpoint) foreach { loc =>
-      StreamInterestRemoved { ctx =>
+      raiseWithTimer(ServiceEvt.EvtStreamInterestRemoved, 'stream -> streamKey, 'location -> endpoint.path.address) { ctx =>
         loc.endpoint foreach { ref => closeStreamFor(ref, streamKey) }
         loc remove streamKey
         val total = loc.currentStreams.size
-        ctx +('stream -> streamKey, 'location -> endpoint.path.address, 'streamsAtLocation -> total)
+        ctx + ('streamsAtLocation -> total)
       }
     }
-    if (!hasAgentWithInterestIn(streamKey)) IdleStream { ctx =>
-      ctx + ('stream -> streamKey)
+    if (!hasAgentWithInterestIn(streamKey)) raiseWithTimer(ServiceEvt.EvtIdleStream, 'stream -> streamKey) { ctx =>
       activeStreams -= streamKey
       streamPassiveFunc(streamKey)
     }
@@ -289,7 +299,7 @@ trait BaseServiceActor
 
   private def registerStreamInterest(streamKey: StreamId, requestor: ActorRef): Unit =
     agentWithEndpointAt(requestor) foreach { agentView =>
-      StreamInterestAdded { ctx =>
+      raiseWithTimer(ServiceEvt.EvtStreamInterestAdded) { ctx =>
         val existingStream = isStreamActive(streamKey)
         activeStreams += streamKey
         agentView add streamKey
@@ -303,13 +313,13 @@ trait BaseServiceActor
 
   final def isStreamActive(streamKey: StreamId) = activeStreams.contains(streamKey)
 
-  private def addEndpointAddress(id: String, endpoint: ActorRef): Unit = RemoteEndpointRegistered { ctx =>
-    ctx +('location -> id, 'ref -> endpoint)
-    activeAgents get id foreach { agentView =>
-      agentView.addEndpoint(endpoint)
-      initiateTarget(endpoint)
+  private def addEndpointAddress(id: String, endpoint: ActorRef): Unit =
+    raiseWithTimer(ServiceEvt.EvtRemoteEndpointRegistered, 'location -> id, 'ref -> endpoint) { ctx =>
+      activeAgents get id foreach { agentView =>
+        agentView.addEndpoint(endpoint)
+        initiateTarget(endpoint)
+      }
     }
-  }
 
   sealed trait SignalResponse
 

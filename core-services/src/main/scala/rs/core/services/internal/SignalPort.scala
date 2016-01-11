@@ -17,23 +17,20 @@ package rs.core.services.internal
 
 import akka.actor.{ActorRef, Props}
 import rs.core.actors.{CommonActorEvt, StatelessActor}
+import rs.core.evt.EvtSource
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages.Signal
 import rs.core.services.internal.InternalMessages.SignalPayload
 
-trait SignalPortEvt extends CommonActorEvt {
-  override def componentId: String = "SignalPort"
-}
-
 object SignalPort {
+  val EvtSourceId = "SignalPort"
   def props = Props[SignalPort]
 }
 
 class SignalPort
   extends StatelessActor
     with SimpleInMemoryAckedDeliveryWithDynamicRouting
-    with RegistryRef
-    with SignalPortEvt {
+    with RegistryRef {
 
   private var routes: Map[String, ActorRef] = Map.empty
 
@@ -58,5 +55,5 @@ class SignalPort
       val signal = SignalPayload(subj, payload, expAt, correlationId)
       acknowledgedDelivery(x, signal, LogicalDestination(subj.service.id))(sender())
   }
-
+  override val evtSource: EvtSource = SignalPort.EvtSourceId
 }

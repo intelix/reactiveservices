@@ -3,27 +3,28 @@ package rs.testkit.components
 import rs.core.SubjectTags.UserId
 import rs.core.actors.ClusterAwareness
 import rs.core.config.ConfigOps.wrap
-import rs.core.evt.InfoE
+import rs.core.evt.{EvtSource, InfoE}
 import rs.core.registry.RegistryRef
 import rs.core.services._
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
 import rs.core.stream.SetStreamState.SetSpecs
 import rs.core.{Subject, TopicKey}
-import rs.testkit.components.TestServiceActor._
-
-
-object TestServiceActorEvt {
-  case object EvtIntConfigValue extends InfoE
-  case object EvtOtherServiceLocationChanged extends InfoE
-  case object EvtStreamActive extends InfoE
-  case object EvtStreamPassive extends InfoE
-  case object EvtSignalReceived extends InfoE
-}
 
 object TestServiceActor {
 
   val EvtSourceId = "Test.Service"
+
+  case object EvtIntConfigValue extends InfoE
+
+  case object EvtOtherServiceLocationChanged extends InfoE
+
+  case object EvtStreamActive extends InfoE
+
+  case object EvtStreamPassive extends InfoE
+
+  case object EvtSignalReceived extends InfoE
+
 
   val AutoStringReply = "hello"
   val AutoSetReply = Set[Any]("a", "b")
@@ -58,8 +59,8 @@ object TestServiceActor {
 }
 
 class TestServiceActor(id: String) extends StatelessServiceActor(id) with ClusterAwareness with RegistryRef {
+
   import TestServiceActor._
-  import TestServiceActorEvt._
 
   var signalCounter = 0
 
@@ -165,6 +166,6 @@ class TestServiceActor(id: String) extends StatelessServiceActor(id) with Cluste
   onServiceLocationChanged {
     case (s, l) => raise(EvtOtherServiceLocationChanged, 'addr -> l, 'service -> s.id)
   }
-
+  override val evtSource: EvtSource = EvtSourceId
 }
 

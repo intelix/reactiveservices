@@ -24,28 +24,35 @@ import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, Uri}
 import akka.stream.scaladsl.BidiFlow
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import akka.util.ByteString
-import rs.core.actors.CommonActorEvt
 import rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound}
 import rs.core.codec.binary._
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.{EvtSource, ErrorE, InfoE}
 import rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
 import rs.core.services.StatelessServiceActor
 import rs.core.services.endpoint.akkastreams._
+import rs.core.sysevents.CommonEvt
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
-trait WebsocketServiceSysevents extends CommonActorEvt {
-  val ServerOpen = "ServerOpen".info
-  val UnableToBind = "UnableToBind".error
-  val NewConnection = "NewConnection".info
-  val FlowFailure = "FlowFailure".error
+object WebsocketService {
 
-  override def componentId: String = "Service.WebsocketServer"
+  case object EvtServerOpen extends InfoE
+
+  case object EvtUnableToBind extends ErrorE
+
+  case object EvtNewConnection extends InfoE
+
+  case object EvtFlowFailure extends ErrorE
+
+  val EvtSourceId = "Service.WebsocketServer"
 }
 
-class WebsocketService(id: String) extends StatelessServiceActor(id) with WebsocketServiceSysevents {
+class WebsocketService(id: String) extends StatelessServiceActor(id) {
+
+  import WebsocketService._
 
   private case class SuccessfulBinding(binding: Http.ServerBinding)
 
@@ -64,7 +71,7 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
 
   val decider: Supervision.Decider = {
     case x =>
-      FlowFailure('error -> x, 'stacktrace -> x.getStackTrace)
+      raise(EvtFlowFailure, 'error -> x, 'stacktrace -> x.getStackTrace)
       Supervision.Stop
   }
 
@@ -77,30 +84,30 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
 
   var connectionCounter = new AtomicInteger(0)
 
-  def handleWebsocket(upgrade: UpgradeToWebsocket, headers: Seq[HttpHeader], id: String) = NewConnection { ctx =>
-    ctx +('token -> id, 'headers -> headers.map(_.toString))
-    upgrade.handleMessages(buildFlow(id))
-  }
+  def handleWebsocket(upgrade: UpgradeToWebsocket, headers: Seq[HttpHeader], id: String) =
+    raiseWithTimer(EvtNewConnection, 'token -> id, 'headers -> headers.map(_.toString)) { ctx =>
+      upgrade.handleMessages(buildFlow(id))
+    }
 
   def buildFlow(id: String) = {
 
-    val bytesStage = bytesStagesList.foldLeft[BidiFlow[Message, ByteString, ByteString, Message, Unit]](WebsocketBinaryFrameFolder.buildStage(id, componentId)) {
+    val bytesStage = bytesStagesList.foldLeft[BidiFlow[Message, ByteString, ByteString, Message, Unit]](WebsocketBinaryFrameFolder.buildStage(id, EvtSourceId)) {
       case (flow, builder) =>
-        builder.newInstance().asInstanceOf[BytesStageBuilder].buildStage(id, componentId) match {
+        builder.newInstance().asInstanceOf[BytesStageBuilder].buildStage(id, EvtSourceId) match {
           case Some(stage) => flow atop stage
           case None => flow
         }
     }
-    val protocolDialectStage = protocolDialectStagesList.foldLeft[BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit]](BinaryCodec.Streams.buildServerSideSerializer(id, componentId)) {
+    val protocolDialectStage = protocolDialectStagesList.foldLeft[BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit]](BinaryCodec.Streams.buildServerSideSerializer(id, EvtSourceId)) {
       case (flow, builder) =>
-        builder.newInstance().asInstanceOf[BinaryDialectStageBuilder].buildStage(id, componentId) match {
+        builder.newInstance().asInstanceOf[BinaryDialectStageBuilder].buildStage(id, EvtSourceId) match {
           case Some(stage) => flow atop stage
           case None => flow
         }
     }
-    val serviceDialectStage = serviceDialectStagesList.foldLeft[BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit]](BinaryCodec.Streams.buildServerSideTranslator(id, componentId)) {
+    val serviceDialectStage = serviceDialectStagesList.foldLeft[BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit]](BinaryCodec.Streams.buildServerSideTranslator(id, EvtSourceId)) {
       case (flow, builder) =>
-        builder.newInstance().asInstanceOf[ServiceDialectStageBuilder].buildStage(id, componentId) match {
+        builder.newInstance().asInstanceOf[ServiceDialectStageBuilder].buildStage(id, EvtSourceId) match {
           case Some(stage) => flow atop stage
           case None => flow
         }
@@ -117,7 +124,7 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
       handleWebsocket(upgrade, headers, id)
 
     case r: HttpRequest =>
-      Invalid('uri -> r.uri.path.toString(), 'method -> r.method.name)
+      raise(CommonEvt.EvtInvalid, 'uri -> r.uri.path.toString(), 'method -> r.method.name)
       HttpResponse(400, entity = "Invalid websocket request")
   }, interface = host, port = port) onComplete {
     case Success(binding) => self ! SuccessfulBinding(binding)
@@ -126,9 +133,9 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
 
   onMessage {
     case SuccessfulBinding(binding) =>
-      ServerOpen('host -> host, 'port -> port, 'address -> binding.localAddress)
+      raise(EvtServerOpen, 'host -> host, 'port -> port, 'address -> binding.localAddress)
     case BindingFailed(x) =>
-      UnableToBind('timeoutMs -> bindingTimeout.toMillis, 'error -> x)
+      raise(EvtUnableToBind, 'timeoutMs -> bindingTimeout.toMillis, 'error -> x)
       context.stop(self)
   }
 
@@ -143,4 +150,5 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) with Websoc
     }
   }
 
+  override val evtSource: EvtSource = EvtSourceId
 }

@@ -19,12 +19,12 @@ import akka.actor.ActorRef
 import akka.remote.MgmtService
 import akka.remote.MgmtService.{Block, Unblock}
 import org.scalatest.Suite
+import rs.core.actors.CommonActorEvt
 import rs.core.config.NodeConfig
 import rs.core.utils.UUIDTools
+import rs.node.core.discovery.UdpClusterManagerActor
 import rs.node.core.discovery.UdpClusterManagerActor.Messages.{BlockCommunicationWith, UnblockCommunicationWith}
-import rs.node.core.discovery.UdpClusterManagerActorEvt
-import rs.node.core.{ClusterNodeActor, ClusterNodeActorEvt, ServiceClusterGuardianActor}
-import rs.testkit._
+import rs.node.core.{ClusterNodeActor, ServiceClusterGuardianActor}
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
@@ -195,36 +195,36 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
     eventTimeout = EventWaitTimeout(20 seconds)
 
     def expectFullyBuilt() {
-      on node1 expectSome of ClusterNodeActorEvt.StateChange + ('to -> "Joined")
-      on node2 expectSome of ClusterNodeActorEvt.StateChange + ('to -> "Joined")
-      on node2 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
-      on node2 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
-      on node1 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
+      on node1 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
+      on node2 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
+      on node2 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+      on node2 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
+      on node1 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
     }
   }
 
   trait With3Nodes extends With2Nodes with WithNode3 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      on node3 expectSome of ClusterNodeActorEvt.StateChange + ('to -> "Joined")
-      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
-      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
-      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
-      on node1 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
+      on node3 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
+      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
+      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node1 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
     }
   }
 
   trait With4Nodes extends With3Nodes with WithNode4 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      on node4 expectSome of ClusterNodeActorEvt.StateChange + ('to -> "Joined")
-      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node1Address)
-      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node2Address)
-      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node3Address)
-      on node4 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
-      on node1 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
-      on node2 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
-      on node3 expectOne of UdpClusterManagerActorEvt.NodeUp + ('addr -> node4Address)
+      on node4 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
+      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
+      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node1 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node2 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
     }
   }
 
@@ -233,7 +233,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
   trait With5Nodes extends With4Nodes with WithNode5 {
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
-      on node5 expectSome of ClusterNodeActorEvt.StateChange + ('to -> "Joined")
+      on node5 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
     }
   }
 

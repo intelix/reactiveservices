@@ -21,10 +21,12 @@ import akka.util.{ByteIterator, ByteString}
 import rs.core.Subject
 import rs.core.actors.{ActorState, StatefulActor}
 import rs.core.codec.binary.BinaryProtocolMessages._
+import rs.core.evt.{EvtSource, InfoE}
+import rs.core.services.StatelessServiceActor
 import rs.core.services.endpoint.StreamConsumer
-import rs.core.services.{ServiceEvt, StatelessServiceActor}
 import rs.core.stream._
-import rs.service.websocket.WebSocketClient.{Connecting, Established, WebsocketConnection}
+import rs.core.sysevents.CommonEvt
+import rs.service.websocket.WebSocketClient.WebsocketConnection
 import rs.service.websocket.WebsocketClientStubService._
 import spray.can.Http.Connect
 import spray.can.server.UHttp
@@ -36,32 +38,9 @@ import scala.annotation.tailrec
 import scala.language.postfixOps
 
 
-trait WebsocketClientStubServiceEvt extends ServiceEvt {
-  val ConnectionUpgraded = "ConnectionUpgraded".info
-  val ConnectionEstablished = "ConnectionEstablished".info
-  val ConnectionClosed = "ConnectionClosed".info
-
-  val ReceivedPing = "ReceivedPing".info
-  val ReceivedServiceNotAvailable = "ReceivedServiceNotAvailable".info
-  val ReceivedInvalidRequest = "ReceivedInvalidRequest".info
-  val ReceivedSubscriptionClosed = "ReceivedSubscriptionClosed".info
-  val ReceivedStreamStateUpdate = "ReceivedStreamStateUpdate".info
-  val ReceivedStreamStateTransitionUpdate = "ReceivedStreamStateTransitionUpdate".info
-  val ReceivedSignalAckOk = "ReceivedSignalAckOk".info
-  val ReceivedSignalAckFailed = "ReceivedSignalAckFailed".info
-
-  val StringUpdate = "StringUpdate".info
-  val SetUpdate = "SetUpdate".info
-  val MapUpdate = "MapUpdate".info
-  val ListUpdate = "ListUpdate".info
-
-
-  override def componentId: String = "WebsocketClientStubService"
-}
-
-object WebsocketClientStubServiceEvt extends WebsocketClientStubServiceEvt
-
 object WebsocketClientStubService {
+
+  val EvtSourceId = "WebsocketClientStubService"
 
   case class StartWebsocketClient(id: String, host: String, port: Int)
 
@@ -77,11 +56,12 @@ object WebsocketClientStubService {
 
 class WebsocketClientStubService(serviceId: String) extends StatelessServiceActor(serviceId) {
 
+  import WebsocketClientStubService._
+
   onMessage {
     case StartWebsocketClient(id, host, port) => context.actorOf(Props(classOf[WebSocketClient], id, host, port), id)
   }
-
-  override def componentId: String = "WebsocketClientStubService"
+  override val evtSource: EvtSource = EvtSourceId
 }
 
 trait Consumer
@@ -92,6 +72,39 @@ trait Consumer
     with ListStreamConsumer
 
 object WebSocketClient {
+
+  val EvtSourceId = "WebSocketClient"
+
+  case object EvtConnectionUpgraded extends InfoE
+
+  case object EvtConnectionEstablished extends InfoE
+
+  case object EvtConnectionClosed extends InfoE
+
+  case object EvtReceivedPing extends InfoE
+
+  case object EvtReceivedServiceNotAvailable extends InfoE
+
+  case object EvtReceivedInvalidRequest extends InfoE
+
+  case object EvtReceivedSubscriptionClosed extends InfoE
+
+  case object EvtReceivedStreamStateUpdate extends InfoE
+
+  case object EvtReceivedStreamStateTransitionUpdate extends InfoE
+
+  case object EvtReceivedSignalAckOk extends InfoE
+
+  case object EvtReceivedSignalAckFailed extends InfoE
+
+  case object EvtStringUpdate extends InfoE
+
+  case object EvtSetUpdate extends InfoE
+
+  case object EvtMapUpdate extends InfoE
+
+  case object EvtListUpdate extends InfoE
+
 
   case class WebsocketConnection(connection: Option[ActorRef] = None)
 
@@ -104,8 +117,9 @@ object WebSocketClient {
 class WebSocketClient(id: String, endpoint: String, port: Int)
   extends StatefulActor[WebsocketConnection]
     with Consumer
-    with Stash
-    with WebsocketClientStubServiceEvt {
+    with Stash {
+
+  import WebSocketClient._
 
   addEvtFields('id -> id)
 
@@ -122,18 +136,18 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
             }
         }
       }
-      ConnectionEstablished()
+      raise(EvtConnectionEstablished)
       sender() ! UHttp.UpgradeClient(upgradePipelineStage, upgradeRequest)
       stay()
 
     case Event(UHttp.Upgraded, state: WebsocketConnection) =>
-      ConnectionUpgraded()
+      raise(EvtConnectionUpgraded)
       unstashAll()
       transitionTo(Established) using state.copy(connection = Some(sender()))
 
     case Event(Http.CommandFailed(con: Connect), state) =>
       val msg = s"failed to connect to ${con.remoteAddress}"
-      Error('msg -> msg)
+      raise(CommonEvt.EvtError, 'msg -> msg)
       stop(FSM.Failure(msg))
 
     case Event(_, state) =>
@@ -143,7 +157,7 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
 
   when(Established) {
     case Event(ev: Http.ConnectionClosed, state) =>
-      ConnectionClosed()
+      raise(EvtConnectionClosed)
       stop(FSM.Normal)
     case Event(t: BinaryDialectInbound, state: WebsocketConnection) =>
       state.connection.foreach(_ ! BinaryFrame(encode(t)))
@@ -155,23 +169,23 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
     case BinaryFrame(bs) => decode(bs) foreach {
       case BinaryDialectPing(pid) =>
         self ! BinaryDialectPong(pid)
-        ReceivedPing('pingId -> pid)
+        raise(EvtReceivedPing, 'pingId -> pid)
       case BinaryDialectSubscriptionClosed(alias) =>
-        ReceivedSubscriptionClosed('alias -> alias)
+        raise(EvtReceivedSubscriptionClosed, 'alias -> alias)
       case BinaryDialectServiceNotAvailable(service) =>
-        ReceivedServiceNotAvailable('service -> service)
+        raise(EvtReceivedServiceNotAvailable, 'service -> service)
       case BinaryDialectInvalidRequest(alias) =>
-        ReceivedInvalidRequest('alias -> alias)
+        raise(EvtReceivedInvalidRequest, 'alias -> alias)
       case BinaryDialectStreamStateUpdate(alias, state) =>
-        ReceivedStreamStateUpdate('alias -> alias, 'state -> state)
+        raise(EvtReceivedStreamStateUpdate, 'alias -> alias, 'state -> state)
         translate(alias, state)
       case BinaryDialectStreamStateTransitionUpdate(alias, trans) =>
-        ReceivedStreamStateTransitionUpdate('alias -> alias, 'transition -> trans)
+        raise(EvtReceivedStreamStateTransitionUpdate, 'alias -> alias, 'transition -> trans)
         transition(alias, trans)
       case BinaryDialectSignalAckOk(alias, correlation, payload) =>
-        ReceivedSignalAckOk('alias -> alias, 'correlation -> correlation, 'payload -> payload)
+        raise(EvtReceivedSignalAckOk, 'alias -> alias, 'correlation -> correlation, 'payload -> payload)
       case BinaryDialectSignalAckFailed(alias, correlation, payload) =>
-        ReceivedSignalAckFailed('alias -> alias, 'correlation -> correlation, 'payload -> payload)
+        raise(EvtReceivedSignalAckFailed, 'alias -> alias, 'correlation -> correlation, 'payload -> payload)
     }
 
     case OpenSubscriptionFromStub(subj, key, aggrInt) =>
@@ -256,22 +270,21 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
   }
 
   onStringRecord {
-    case (s, str) => StringUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> str)
+    case (s, str) => raise(EvtStringUpdate, 'sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> str)
   }
 
   onSetRecord {
-    case (s, set) => SetUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> set.toList.map(_.toString).sorted.mkString(","))
+    case (s, set) => raise(EvtSetUpdate, 'sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> set.toList.map(_.toString).sorted.mkString(","))
   }
 
   onDictMapRecord {
-    case (s, map) => MapUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> map.asMap)
+    case (s, map) => raise(EvtMapUpdate, 'sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> map.asMap)
   }
 
   onListRecord {
-    case (s, list) => ListUpdate('sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> list.mkString(","))
+    case (s, list) => raise(EvtListUpdate, 'sourceService -> s.service.id, 'topic -> s.topic.id, 'keys -> s.tags, 'value -> list.mkString(","))
   }
-
-
+  override val evtSource: EvtSource = EvtSourceId
 }
 
 

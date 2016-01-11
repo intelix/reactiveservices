@@ -21,35 +21,39 @@ import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
 import rs.core.SubjectTags.{SubjectTag, UserId, UserToken}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{NodeConfig, ServiceConfig}
+import rs.core.evt.{EvtContext, InfoE, WarningE}
 import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
 import rs.core.stream.{DictionaryMapStreamState, SetStreamState}
-import rs.core.sysevents.{CommonEvt, EvtPublisher}
 import rs.core.utils.UUIDTools
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 import scala.collection.mutable
 
-trait AuthStageEvt extends CommonEvt {
+object AuthStage {
 
-  val SubscribingToAuth = "SubscribingToAuth".info
-  val UserIdReset = "UserIdReset".info
-  val UserIdProvided = "UserIdProvided".info
-  val SubjectPermissionsProvided = "SubjectPermissionsProvided".info
-  val SubjectPermissionsReset = "SubjectPermissionsReset".info
-  val AuthServiceDown = "AuthServiceDown".warn
-  val AccessDenied = "AccessDenied".warn
+  case object EvtSubscribingToAuth extends InfoE
 
-  override def componentId: String = "Endpoint.Auth"
+  case object EvtUserIdReset extends InfoE
+
+  case object EvtUserIdProvided extends InfoE
+
+  case object EvtSubjectPermissionsProvided extends InfoE
+
+  case object EvtSubjectPermissionsReset extends InfoE
+
+  case object EvtAuthServiceDown extends WarningE
+
+  case object EvtAccessDenied extends WarningE
+
+  val EvtSourceId = "Endpoint.Auth"
 }
-
-object AuthStageEvt extends AuthStageEvt
 
 private object PrivateIdToken extends SubjectTag("pid")
 
 class AuthStage extends ServiceDialectStageBuilder {
 
-  import AuthStageEvt._
+  import AuthStage._
 
   private class AuthGraph(serviceCfg: ServiceConfig, nodeCfg: NodeConfig, sessionId: String) extends GraphStage[BidiShape[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound]] {
     val in1: Inlet[ServiceInbound] = Inlet("ServiceBoundIn")
@@ -60,7 +64,7 @@ class AuthStage extends ServiceDialectStageBuilder {
     override val shape: BidiShape[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound] = BidiShape(in1, out1, in2, out2)
 
     override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new GraphStageLogic(shape) {
-      implicit val evtPub = EvtPublisher(nodeCfg, 'token -> sessionId)
+      val evtCtx = EvtContext(EvtSourceId, nodeCfg.config, 'token -> sessionId)
 
       val outBuffer = serviceCfg.asInt("auth.out-buffer-msg", defaultValue = 8)
       val inBuffer = serviceCfg.asInt("auth.in-buffer-msg", defaultValue = 8)
@@ -89,7 +93,7 @@ class AuthStage extends ServiceDialectStageBuilder {
       override def preStart(): Unit = {
         pull(in1)
         pull(in2)
-        SubscribingToAuth('service -> authServiceKey)
+        evtCtx.raise(EvtSubscribingToAuth, 'service -> authServiceKey)
         serviceBound.enqueue(
           OpenSubscription(AuthSubSubject),
           OpenSubscription(SubjectPermissionsSubSubject),
@@ -128,13 +132,13 @@ class AuthStage extends ServiceDialectStageBuilder {
         case x: OpenSubscription =>
           if (isAllowed(x.subj)) Some(x)
           else {
-            AccessDenied('subj -> x.subj, 'userid -> userId)
+            evtCtx.raise(EvtAccessDenied, 'subj -> x.subj, 'userid -> userId)
             None
           }
         case x: Signal =>
           if (isAllowed(x.subj)) Some(x)
           else {
-            AccessDenied('subj -> x.subj, 'userid -> userId)
+            evtCtx.raise(EvtAccessDenied, 'subj -> x.subj, 'userid -> userId)
             None
           }
         case x => Some(x)
@@ -142,22 +146,22 @@ class AuthStage extends ServiceDialectStageBuilder {
 
       def filterLocalUpdates(s: ServiceOutbound): Option[ServiceOutbound] = s match {
         case ServiceNotAvailable(a) if a == authServiceKey =>
-          AuthServiceDown('service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
+          evtCtx.raise(EvtAuthServiceDown, 'service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
           if (closeOnServiceDown) userId = None
           Some(s)
         case StreamStateUpdate(SubjectPermissionsSubSubject, SetStreamState(_, _, set, _)) =>
           permissions = convertPermissions(set.asInstanceOf[Set[String]])
-          if (permissions.isEmpty) SubjectPermissionsReset() else SubjectPermissionsProvided()
+          if (permissions.isEmpty) evtCtx.raise(EvtSubjectPermissionsReset) else evtCtx.raise(EvtSubjectPermissionsProvided)
           None
         case StreamStateUpdate(InfoSubSubject, DictionaryMapStreamState(_, _, values, d)) =>
           d.locateIdx(AuthServiceActor.InfoUserId) match {
             case -1 =>
             case i => values(i) match {
               case v: String if v != "" =>
-                UserIdProvided('id -> v)
+                evtCtx.raise(EvtUserIdProvided, 'id -> v)
                 userId = Some(v)
               case _ =>
-                UserIdReset()
+                evtCtx.raise(EvtUserIdReset)
                 userId = None
             }
           }

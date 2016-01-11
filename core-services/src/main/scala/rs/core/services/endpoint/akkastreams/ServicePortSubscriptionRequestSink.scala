@@ -21,25 +21,13 @@ import akka.stream.actor.{ActorSubscriber, RequestStrategy, WatermarkRequestStra
 import rs.core.ServiceKey
 import rs.core.actors.StatelessActor
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.{EvtSource, InfoE, WarningE}
 import rs.core.registry.RegistryRef
 import rs.core.services.Messages._
 import rs.core.services.internal.StreamAggregatorActor.ServiceLocationChanged
-import rs.core.sysevents.CommonEvt
 
 
-trait ServicePortSubscriptionRequestSinkEvt extends CommonEvt {
-  val CompletedSuccessfully = "CompletedSuccessfully".info
-  val CompletedWithError = "CompletedWithError".warn
-  val TerminatedOnRequest = "TerminatedOnRequest".warn
-
-  override def componentId: String = "ServicePort.StreamSubscriptionSink"
-}
-
-
-trait ServicePortSubscriptionRequestSink
-  extends StatelessActor
-    with RegistryRef
-    with ServicePortSubscriptionRequestSinkEvt {
+trait ServicePortSubscriptionRequestSink extends StatelessActor with RegistryRef {
 
   val streamAggregator: ActorRef
 
@@ -69,12 +57,19 @@ trait ServicePortSubscriptionRequestSink
 
 
 object ServicePortSubscriptionRequestSinkSubscriber {
+  val EvtSourceId = "ServicePort.StreamSubscriptionSink"
+
+  case object EvtCompletedSuccessfully extends InfoE
+
+  case object EvtCompletedWithError extends WarningE
+
+  case object EvtTerminatedOnRequest extends WarningE
+
   def props(streamAggregator: ActorRef, token: String) = Props(classOf[ServicePortSubscriptionRequestSinkSubscriber], streamAggregator, token)
 }
 
-class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRef, token: String)
-  extends ServicePortSubscriptionRequestSink
-    with ActorSubscriber {
+class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRef, token: String) extends ServicePortSubscriptionRequestSink with ActorSubscriber {
+  import ServicePortSubscriptionRequestSinkSubscriber._
 
   val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 500)
   val LowWatermark = nodeCfg.asInt("service-port.backpressure.low-watermark", 200)
@@ -95,10 +90,10 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
     case OnNext(m: OpenSubscription) => addSubscription(m)
     case OnNext(m: CloseSubscription) => removeSubscription(m)
     case OnComplete =>
-      CompletedSuccessfully()
+      raise(EvtCompletedSuccessfully)
       terminateInstance()
     case OnError(x) =>
-      CompletedWithError('error -> x)
+      raise(EvtCompletedWithError, 'error -> x)
       terminateInstance()
   }
 
@@ -106,7 +101,7 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
 
   onActorTerminated { ref =>
     if (ref == streamAggregator) {
-      TerminatedOnRequest()
+      raise(EvtTerminatedOnRequest)
       terminateInstance()
     }
   }
@@ -125,5 +120,5 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
 
   override protected def requestStrategy: RequestStrategy = new WatermarkRequestStrategy(HighWatermark, LowWatermark)
 
-
+  override val evtSource: EvtSource = EvtSourceId
 }

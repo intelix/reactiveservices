@@ -17,15 +17,23 @@ package rs.service.auth.configbased
 
 import rs.core.actors.StatelessActor
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.{EvtSource, InfoE}
 import rs.service.auth.api.AuthenticationMessages.{Authenticate, AuthenticationResponse}
 
-class ConfigBasedAuthenticationProviderActor extends StatelessActor with ConfigBasedAuthenticationProviderEvt {
+object ConfigBasedAuthenticationProviderActor {
+
+  case object Authentication extends InfoE
+
+  val EvtSourceId = "Auth.AuthenticationProvider"
+}
+
+class ConfigBasedAuthenticationProviderActor extends StatelessActor {
+  import ConfigBasedAuthenticationProviderActor._
 
   addEvtFields('type -> "config-based")
 
   onMessage {
-    case Authenticate(u, p) => Authentication { ctx =>
-      ctx + ('user -> u)
+    case Authenticate(u, p) => raiseWithTimer(Authentication, 'user -> u) { ctx =>
       config asOptString ("users." + u + ".passw") match {
         case Some(h) if hashFor(p) == h =>
           ctx + ('allowed -> true)
@@ -42,4 +50,5 @@ class ConfigBasedAuthenticationProviderActor extends StatelessActor with ConfigB
     m.map("%02x".format(_)).mkString
   }
 
+  override val evtSource: EvtSource = EvtSourceId
 }

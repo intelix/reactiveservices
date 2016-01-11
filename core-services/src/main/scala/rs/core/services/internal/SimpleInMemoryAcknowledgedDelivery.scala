@@ -20,9 +20,9 @@ import java.util
 import akka.actor.ActorRef
 import rs.core.actors.ActorWithTicks
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.TraceE
 import rs.core.services.internal.acks.{Acknowledgeable, AcknowledgeableWithSpecificId, Acknowledgement}
 import rs.core.services.{Expirable, MessageId, SequentialMessageIdGenerator}
-import rs.core.sysevents.CommonEvt
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -44,15 +44,23 @@ trait SimpleInMemoryAckedDeliveryWithDynamicRouting extends SimpleInMemoryAcknow
 }
 
 
-trait SimpleInMemoryAcknowledgedDeliveryEvt extends CommonEvt {
-  val UnorderedDeliveryScheduled = "UnorderedDeliveryScheduled".trace
-  val OrderedDeliveryScheduled = "OrderedDeliveryScheduled".trace
-  val DeliveryCancelled = "DeliveryCancelled".trace
-  val DeliveryAcknowledged = "DeliveryAcknowledged".trace
-  val DeliveryAttempt = "DeliveryAttempt".trace
+object SimpleInMemoryAcknowledgedDelivery {
+
+  case object EvtUnorderedDeliveryScheduled extends TraceE
+
+  case object EvtOrderedDeliveryScheduled extends TraceE
+
+  case object EvtDeliveryCancelled extends TraceE
+
+  case object EvtDeliveryAcknowledged extends TraceE
+
+  case object EvtDeliveryAttempt extends TraceE
+
 }
 
-trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMemoryAcknowledgedDeliveryEvt {
+trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
+
+  import SimpleInMemoryAcknowledgedDelivery._
 
   type MessageSelection = Any => Boolean
 
@@ -99,7 +107,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
   }
 
   def unorderedAcknowledgedDelivery(msg: Any, route: DestinationRoute)(implicit sender: ActorRef): Unit =
-    UnorderedDeliveryScheduled { ctx =>
+    raiseWithTimer(EvtUnorderedDeliveryScheduled) { ctx =>
       val ackTo = if (sender == self) None else Some(self)
       val ackMsg = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
       val di = DeliveryInfo(ackMsg, sender, 0, route, None, 0)
@@ -108,7 +116,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
     }
 
   def acknowledgedDelivery(orderedGroupId: Any, msg: Any, route: DestinationRoute, cancelWithSelection: Option[MessageSelection] = None)(implicit sender: ActorRef): Unit =
-    OrderedDeliveryScheduled { ctx =>
+    raiseWithTimer(EvtOrderedDeliveryScheduled) { ctx =>
       val id = GroupId(orderedGroupId, route)
       cancelWithSelection foreach (cancelMessages(id, _))
       val group = groupsMap getOrElse(id, newOrderedGroup(id))
@@ -118,7 +126,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
       ctx +('group -> id, 'id -> acknowledgeable.messageId)
     }
 
-  def cancelDelivery(id: MessageId) = DeliveryCancelled { ctx =>
+  def cancelDelivery(id: MessageId) = raiseWithTimer(EvtDeliveryCancelled) { ctx =>
     markAsDelivered(id)
     ctx + ('id -> id)
   }
@@ -183,7 +191,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
         case location@Some(ref) =>
           ref.tell(info.msg, info.sender)
           val attempts = info.attempts + 1
-          DeliveryAttempt('id -> info.msg.messageId, 'attempts -> attempts, 'route -> info.route, 'ref -> ref, 'payload -> info.msg.payload)
+          raise(EvtDeliveryAttempt, 'id -> info.msg.messageId, 'attempts -> attempts, 'route -> info.route, 'ref -> ref, 'payload -> info.msg.payload)
           info.copy(sent = now, attempts = attempts, sentTo = location)
       }
     } else info
@@ -191,9 +199,8 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks with SimpleInMem
 
   onMessage {
     case Acknowledgement(id) if pendingOrderedDeliveries.contains(id) || pendingUnorderedDeliveries.contains(id) =>
-      DeliveryAcknowledged { ctx =>
+      raiseWithTimer(EvtDeliveryAcknowledged, 'id -> id) { ctx =>
         markAsDelivered(id)
-        ctx + ('id -> id)
       }
   }
 

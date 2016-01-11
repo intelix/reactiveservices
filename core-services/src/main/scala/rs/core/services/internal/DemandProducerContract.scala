@@ -19,21 +19,24 @@ import java.util
 
 import akka.actor.ActorRef
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.TraceE
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
-import rs.core.sysevents.CommonEvt
 
 import scala.collection.mutable
 
 
-trait DemandProducerContractEvt extends CommonEvt {
+object DemandProducerContract {
 
-  val StartedDemandProducer = "StartedDemandProducer".trace
-  val StoppedDemandProducer = "StoppedDemandProducer".trace
+  case object StartedDemandProducer extends TraceE
+
+  case object StoppedDemandProducer extends TraceE
 
 }
 
-trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with DemandProducerContractEvt {
+trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery {
+
+  import DemandProducerContract._
 
   private val idGenerator = new SequentialMessageIdGenerator()
 
@@ -46,21 +49,21 @@ trait DemandProducerContract extends SimpleInMemoryAcknowledgedDelivery with Dem
 
   def cancelDemandProducerFor(ref: ActorRef) = {
     pending get ref foreach { c =>
-      StoppedDemandProducer('target -> ref)
+      raise(StoppedDemandProducer, 'target -> ref)
       pending -= ref
       pendingList remove c
     }
   }
 
   def cancelAllDemandProducers(): Unit = {
-    StoppedDemandProducer('target -> "all")
+    raise(StoppedDemandProducer, 'target -> "all")
     pending clear()
     pendingList clear()
   }
 
   def startDemandProducerFor(ref: ActorRef, withAcknowledgedDelivery: Boolean) = {
     if (!pending.contains(ref)) {
-      StartedDemandProducer('target -> ref, 'seed -> idGenerator.seed)
+      raise(StartedDemandProducer, 'target -> ref, 'seed -> idGenerator.seed)
       val contract = new LocalDemand(ref, withAcknowledgedDelivery)
       pending += ref -> contract
       pendingList add contract

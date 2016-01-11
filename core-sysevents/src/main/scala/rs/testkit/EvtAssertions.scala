@@ -22,7 +22,7 @@ import org.scalatest.concurrent.Eventually._
 import org.scalatest.time.{Millis, Seconds, Span}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, Matchers}
 import org.slf4j.LoggerFactory
-import rs.core.evt.{Evt, EvtFieldValue, EvtSource}
+import rs.core.evt.{Evt, EvtFieldValue, EvtSource, StringEvtSource}
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
 import scala.language.{implicitConversions, postfixOps}
@@ -189,10 +189,15 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
 
   implicit def convertToEventSpec(e: EvtSelection): EventSpec = EventSpec(e)
 
+  implicit def convertToEventSpec(e: Evt): EventSpec = EventSpec(EvtSelection(e, None))
+
   case class EventSpec(e: EvtSelection, fields: Seq[EvtFieldValue] = Seq()) {
     def withFields(x: EvtFieldValue*) = copy(fields = fields ++ x)
 
     def +(x: EvtFieldValue*) = withFields(x: _*)
+
+    def +(x: String) = this + StringEvtSource(x)
+    def +(x: EvtSource) = copy(e = e.copy(s = Some(x)))
   }
 
   case class EventAssertionKey()
@@ -204,6 +209,7 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
   implicit var eventTimeout: EventWaitTimeout = 15 seconds
 
   case class ExecutableExpectation(expectation: BaseExpectation, requiredFields: Seq[EvtFieldValue]) {
+
     def of(spec: EventSpec)(implicit t: EventWaitTimeout): Unit = expectation.check(t.duration, spec.e, spec.fields ++ requiredFields)
 
     def ofEach(specs: EventSpec*)(implicit t: EventWaitTimeout): Unit = specs foreach (of(_)(t))

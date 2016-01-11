@@ -15,14 +15,8 @@
  */
 package rs.core.services.internal
 
-import rs.core.sysevents.{EvtPublisherContext, CommonEvt}
 
-trait ConsumerDemandTrackerEvt extends CommonEvt
-
-
-trait ConsumerDemandTracker extends ConsumerDemandTrackerEvt {
-
-  self: EvtPublisherContext =>
+trait ConsumerDemandTracker {
 
   @volatile var currentDemand = 0L
 

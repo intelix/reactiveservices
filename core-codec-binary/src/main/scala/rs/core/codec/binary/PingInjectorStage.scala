@@ -21,19 +21,19 @@ import akka.stream.stage._
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{NodeConfig, ServiceConfig}
-import rs.core.sysevents.{CommonEvt, EvtPublisher}
+import rs.core.evt.{EvtContext, TraceE}
 
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait PingInjectorEvt extends CommonEvt {
-  val ServerClientPing = "ServerClientPing".trace
+object PingInjectorStage {
 
-  override def componentId: String = "Endpoint.PingInjector"
+  case object ServerClientPing extends TraceE
+
+  val EvtSourceId = "Endpoint.PingInjector"
 }
 
-object PingInjectorEvt extends PingInjectorEvt
 
 class PingInjectorStage extends BinaryDialectStageBuilder {
 
@@ -52,9 +52,9 @@ class PingInjectorStage extends BinaryDialectStageBuilder {
 
       case object Timer
 
-      import PingInjectorEvt._
+      import PingInjectorStage._
 
-      implicit val publisher = EvtPublisher(nodeCfg, 'token -> sessionId)
+      implicit val publisher = EvtContext(EvtSourceId, nodeCfg.config, 'token -> sessionId)
 
 
       private val clientBound = mutable.Queue[BinaryDialectOutbound]()
@@ -73,7 +73,7 @@ class PingInjectorStage extends BinaryDialectStageBuilder {
             case BinaryDialectPong(ts) =>
               val now = System.currentTimeMillis() % Int.MaxValue
               val diff = now - ts
-              ServerClientPing('ms -> diff)
+              publisher.raise(ServerClientPing, 'ms -> diff)
             case x: BinaryDialectInbound => pushToServer(x)
           }
           if (canPullFromClientNow) pull(in1)

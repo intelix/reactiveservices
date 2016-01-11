@@ -13,13 +13,14 @@ trait EvtPublisher {
 }
 
 class EvtFieldBuilder {
-  def +(f: EvtFieldValue): Unit = macro EvtFieldBuilderMacro.+
+  def +(f: EvtFieldValue*): Unit = macro EvtFieldBuilderMacro.+
 }
 
 object MuteEvtFieldBuilder extends EvtFieldBuilder
 
 class EvtFieldBuilderWithList(var list: List[EvtFieldValue]) extends EvtFieldBuilder {
   def add(f: EvtFieldValue) = list +:= f
+  def add(f: List[EvtFieldValue]) = list = f.reverse ++ list
 
   def result = list.reverse
 }
@@ -27,11 +28,15 @@ class EvtFieldBuilderWithList(var list: List[EvtFieldValue]) extends EvtFieldBui
 private object EvtFieldBuilderMacro {
   type MyContext = blackbox.Context {type PrefixType = EvtFieldBuilder}
 
-  def +(c: MyContext)(f: c.Expr[EvtFieldValue]) = {
+  def +(c: MyContext)(f: c.Expr[EvtFieldValue]*) = {
     import c.universe._
     val enabled = q"${c.prefix}.isInstanceOf[EvtFieldBuilderWithList]"
     val doAdd = q"${c.prefix}.asInstanceOf[EvtFieldBuilderWithList].add"
-    q"if ($enabled) $doAdd($f)"
+    if (f.length == 1) {
+      q"if ($enabled) $doAdd($f)"
+    } else {
+      q"if ($enabled) $doAdd(List(..$f))"
+    }
 
   }
 }

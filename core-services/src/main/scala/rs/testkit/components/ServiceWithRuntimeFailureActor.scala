@@ -1,7 +1,7 @@
 package rs.testkit.components
 
 import rs.core.evt.EvtSource
-import rs.core.services.{ServiceEvt, StatelessServiceActor}
+import rs.core.services.StatelessServiceActor
 
 object ServiceWithRuntimeFailureActor {
   var recoveryEnabled = false
@@ -11,7 +11,9 @@ object ServiceWithRuntimeFailureActor {
 }
 
 class ServiceWithRuntimeFailureActor(id: String) extends StatelessServiceActor(id) {
+
   import ServiceWithRuntimeFailureActor._
+
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()

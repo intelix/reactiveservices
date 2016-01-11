@@ -29,17 +29,17 @@ import scala.language.postfixOps
 
 trait Terminal
   extends StreamConsumer
-  with ServicePortSubscriptionRequestSink
-  with StringStreamConsumer
-  with DictionaryMapStreamConsumer
-  with SetStreamConsumer
-  with ListStreamConsumer
-  with DemandProducerContract {
+    with ServicePortSubscriptionRequestSink
+    with StringStreamConsumer
+    with DictionaryMapStreamConsumer
+    with SetStreamConsumer
+    with ListStreamConsumer
+    with DemandProducerContract {
 
   _: StatefulActor[_] =>
 
 
-  override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(consumerId = componentId), "stream-aggregator")
+  override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(consumerId = self.path.toStringWithoutAddress), "stream-aggregator")
 
   startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)
 

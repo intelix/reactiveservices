@@ -16,13 +16,15 @@
 
 package rs.core.sysevents
 
-trait CommonEvt extends EvtGroup {
+import rs.core.evt.{ErrorE, WarningE}
 
-  val Invalid = 'Invalid.warn
-  val Warning = 'Warning.warn
-  val Error = 'Error.error
-  val SupervisorRestartTrigger = "Supervisor.RestartTrigger".warn
-  val SupervisorStopTrigger = "Supervisor.StopTrigger".warn
+object CommonEvt {
+
+  case object EvtInvalid extends WarningE
+  case object EvtWarning extends WarningE
+  case object EvtError extends ErrorE
+  case object EvtSupervisorRestartTrigger extends WarningE
+  case object EvtSupervisorStopTrigger extends WarningE
 
 
 }

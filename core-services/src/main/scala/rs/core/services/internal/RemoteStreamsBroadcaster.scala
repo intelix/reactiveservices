@@ -20,6 +20,7 @@ import java.util
 import akka.actor.ActorRef
 import com.typesafe.config._
 import rs.core.actors.BaseActor
+import rs.core.evt.{EvtSource, EvtContext, TraceE}
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.stream.{StreamState, StreamStateTransition}
@@ -28,15 +29,15 @@ import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
 import scala.collection.mutable
 
 
-trait RemoteStreamsBroadcasterEvt extends CommonEvt {
-  val StreamStateTransition = "StreamStateTransition".trace
-  val InitiatingStreamForDestination = "InitiatingStreamForDestination".trace
-  val ClosingStreamForDestination = "ClosingStreamForDestination".trace
-  val StreamUpdateSent = "StreamUpdateSent".trace
+object RemoteStreamsBroadcaster {
+  case object EvtStreamStateTransition extends TraceE
+  case object EvtInitiatingStreamForDestination extends TraceE
+  case object EvtClosingStreamForDestination extends TraceE
+  case object EvtStreamUpdateSent extends TraceE
 }
 
-trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEvt {
-
+trait RemoteStreamsBroadcaster extends BaseActor {
+  import RemoteStreamsBroadcaster._
   private val targets: mutable.Map[ActorRef, ConsumerWithStreamSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, StreamBroadcaster] = mutable.HashMap()
 
@@ -46,7 +47,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
     locateTarget(consumer).addDemand(demand)
   }
 
-  final def stateTransitionFor(key: StreamId, transition: => StreamStateTransition): Boolean = StreamStateTransition { ctx =>
+  final def stateTransitionFor(key: StreamId, transition: => StreamStateTransition): Boolean = raiseWith(EvtStreamStateTransition) { ctx =>
     ctx + ('stream -> key)
     streams get key match {
       case None =>
@@ -62,8 +63,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
   final def initiateTarget(ref: ActorRef): Unit = if (!targets.contains(ref)) newTarget(ref)
   private def locateTarget(ref: ActorRef) = targets.getOrElse(ref, newTarget(ref))
 
-  final def initiateStreamFor(ref: ActorRef, key: StreamId) = InitiatingStreamForDestination { ctx =>
-    ctx +('stream -> key, 'ref -> ref)
+  final def initiateStreamFor(ref: ActorRef, key: StreamId) = raiseWithTimer(EvtInitiatingStreamForDestination, 'stream -> key, 'ref -> ref) { ctx =>
     val target = locateTarget(ref)
     val stream = streams getOrElse(key, {
       ctx + ('broadcaster -> "new")
@@ -90,13 +90,12 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
   }
 
   private def newTarget(ref: ActorRef) = {
-    val target = new ConsumerWithStreamSinks(context.watch(ref), self, componentId)
+    val target = new ConsumerWithStreamSinks(context.watch(ref), self, evtSource)
     targets += ref -> target
     target
   }
 
-  final def closeStreamFor(ref: ActorRef, key: StreamId) = ClosingStreamForDestination { ctx =>
-    ctx +('stream -> key, 'ref -> ref)
+  final def closeStreamFor(ref: ActorRef, key: StreamId) = raiseWithTimer(EvtClosingStreamForDestination, 'stream -> key, 'ref -> ref) { ctx =>
     targets get ref foreach { target =>
       target locateExistingSinkFor key foreach { existingSink =>
         target.closeStream(key)
@@ -109,7 +108,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
 
   onActorTerminated { ref => targets -= ref }
 
-  private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentComponentId: String)(implicit val config: Config) extends ConsumerDemandTracker with EvtPublisherContext {
+  private class ConsumerWithStreamSinks(val ref: ActorRef, self: ActorRef, parentEvtSource: EvtSource)(implicit val config: Config) extends ConsumerDemandTracker with EvtContext {
     private val streamKeyToSink: mutable.Map[StreamId, StreamSink] = mutable.HashMap()
     private val streams: util.ArrayList[StreamSink] = new util.ArrayList[StreamSink]()
     private val canUpdate = () => hasDemand
@@ -134,7 +133,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
 
     private def updateForTarget(key: StreamId)(tran: StreamStateTransition) = fulfillDownstreamDemandWith {
       ref.tell(StreamUpdate(key, tran), self)
-      StreamUpdateSent('stream -> key, 'target -> ref, 'payload -> tran)
+      raise(EvtStreamUpdateSent, 'stream -> key, 'target -> ref, 'payload -> tran)
     }
 
     def addDemand(demand: Long): Unit = {
@@ -153,7 +152,7 @@ trait RemoteStreamsBroadcaster extends BaseActor with RemoteStreamsBroadcasterEv
       }
     }
 
-    override def componentId: String = parentComponentId
+    override val evtSource: EvtSource = parentEvtSource
   }
 
   private class StreamBroadcaster {

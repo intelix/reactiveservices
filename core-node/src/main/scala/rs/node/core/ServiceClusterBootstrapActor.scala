@@ -18,28 +18,31 @@ package rs.node.core
 
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
-import rs.core.actors.{CommonActorEvt, StatelessActor}
+import rs.core.actors.StatelessActor
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
+import rs.core.evt.{EvtSource, InfoE, WarningE}
 import rs.core.sysevents.CommonEvt
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
-trait ServiceClusterBootstrapActorEvt extends CommonEvt with CommonActorEvt {
+object ServiceClusterBootstrapActor {
+  val EvtSourceId = "Cluster.Bootstrap"
 
-  val StartingCluster = "StartingCluster".info
-  val StoppingCluster = "StoppingCluster".info
-  val RestartingCluster = "RestartingCluster".warn
+  case object EvtStartingCluster extends InfoE
 
-  override def componentId: String = "Cluster.Bootstrap"
+  case object EvtStoppingCluster extends InfoE
+
+  case object EvtRestartingCluster extends WarningE
+
 }
 
-object ServiceClusterBootstrapActorEvt extends ServiceClusterBootstrapActorEvt
+class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor {
 
-class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with ServiceClusterBootstrapActorEvt {
+  import ServiceClusterBootstrapActor._
 
   override implicit lazy val nodeCfg = cfg
 
@@ -50,16 +53,14 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with 
   override def supervisorStrategy: SupervisorStrategy =
     OneForOneStrategy(maxNrOfRetries = 1, withinTimeRange = 1 minutes, loggingEnabled = false) {
       case x: Exception =>
-        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
-        x.printStackTrace(); // !>>> REMOVE
-
+        raise(CommonEvt.EvtSupervisorRestartTrigger, 'Message -> x.getMessage, 'Cause -> x)
         Restart
       case _ => Escalate
     }
 
   onActorTerminated {
     case ref =>
-      RestartingCluster()
+      raise(EvtRestartingCluster)
       throw new Exception("Restarting cluster subsystem")
   }
 
@@ -77,15 +78,17 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with 
   }
 
 
-  private def stopCluster(block: Boolean) =
+  private def stopCluster(block: Boolean) = {
+    raise(EvtStoppingCluster)
     clusterSystem.foreach { sys =>
       implicit val ec = context.dispatcher
       Await.result(sys.terminate(), 60 seconds)
     }
+  }
 
 
   private def startCluster() = {
-    StartingCluster { ctx =>
+    raiseWithTimer(EvtStartingCluster) { ctx =>
       clusterSystem = Some(ActorSystem(clusterSystemId, nodeCfg.config))
       clusterSystem foreach { sys =>
         context.watch(sys.actorOf(Props[ClusterNodeActor], "node"))
@@ -96,6 +99,6 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor with 
   onMessage {
     case ForwardToService(id, m) => clusterSystem.foreach(_.actorSelection("/user/node/" + id) ! m)
   }
-
+  override val evtSource: EvtSource = EvtSourceId
 }
 

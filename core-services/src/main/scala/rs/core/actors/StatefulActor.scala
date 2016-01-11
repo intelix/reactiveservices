@@ -19,11 +19,12 @@ package rs.core.actors
 import akka.actor.{Actor, ActorRef, FSM, Terminated}
 import rs.core.config.{NodeConfig, WithActorSystemConfig}
 import rs.core.evt.EvtContext
-import rs.core.sysevents.EvtPublisherContext
 
 trait ActorState
 
 trait StatefulActor[T] extends FSM[ActorState, T] with BaseActor {
+
+  import CommonActorEvt._
 
   private var chainedUnhandled: StateFunction = {
     case Event(Terminated(ref), _) => terminatedFuncChain.foreach(_ (ref)); stay()
@@ -50,7 +51,7 @@ trait StatefulActor[T] extends FSM[ActorState, T] with BaseActor {
   }
 
   def transitionTo(state: ActorState) = {
-    if (stateName != state) StateChange('to -> state, 'from -> stateName)
+    if (stateName != state) raise(EvtStateChange, 'to -> state, 'from -> stateName)
     goto(state)
   }
 
@@ -77,6 +78,8 @@ trait JBaseActor extends BaseActor {
 
 trait BaseActor extends WithActorSystemConfig with ActorUtils with EvtContext {
 
+  import CommonActorEvt._
+
   private val pathAsString = self.path.toStringWithoutAddress
   protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
 
@@ -88,26 +91,26 @@ trait BaseActor extends WithActorSystemConfig with ActorUtils with EvtContext {
 
   @throws[Exception](classOf[Exception])
   override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
-    PreRestart('reason -> reason.getMessage, 'msg -> message, 'path -> pathAsString)
+    raise(EvtPreRestart, 'reason -> reason.getMessage, 'msg -> message, 'path -> pathAsString)
     super.preRestart(reason, message)
   }
 
   @throws[Exception](classOf[Exception])
   override def postRestart(reason: Throwable): Unit = {
     super.postRestart(reason)
-    PostRestart('reason -> reason.getMessage, 'path -> pathAsString)
+    raise(EvtPostRestart, 'reason -> reason.getMessage, 'path -> pathAsString)
   }
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
-    PreStart('path -> pathAsString)
+    raise(EvtPreStart, 'path -> pathAsString)
     super.preStart()
   }
 
   @throws[Exception](classOf[Exception])
   override def postStop(): Unit = {
     super.postStop()
-    PostStop('path -> pathAsString)
+    raise(EvtPostStop, 'path -> pathAsString)
   }
 
 

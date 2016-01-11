@@ -24,18 +24,22 @@ import akka.util.{ByteIterator, ByteString, ByteStringBuilder}
 import rs.core.codec.binary.BinaryCodec.Codecs._
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.{NodeConfig, ServiceConfig}
+import rs.core.evt.{TraceE, EvtContext}
 import rs.core.services.Messages._
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
 import rs.core.stream.SetStreamState.{Add, Remove, SetOp, SetSpecs}
 import rs.core.stream._
-import rs.core.sysevents.EvtPublisher
 import rs.core.{ServiceKey, Subject, TopicKey}
 
 import scala.annotation.tailrec
 
 
 object BinaryCodec {
+
+  val EvtSourceId = "Endpoint.BinaryCodec"
+  case object MessageEncoded extends TraceE
+  case object MessageDecoded extends TraceE
 
   object DefaultBinaryCodecImplicits {
     implicit val byteOrder = ByteOrder.BIG_ENDIAN
@@ -148,45 +152,44 @@ object BinaryCodec {
 
     def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, nodeCfg: NodeConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] =
       BidiFlow.fromGraph(GraphDSL.create() { b =>
-      implicit val byteOrder = ByteOrder.BIG_ENDIAN
+        implicit val byteOrder = ByteOrder.BIG_ENDIAN
 
-      import BinaryCodecEvt._
-      implicit val publisher = EvtPublisher(nodeCfg)
+        val publisher = EvtContext(EvtSourceId, nodeCfg.config)
 
-      val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
-        @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
-        val i = x.iterator
-        val decoded = dec(List.empty, i)
-        MessageDecoded('original -> x, 'decoded -> decoded)
-        decoded
-      }
-      val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
-        val b = ByteString.newBuilder // TODO - Can we reuse it
-        codec.encode(x, b)
-        val encoded = b.result()
-        MessageEncoded('original -> x, 'encoded -> encoded)
-        encoded
-      }
-      BidiShape.fromFlows(top, bottom)
-    })
+        val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
+          @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
+          val i = x.iterator
+          val decoded = dec(List.empty, i)
+          publisher.raise(MessageDecoded, 'original -> x, 'decoded -> decoded)
+          decoded
+        }
+        val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
+          val b = ByteString.newBuilder // TODO - Can we reuse it
+          codec.encode(x, b)
+          val encoded = b.result()
+          publisher.raise(MessageEncoded, 'original -> x, 'encoded -> encoded)
+          encoded
+        }
+        BidiShape.fromFlows(top, bottom)
+      })
 
     def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutbound, BinaryDialectInbound, ByteString, Unit] =
       BidiFlow.fromGraph(GraphDSL.create() { b =>
-      implicit val byteOrder = ByteOrder.BIG_ENDIAN
-      val top = b add Flow[ByteString].mapConcat[BinaryDialectOutbound] { x =>
-        @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
-        val i = x.iterator
-        val decoded = dec(List.empty, i)
-        decoded
-      }
-      val bottom = b add Flow[BinaryDialectInbound].map[ByteString] { x =>
-        val b = ByteString.newBuilder
-        codec.encode(x, b)
-        val encoded = b.result()
-        encoded
-      }
-      BidiShape.fromFlows(top, bottom)
-    })
+        implicit val byteOrder = ByteOrder.BIG_ENDIAN
+        val top = b add Flow[ByteString].mapConcat[BinaryDialectOutbound] { x =>
+          @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
+          val i = x.iterator
+          val decoded = dec(List.empty, i)
+          decoded
+        }
+        val bottom = b add Flow[BinaryDialectInbound].map[ByteString] { x =>
+          val b = ByteString.newBuilder
+          codec.encode(x, b)
+          val encoded = b.result()
+          encoded
+        }
+        BidiShape.fromFlows(top, bottom)
+      })
 
 
   }
@@ -372,7 +375,6 @@ object BinaryCodec {
         })
       }
     }
-
 
 
     object ListStringCodecLogic {

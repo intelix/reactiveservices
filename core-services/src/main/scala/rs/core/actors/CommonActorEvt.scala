@@ -1,12 +1,19 @@
 package rs.core.actors
 
-import rs.core.sysevents.CommonEvt
+import rs.core.evt.InfoE
 
-trait CommonActorEvt extends CommonEvt {
-  val PostStop = "Lifecycle.PostStop".info
-  val PreStart = "Lifecycle.PreStart".info
-  val PreRestart = "Lifecycle.PreRestart".info
-  val PostRestart = "Lifecycle.PostRestart".info
-  val StateTransition = "Lifecycle.StateTransition".info
-  val StateChange = "StateChange".info
+object CommonActorEvt {
+
+  case object EvtPostStop extends InfoE
+
+  case object EvtPreStart extends InfoE
+
+  case object EvtPreRestart extends InfoE
+
+  case object EvtPostRestart extends InfoE
+
+  case object EvtStateTransition extends InfoE
+
+  case object EvtStateChange extends InfoE
+
 }

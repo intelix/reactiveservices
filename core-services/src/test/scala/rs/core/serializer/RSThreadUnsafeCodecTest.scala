@@ -1,6 +1,6 @@
 package rs.core.serializer
 
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorRef
 import akka.util.ByteString
 import org.scalatest.{FlatSpec, Matchers}
 import rs.core.serializer.RSThreadUnsafeCodec._
@@ -10,6 +10,7 @@ class RSThreadUnsafeCodecTest extends FlatSpec with Matchers {
   implicit val ec: ExternalCodecs = new ExternalCodecs {
     override def resolveActorRef(s: String): ActorRef = null
   }
+
   def builder = ByteString.newBuilder
 
 

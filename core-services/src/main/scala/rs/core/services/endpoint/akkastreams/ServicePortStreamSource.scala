@@ -19,51 +19,48 @@ import akka.actor.{ActorRef, PoisonPill, Props}
 import akka.stream.actor.ActorPublisher
 import akka.stream.actor.ActorPublisherMessage.{Cancel, Request}
 import rs.core.actors.StatelessActor
+import rs.core.evt.{EvtSource, InfoE, TraceE}
 import rs.core.services.Messages.ServiceOutbound
 import rs.core.services.SequentialMessageIdGenerator
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
-import rs.core.sysevents.CommonEvt
 
-
-trait ServicePortStreamSourceEvt extends CommonEvt {
-
-  val Cancelled = "Cancelled".info
-  val TerminatingOnRequest = "TerminatingOnRequest".info
-  val DemandProduced = "DemandProduced".trace
-  val OnNext = "OnNext".trace
-
-  override def componentId: String = "ServicePort.StreamDataSource"
-}
 
 object ServicePortStreamSource {
+  val EvtSourceId = "ServicePort.StreamDataSource"
+
+  case object EvtCancelled extends InfoE
+
+  case object EvtTerminatingOnRequest extends InfoE
+
+  case object EvtDemandProduced extends TraceE
+
+  case object EvtOnNext extends TraceE
+
   def props(streamAggregator: ActorRef, token: String) = Props(classOf[ServicePortStreamSource], streamAggregator, token)
 }
 
-class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
-  extends StatelessActor
-    with ActorPublisher[Any]
-    with ServicePortStreamSourceEvt {
+class ServicePortStreamSource(streamAggregator: ActorRef, token: String) extends StatelessActor with ActorPublisher[Any] {
+
+  import ServicePortStreamSource._
 
   private val messageIdGenerator = new SequentialMessageIdGenerator()
 
   onMessage {
     case Request(n) =>
-//      println(s"!>>> Requested demand: $n")
-      DemandProduced('new -> n, 'total -> totalDemand)
+      raise(EvtDemandProduced, 'new -> n, 'total -> totalDemand)
       streamAggregator ! DownstreamDemandRequest(messageIdGenerator.next(), n)
     case Cancel =>
-      Cancelled()
+      raise(EvtCancelled)
       streamAggregator ! PoisonPill
       context.stop(self)
     case m: ServiceOutbound =>
-//      println(s"!>>> Produced: $m")
-      OnNext('demand -> totalDemand)
+      raise(EvtOnNext, 'demand -> totalDemand)
       onNext(m)
   }
 
   onActorTerminated { ref =>
     if (ref == streamAggregator) {
-      TerminatingOnRequest()
+      raise(EvtTerminatingOnRequest)
       onCompleteThenStop()
     }
   }
@@ -75,5 +72,5 @@ class ServicePortStreamSource(streamAggregator: ActorRef, token: String)
   }
 
   addEvtFields('token -> token)
-
+  override val evtSource: EvtSource = EvtSourceId
 }

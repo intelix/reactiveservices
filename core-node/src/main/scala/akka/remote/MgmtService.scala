@@ -16,21 +16,19 @@
 package akka.remote
 
 import akka.actor.Address
-import akka.remote.MgmtService.{Block, Unblock}
+import akka.remote.MgmtService._
 import akka.remote.transport.FailureInjectorTransportAdapter.{Drop, One, PassThru}
-import rs.core.actors.{CommonActorEvt, StatelessActor}
-
-trait MgmtServiceEvents extends CommonActorEvt {
-  val Blocking = "Blocking".info
-  val Unblocking = "Unblocking".info
-
-  override def componentId: String = "Test.MgmtService"
-}
-
+import rs.core.actors.StatelessActor
+import rs.core.evt.{EvtSource, InfoE}
 
 object MgmtService {
 
-  object Events extends MgmtServiceEvents
+  val EvtSourceId = "Test.MgmtService"
+
+  case object EvtBlocking extends InfoE
+
+  case object EvtUnblocking extends InfoE
+
 
   object Block {
     def apply(port: Int): Block = Block(Seq(port))
@@ -46,21 +44,21 @@ object MgmtService {
 
 }
 
-class MgmtService(id: String) extends StatelessActor with MgmtServiceEvents {
+class MgmtService(id: String) extends StatelessActor {
 
   private def exec(c: Any) = RARP(context.system).provider.transport.managementCommand(c)
 
   onMessage {
     case Block(ps) =>
       ps.foreach { p =>
-        Blocking('addr -> Address("akka.gremlin.tcp", "cluster", "localhost", p))
+        raise(EvtBlocking, 'addr -> Address("akka.gremlin.tcp", "cluster", "localhost", p))
         exec(One(Address("akka.gremlin.tcp", "cluster", "localhost", p), Drop(1, 1)))
       }
     case Unblock(ps) =>
       ps.foreach { p =>
-        Unblocking('addr -> Address("akka.gremlin.tcp", "cluster", "localhost", p))
+        raise(EvtUnblocking, 'addr -> Address("akka.gremlin.tcp", "cluster", "localhost", p))
         exec(One(Address("akka.gremlin.tcp", "cluster", "localhost", p), PassThru))
       }
   }
-
+  override val evtSource: EvtSource = EvtSourceId
 }

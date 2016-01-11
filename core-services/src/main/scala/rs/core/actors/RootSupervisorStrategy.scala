@@ -2,29 +2,31 @@ package rs.core.actors
 
 import akka.actor.SupervisorStrategy.{Decider, Restart, Stop}
 import akka.actor._
+import rs.core.evt.{EvtSource, EvtContext}
 import rs.core.sysevents.{CommonEvt, EvtPublisher}
 
-class RootSupervisorStrategy extends SupervisorStrategyConfigurator with CommonEvt {
+class RootSupervisorStrategy extends SupervisorStrategyConfigurator {
 
-  implicit val pub = EvtPublisher()
+  implicit val evtCtx = new EvtContext {
+    override val evtSource: EvtSource = "RootSupervisor"
+  }
 
   final val decider: Decider = {
     case x: ActorInitializationException =>
-      SupervisorStopTrigger('Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.EvtSupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Stop
     case x: ActorKilledException =>
-      SupervisorStopTrigger('Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.EvtSupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Stop
     case x: DeathPactException =>
-      SupervisorStopTrigger('Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.EvtSupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Stop
     case x: Exception =>
-      SupervisorRestartTrigger('Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.EvtSupervisorRestartTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Restart
   }
 
   override def create(): SupervisorStrategy = OneForOneStrategy(loggingEnabled = false)(decider)
 
-  override def componentId: String = "RootSupervisor"
 }
 

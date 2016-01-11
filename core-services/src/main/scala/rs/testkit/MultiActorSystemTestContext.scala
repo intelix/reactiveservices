@@ -2,25 +2,33 @@ package rs.testkit
 
 import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import com.typesafe.config._
+import com.typesafe.scalalogging.StrictLogging
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import rs.core.actors.StatelessActor
 import rs.core.config.WithBlankConfig
-import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
+import rs.core.evt.{EvtContext, EvtSource, TraceE}
+import rs.core.sysevents.CommonEvt
 import rs.core.utils.UUIDTools
 import rs.testkit
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
-trait MultiActorSystemTestContextSysevents extends CommonEvt {
-  override def componentId: String = "Test.ActorSystem"
+object MultiActorSystemTestContext {
+  val EvtSourceId = "Test.ActorSystem"
 
-  val ActorSystemCreated = 'ActorSystemCreated.trace
-  val ActorSystemTerminated = 'ActorSystemTerminated.trace
-  val TerminatingActorSystem = 'TerminatingActorSystem.trace
-  val DestroyingAllSystems = 'DestroyingAllSystems.trace
-  val DestroyingActor = 'DestroyingActor.trace
-  val AllActorsTerminated = 'AllActorsTerminated.trace
+  case object EvtActorSystemCreated extends TraceE
+
+  case object EvtActorSystemTerminated extends TraceE
+
+  case object EvtTerminatingActorSystem extends TraceE
+
+  case object EvtDestroyingAllSystems extends TraceE
+
+  case object EvtDestroyingActor extends TraceE
+
+  case object EvtAllActorsTerminated extends TraceE
+
 }
 
 trait ActorSystemWrapper {
@@ -41,20 +49,24 @@ private case class Watch(ref: ActorRef)
 
 private case class StopAll()
 
-private trait WatcherSysevents extends CommonEvt {
-  val Watching = 'Watching.trace
-  val WatchedActorGone = 'WatchedActorGone.trace
-  val AllWatchedActorsGone = 'AllWatchedActorsGone.trace
-  val TerminatingActor = 'TerminatingActor.trace
 
-  override def componentId: String = "Test.Watcher"
-}
+private object WatcherActor {
+  val EvtSourceId = "Test.Watcher"
 
-private object WatcherActor extends WatcherSysevents {
+  case object EvtWatching extends TraceE
+
+  case object EvtWatchedActorGone extends TraceE
+
+  case object EvtAllWatchedActorsGone extends TraceE
+
+  case object EvtTerminatingActor extends TraceE
+
   def props(componentId: String) = Props(new WatcherActor(componentId))
 }
 
-private class WatcherActor(id: String) extends StatelessActor with WatcherSysevents {
+private class WatcherActor(id: String) extends StatelessActor {
+
+  import WatcherActor._
 
   addEvtFields('InstanceId -> id)
 
@@ -63,26 +75,27 @@ private class WatcherActor(id: String) extends StatelessActor with WatcherSyseve
   onMessage {
     case StopAll() =>
       if (watched.isEmpty) {
-        AllWatchedActorsGone()
+        raise(EvtAllWatchedActorsGone)
       }
       watched.foreach { a =>
-        TerminatingActor('Actor -> a)
+        raise(EvtTerminatingActor, 'Actor -> a)
         context.stop(a)
       }
     case Watch(ref) =>
-      Watching('Ref -> ref)
+      raise(EvtWatching, 'Ref -> ref)
       watched = watched + ref
       context.watch(ref)
     case Terminated(ref) =>
       watched = watched match {
         case w if w contains ref =>
-          WatchedActorGone('Ref -> ref, 'Path -> ref.path.toSerializationFormat)
-          if (w.size == 1) AllWatchedActorsGone()
+          raise(EvtWatchedActorGone, 'Ref -> ref, 'Path -> ref.path.toSerializationFormat)
+          if (w.size == 1) raise(EvtAllWatchedActorsGone)
           w - ref
         case w => w
       }
 
   }
+  override val evtSource: EvtSource = EvtSourceId
 }
 
 trait ConfigReference {
@@ -97,15 +110,13 @@ case class ConfigFromContents(contents: String) extends ConfigReference {
   override def toConfig: String = contents + "\n"
 }
 
-trait MultiActorSystemTestContext
-  extends BeforeAndAfterEach
-    with MultiActorSystemTestContextSysevents
-    with testkit.TestEvtContext
-    with WithBlankConfig
-    with EvtPublisherContext
-    with WithTestSeparator {
+trait MultiActorSystemTestContext extends BeforeAndAfterEach with testkit.TestEvtContext with WithBlankConfig with EvtContext with StrictLogging {
 
   self: Suite with ActorSystemManagement with EvtAssertions =>
+
+  import MultiActorSystemTestContext._
+
+  override val evtSource: EvtSource = EvtSourceId
 
   object OnlyThisTest extends Tag("OnlyThisTest")
 
@@ -122,20 +133,20 @@ trait MultiActorSystemTestContext
     override def stopActor(id: String) = {
       val futureActor = rootUserActorSelection(id).resolveOne(5.seconds)
       val actor = Await.result(futureActor, 15.seconds)
-      DestroyingActor('Actor -> actor)
+      raise(EvtDestroyingActor, 'Actor -> actor)
       underlyingSystem.stop(actor)
-      on anyNode expectSome of WatcherActor.WatchedActorGone +('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
+      on anyNode expectSome of WatcherActor.EvtWatchedActorGone +('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
       clearComponentEvents(watcherComponentId)
     }
 
     def stop() = {
-      TerminatingActorSystem('Name -> configName)
+      raise(EvtTerminatingActorSystem, 'Name -> configName)
       val startCheckpoint = System.nanoTime()
       try {
         Await.result(underlyingSystem.terminate(), 120.seconds)
-        ActorSystemTerminated('Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
+        raise(EvtActorSystemTerminated, 'Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
       } catch {
-        case _: Throwable => Error('Name -> configName, 'Message -> "Unable to terminate actor system. Attempting to continue...")
+        case _: Throwable => raise(CommonEvt.EvtError, 'Name -> configName, 'Message -> "Unable to terminate actor system. Attempting to continue...")
       }
     }
 
@@ -143,9 +154,9 @@ trait MultiActorSystemTestContext
       val startCheckpoint = System.nanoTime()
       clearComponentEvents(watcherComponentId)
       watcher ! StopAll()
-      on anyNode expectSome of WatcherActor.AllWatchedActorsGone + ('InstanceId -> watcherComponentId)
+      on anyNode expectSome of WatcherActor.EvtAllWatchedActorsGone + ('InstanceId -> watcherComponentId)
       clearComponentEvents(watcherComponentId)
-      AllActorsTerminated('TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000, 'System -> configName)
+      raise(EvtAllActorsTerminated, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000, 'System -> configName)
     }
   }
 
@@ -158,7 +169,7 @@ trait MultiActorSystemTestContext
     case None =>
       val config: Config = buildConfig(configs: _*)
       val sys = Wrapper(config, ActorSystem(akkaSystemId, config), akkaSystemId, instanceId)
-      ActorSystemCreated('instanceId -> instanceId, 'system -> akkaSystemId)
+      raise(EvtActorSystemCreated, 'instanceId -> instanceId, 'system -> akkaSystemId)
       systems = systems + (instanceId -> sys)
       sys
     case Some(x) => x
@@ -184,7 +195,7 @@ trait MultiActorSystemTestContext
   }
 
   def destroyAllSystems() = {
-    DestroyingAllSystems()
+    raise(EvtDestroyingAllSystems)
     systems.values.foreach(_.stop())
     systems = Map()
   }

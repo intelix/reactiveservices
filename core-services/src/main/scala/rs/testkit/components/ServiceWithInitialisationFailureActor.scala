@@ -1,7 +1,7 @@
 package rs.testkit.components
 
 import rs.core.evt.EvtSource
-import rs.core.services.{StatelessServiceActor, ServiceEvt}
+import rs.core.services.StatelessServiceActor
 
 
 object ServiceWithInitialisationFailureActor {

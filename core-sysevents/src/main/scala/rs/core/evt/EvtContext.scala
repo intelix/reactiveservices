@@ -1,7 +1,10 @@
 package rs.core.evt
 
+import com.typesafe.config.{ConfigFactory, Config}
 import rs.core.config.ConfigOps.wrap
+import rs.core.config.{WithNodeConfig, NodeConfig}
 import rs.core.evt.disruptor.DisruptorPublisher
+import rs.core.sysevents.EvtPublisherContext
 
 import scala.language.experimental.macros
 import scala.language.implicitConversions
@@ -10,12 +13,21 @@ import scala.reflect.macros.blackbox
 
 object EvtContext {
   val publisher = EvtSettings.config.asConfigurableInstance[EvtPublisher]("evt.publisher", classOf[DisruptorPublisher])
+  def apply(evtSourceId: String, cfg: Config, staticFields: (Symbol, Any)*): EvtContext = new EvtContext with WithNodeConfig {
+    override val evtSource: EvtSource = evtSourceId
+    override implicit lazy val nodeCfg: NodeConfig = NodeConfig(cfg)
+    addEvtFields('nodeid -> nodeId)
+    addEvtFields(staticFields: _*)
+  }
+  def apply(evtSourceId: String, staticFields: (Symbol, Any)*): EvtContext = EvtContext(evtSourceId, ConfigFactory.empty(), staticFields: _*)
 }
 
 trait EvtContext {
   val evtPublisher = EvtContext.publisher
 
   val evtSource: EvtSource
+
+  var commonFields: List[EvtFieldValue] = List.empty
 
   implicit def strToEvtSource(s: String): EvtSource = StringEvtSource(s)
 
@@ -25,6 +37,7 @@ trait EvtContext {
 
   def raiseWithTimer[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWithTimer[T]
 
+  def addEvtFields(fields: EvtFieldValue*): Unit = commonFields ++= fields.toList.reverse
 }
 
 private object EvtContextMacro {
@@ -32,15 +45,16 @@ private object EvtContextMacro {
 
   private def toList(c: MyContext)(fields: c.Expr[EvtFieldValue]*) = {
     import c.universe._
+    val cf = q"${c.prefix}.commonFields"
     fields.length match {
-      case 0 => q"List.empty[EvtFieldValue]"
-      case 1 => q"${fields(0)} :: Nil"
-      case 2 => q"${fields(1)} :: ${fields(0)} :: Nil"
-      case 3 => q"${fields(2)} :: ${fields(1)} :: ${fields(0)} :: Nil"
-      case 4 => q"${fields(3)} :: ${fields(2)} :: ${fields(1)} :: ${fields(0)} :: Nil"
-      case 5 => q"${fields(4)} :: ${fields(3)} :: ${fields(2)} :: ${fields(1)} :: ${fields(0)} :: Nil"
-      case 6 => q"${fields(5)} :: ${fields(4)} :: ${fields(3)} :: ${fields(2)} :: ${fields(1)} :: ${fields(0)} :: Nil"
-      case _ => q"List[EvtFieldValue](..${fields.reverse})"
+      case 0 => q"$cf"
+      case 1 => q"${fields(0)} :: $cf"
+      case 2 => q"${fields(1)} :: ${fields(0)} :: $cf"
+      case 3 => q"${fields(2)} :: ${fields(1)} :: ${fields(0)} :: $cf"
+      case 4 => q"${fields(3)} :: ${fields(2)} :: ${fields(1)} :: ${fields(0)} :: $cf"
+      case 5 => q"${fields(4)} :: ${fields(3)} :: ${fields(2)} :: ${fields(1)} :: ${fields(0)} :: $cf"
+      case 6 => q"${fields(5)} :: ${fields(4)} :: ${fields(3)} :: ${fields(2)} :: ${fields(1)} :: ${fields(0)} :: $cf"
+      case _ => q"List[EvtFieldValue](..${fields.reverse}) ++ $cf"
     }
   }
 

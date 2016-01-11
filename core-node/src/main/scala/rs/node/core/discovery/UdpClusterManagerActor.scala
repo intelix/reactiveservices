@@ -24,31 +24,25 @@ import akka.io.{IO, Udp}
 import akka.util.ByteString
 import rs.core.actors.{ActorState, CommonActorEvt, StatefulActor}
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.{EvtSource, InfoE}
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.UdpClusterManagerActor._
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
-
-trait UdpClusterManagerActorEvt extends CommonActorEvt {
-
-  val UdpBound = "UdpBound" info
-
-  val NewLeaderElected = "NewLeaderElected".info
-  val NodeUp = "NodeUp".info
-  val NodeRemoved = "NodeRemoved".info
-  val NodeExited = "NodeExited".info
-  val NodeUnreachable = "NodeUnreachable".info
-  val NodeReachable = "NodeReachable".info
-
-  override def componentId: String = "UdpClusterManager"
-}
-
-object UdpClusterManagerActorEvt extends UdpClusterManagerActorEvt
-
-
 object UdpClusterManagerActor {
+
+  val EvtSourceId = "UdpClusterManager"
+
+  case object EvtUdpBound extends InfoE
+
+  case object EvtNewLeaderElected extends InfoE
+  case object EvtNodeUp extends InfoE
+  case object EvtNodeRemoved extends InfoE
+  case object EvtNodeExited extends InfoE
+  case object EvtNodeUnreachable extends InfoE
+  case object EvtNodeReachable extends InfoE
 
 
   object UdpMessages {
@@ -166,7 +160,7 @@ object UdpClusterManagerActor {
 }
 
 
-class UdpClusterManagerActor extends StatefulActor[ManagerStateData] with UdpClusterManagerActorEvt {
+class UdpClusterManagerActor extends StatefulActor[ManagerStateData] {
 
   import InternalMessages._
   import Messages._
@@ -222,7 +216,7 @@ class UdpClusterManagerActor extends StatefulActor[ManagerStateData] with UdpClu
 
   when(Initial) {
     case Event(Udp.Bound(local), state: ManagerStateData) =>
-      UdpBound('local -> local)
+      raise(EvtUdpBound, 'local -> local)
       transitionTo(InitialDiscovery) using state.copy(socket = Some(sender()))
   }
 
@@ -271,27 +265,27 @@ class UdpClusterManagerActor extends StatefulActor[ManagerStateData] with UdpClu
       }
       stay()
     case Event(LeaderChanged(leader), state: ManagerStateData) =>
-      NewLeaderElected('leader -> leader)
+      raise(EvtNewLeaderElected, 'leader -> leader)
       self ! CheckState
       stay using state.copy(currentLeader = leader)
     case Event(MemberExited(member), state: ManagerStateData) =>
-      NodeExited('addr -> member.address.toString)
+      raise(EvtNodeExited, 'addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(responses = state.responses.filter(_._2.address != member.address.toString), currentMembers = state.currentMembers - member.address)
     case Event(MemberRemoved(member, _), state: ManagerStateData) =>
-      NodeRemoved('addr -> member.address.toString)
+      raise(EvtNodeRemoved, 'addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(responses = state.responses.filter(_._2.address != member.address.toString), currentMembers = state.currentMembers - member.address)
     case Event(UnreachableMember(member), state: ManagerStateData) =>
-      NodeUnreachable('addr -> member.address.toString)
+      raise(EvtNodeUnreachable, 'addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(responses = state.responses.filter(_._2.address != member.address.toString), currentMembers = state.currentMembers + (member.address -> member.roles))
     case Event(ReachableMember(member), state: ManagerStateData) =>
-      NodeReachable('addr -> member.address.toString)
+      raise(EvtNodeReachable, 'addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(currentMembers = state.currentMembers + (member.address -> member.roles))
     case Event(MemberUp(member), state: ManagerStateData) =>
-      NodeUp('addr -> member.address.toString)
+      raise(EvtNodeUp, 'addr -> member.address.toString)
       self ! CheckState
       stay using state.copy(currentMembers = state.currentMembers + (member.address -> member.roles))
     case Event(BlockCommunicationWith(host, port), state: ManagerStateData) =>
@@ -317,6 +311,5 @@ class UdpClusterManagerActor extends StatefulActor[ManagerStateData] with UdpClu
       self ! PerformHandshake
 
   }
-
-
+  override val evtSource: EvtSource = EvtSourceId
 }

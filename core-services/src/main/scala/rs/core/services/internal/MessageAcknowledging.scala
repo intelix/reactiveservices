@@ -17,16 +17,17 @@ package rs.core.services.internal
 
 import akka.actor.ActorRef
 import rs.core.actors.BaseActor
+import rs.core.evt.TraceE
 import rs.core.services.internal.acks.{Acknowledgeable, Acknowledgement}
 import rs.core.sysevents.CommonEvt
 
-trait MessageAcknowledgingEvt extends BaseActor with CommonEvt {
-  val AutoAcknowledged = "AutoAcknowledged".trace
+object MessageAcknowledging {
+  case object AutoAcknowledged extends TraceE
 }
 
-trait MessageAcknowledging extends MessageAcknowledgingEvt {
-
-  private def acknowledge(m: Acknowledgeable) = AutoAcknowledged { ctx =>
+trait MessageAcknowledging extends BaseActor {
+  import MessageAcknowledging._
+  private def acknowledge(m: Acknowledgeable) = raiseWith(AutoAcknowledged) { ctx =>
     val ackTo = m.acknowledgeTo getOrElse sender()
     ackTo ! Acknowledgement(m.messageId)
     ctx +('id -> m.messageId, 'with -> ackTo)

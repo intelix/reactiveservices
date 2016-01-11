@@ -18,20 +18,25 @@ package rs.core.registry
 import akka.actor.ActorRef
 import rs.core.ServiceKey
 import rs.core.actors.BaseActor
+import rs.core.evt.TraceE
 import rs.core.registry.Messages._
 import rs.core.registry.ServiceRegistryActor.RegistryLocation
-import rs.core.sysevents.CommonEvt
 
 import scala.language.postfixOps
 
+object RegistryRef {
 
-trait RegistryRefEvt extends CommonEvt {
-  val ServiceRegistrationPending = "ServiceRegistrationPending".trace
-  val ServiceUnregistrationPending = "ServiceUnregistrationPending".trace
-  val ServiceLocationUpdate = "ServiceLocationUpdate".trace
+  case object EvtServiceRegistrationPending extends TraceE
+
+  case object EvtServiceUnregistrationPending extends TraceE
+
+  case object EvtServiceLocationUpdate extends TraceE
+
 }
 
-trait RegistryRef extends BaseActor with RegistryRefEvt {
+trait RegistryRef extends BaseActor {
+
+  import RegistryRef._
 
   type LocationHandler = PartialFunction[(ServiceKey, Option[ActorRef]), Unit]
 
@@ -64,14 +69,14 @@ trait RegistryRef extends BaseActor with RegistryRefEvt {
 
   final def unregisterServiceAt(s: ServiceKey, loc: ActorRef) = {
     sendToRegistry(Unregister(s, loc))
-    ServiceUnregistrationPending('service -> s, 'ref -> loc, 'registry -> registryRef)
+    raise(EvtServiceUnregistrationPending, 'service -> s, 'ref -> loc, 'registry -> registryRef)
   }
 
   final def registerService(s: ServiceKey) = registerServiceAt(s, self)
 
   final def registerServiceAt(s: ServiceKey, loc: ActorRef) = {
     sendToRegistry(Register(s, loc))
-    ServiceRegistrationPending('service -> s, 'ref -> loc, 'registry -> registryRef)
+    raise(EvtServiceRegistrationPending, 'service -> s, 'ref -> loc, 'registry -> registryRef)
   }
 
   final def registerServiceLocationInterest(s: ServiceKey) =
@@ -108,7 +113,7 @@ trait RegistryRef extends BaseActor with RegistryRefEvt {
       sendPending()
       unsubscribeFromRegistryLocation()
     case LocationUpdate(name, maybeLocation) =>
-      ServiceLocationUpdate { ctx =>
+      raiseWith(EvtServiceLocationUpdate) { ctx =>
         ctx +('service -> name, 'location -> maybeLocation)
         val was = localLocation.get(name).flatten
         if (was != maybeLocation) {

@@ -21,6 +21,7 @@ import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.{EvtSource, InfoE}
 import rs.core.services.BaseServiceActor.StopRequest
 import rs.node.core.ClusterNodeActor._
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
@@ -31,25 +32,20 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scalaz.Scalaz._
 
-trait ClusterNodeActorEvt extends CommonActorEvt {
-
-  val AvailableSeeds = "AvailableSeeds".info
-  val ClustersDiscovered = "ClustersDiscovered".info
-  val JoiningCluster = "JoiningCluster".info
-  val JoinedCluster = "JoinedCluster".info
-  val UnableToJoinCluster = "UnableToJoinCluster".error
-  val ClusterMergeTrigger = "ClusterMergeTrigger".warn
-  val StartingService = "StartingService".trace
-  val StoppingService = "StoppingService".trace
-
-
-  override def componentId: String = "Node"
-}
-
-object ClusterNodeActorEvt extends ClusterNodeActorEvt
-
-
 object ClusterNodeActor {
+
+  val EvtSourceId = "Node"
+
+  case object EvtAvailableSeeds extends InfoE
+  case object EvtClustersDiscovered extends InfoE
+  case object EvtJoiningCluster extends InfoE
+  case object EvtJoinedCluster extends InfoE
+  case object EvtUnableToJoinCluster extends InfoE
+  case object EvtClusterMergeTrigger extends InfoE
+  case object EvtStartingService extends InfoE
+  case object EvtStoppingService extends InfoE
+
+
 
   case class ServiceNodeData(joinStrategy: JoinStrategy, availableSeeds: Set[Address] = Set.empty, seedsToJoin: Set[Address] = Set.empty, reachableClusters: Option[ReachableClusters] = None)
 
@@ -84,7 +80,7 @@ object ClusterNodeActor {
 }
 
 
-class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
+class ClusterNodeActor extends StatefulActor[Any] {
   import States._
   import InternalMessages._
 
@@ -113,7 +109,7 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
   override def supervisorStrategy: SupervisorStrategy =
     OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
       case x: Exception =>
-        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
+        ServiceClusterBootstrapActorEvt.EvtSupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
         x.printStackTrace(); // !>>> REMOVE
         Restart
       case x =>
@@ -158,7 +154,7 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
 
   when(Joining) {
     case Event(JoinTimeout, state: ServiceNodeData) =>
-      UnableToJoinCluster('seeds -> state.seedsToJoin)
+      raise(EvtUnableToJoinCluster, 'seeds -> state.seedsToJoin)
       stop(FSM.Failure("Unable to join cluster, seeds: " + state.seedsToJoin))
     case Event(LeaderChanged(Some(a)), _) => transitionTo(Joined)
   }
@@ -174,7 +170,7 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
       val state = nextStateData.asInstanceOf[ServiceNodeData]
       cancelTimer("checkstate")
       setTimer("timeout", JoinTimeout, joinTimeout, repeat = false)
-      JoiningCluster('seeds -> state.seedsToJoin)
+      raise(EvtJoiningCluster, 'seeds -> state.seedsToJoin)
       cluster.joinSeedNodes(state.seedsToJoin.toList)
     case _ -> ClusterFormationPending =>
       cancelTimer("timeout")
@@ -182,18 +178,18 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
     case _ -> Joined =>
       cancelTimer("timeout")
       cancelTimer("checkstate")
-      JoinedCluster()
+      raise(EvtJoinedCluster)
       if (!startServicesBeforeCluster) startProviders()
   }
 
   otherwise {
     case Event(s@ReachableClusters(our, other), state: ServiceNodeData) =>
-      ClustersDiscovered('our -> our.map(_.toString), 'other -> other.map(_.toString).mkString(","))
+      raise(EvtClustersDiscovered, 'our -> our.map(_.toString), 'other -> other.map(_.toString).mkString(","))
       self ! CheckState
       stay using state.copy(reachableClusters = Some(s))
 
     case Event(ReachableNodes(ns), state: ServiceNodeData) =>
-      AvailableSeeds('list -> ns)
+      raise(EvtAvailableSeeds, 'list -> ns)
       self ! CheckState
       stay using state.copy(availableSeeds = ns)
 
@@ -201,7 +197,7 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
       stop(FSM.Failure("Service terminated " + ref))
 
     case Event(StopRequest, _) if runningServices.contains(sender()) =>
-      StoppingService { ctx =>
+      raiseWithTimer(EvtStoppingService) { ctx =>
         val actor = sender()
         context.unwatch(actor)
         ctx + ('ref -> actor)
@@ -226,13 +222,13 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
     state.joinStrategy.selectClusterToJoin(reachable.our, reachable.other) match {
       case None => stay()
       case Some(c) =>
-        ClusterMergeTrigger('other -> c)
+        raise(EvtClusterMergeTrigger, 'other -> c)
         stop()
     }
   }
 
 
-  private def startProvider(sm: ServiceMeta) = StartingService { ctx =>
+  private def startProvider(sm: ServiceMeta) = raiseWithTimer(EvtStartingService) { ctx =>
     val actor = context.watch(context.actorOf(Props(Class.forName(sm.cl), sm.id), sm.id))
     ctx +('service -> sm.id, 'class -> sm.cl, 'ref -> actor)
     runningServices += actor
@@ -240,4 +236,5 @@ class ClusterNodeActor extends StatefulActor[Any] with ClusterNodeActorEvt {
 
   private def startProviders() = services foreach startProvider
 
+  override val evtSource: EvtSource = EvtSourceId
 }

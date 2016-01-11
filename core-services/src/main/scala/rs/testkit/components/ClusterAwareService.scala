@@ -2,23 +2,24 @@ package rs.testkit.components
 
 import rs.core.actors.ClusterAwareness
 import rs.core.evt.{EvtSource, InfoE}
-import rs.core.services.{ServiceEvt, StatelessServiceActor}
-import rs.testkit.components.ClusterAwareServiceEvt._
+import rs.core.services.StatelessServiceActor
 
-object ClusterAwareServiceEvt  {
-
-  case object EvtLeaderChanged extends InfoE
-  case object EvtLeaderHandover extends InfoE
-  case object EvtLeaderTakeover extends InfoE
-
-  case object EvtMemberRemoved extends InfoE
-  case object EvtMemberUnreachable extends InfoE
-  case object EvtMemberUp extends InfoE
-
-}
 
 object ClusterAwareService {
   val EvtSourceId = "Test.ClusterAwareService"
+
+  case object EvtLeaderChanged extends InfoE
+
+  case object EvtLeaderHandover extends InfoE
+
+  case object EvtLeaderTakeover extends InfoE
+
+  case object EvtMemberRemoved extends InfoE
+
+  case object EvtMemberUnreachable extends InfoE
+
+  case object EvtMemberUp extends InfoE
+
 }
 
 

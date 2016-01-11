@@ -17,31 +17,21 @@ package rs.node.core
 
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
-import com.typesafe.config._
-import com.typesafe.scalalogging.StrictLogging
-import net.ceedubs.ficus.Ficus._
-import rs.core.actors.{CommonActorEvt, StatelessActor}
+import rs.core.actors.StatelessActor
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
-import rs.core.sysevents.{CommonEvt, EvtPublisherContext, EvtPublisherContext$}
-import rs.node.core.ServiceClusterGuardianActor.RestartRequestException
+import rs.core.evt.{EvtSource, InfoE}
+import rs.core.sysevents.CommonEvt
+import rs.node.core.ServiceClusterGuardianActor.{EvtLaunched, RestartRequestException}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scalaz.Scalaz._
-
-trait ServiceClusterGuardianActorEvt extends CommonEvt with CommonActorEvt {
-
-  val Launched = "Launched".info
-
-  override def componentId: String = "Cluster.Guardian"
-
-}
-
-object ServiceClusterGuardianActorEvt extends ServiceClusterGuardianActorEvt
 
 object ServiceClusterGuardianActor {
+  val EvtSourceId = "Cluster.Guardian"
+
+  case object EvtLaunched extends InfoE
 
   class RestartRequestException extends Exception
 
@@ -50,11 +40,8 @@ object ServiceClusterGuardianActor {
   def start(config: NodeConfig)(implicit f: ActorRefFactory) = f.actorOf(props(config))
 }
 
-class ServiceClusterGuardianActor(cfg: NodeConfig)
-  extends StatelessActor
-    with ServiceClusterGuardianActorEvt
-    with StrictLogging {
-
+class ServiceClusterGuardianActor(cfg: NodeConfig) extends StatelessActor {
+  import ServiceClusterGuardianActor._
 
   override implicit lazy val nodeCfg: NodeConfig = cfg
 
@@ -69,14 +56,10 @@ class ServiceClusterGuardianActor(cfg: NodeConfig)
   override def supervisorStrategy: SupervisorStrategy =
     OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
       case x: RestartRequestException =>
-        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
-        x.printStackTrace(); // !>>> REMOVE
-
+        raise(CommonEvt.EvtSupervisorRestartTrigger, 'Message -> x.getMessage, 'Cause -> x)
         Restart
       case x: Exception =>
-        ServiceClusterBootstrapActorEvt.SupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
-        x.printStackTrace(); // !>>> REMOVE
-
+        raise(CommonEvt.EvtSupervisorRestartTrigger, 'Message -> x.getMessage, 'Cause -> x)
         Restart
       case _ => Escalate
     }
@@ -89,12 +72,12 @@ class ServiceClusterGuardianActor(cfg: NodeConfig)
   def preStart(): Unit = {
     super.preStart()
     context.watch(context.actorOf(Props(classOf[ServiceClusterBootstrapActor], nodeCfg), "bootstrap"))
-    Launched('config -> nodeCfg)
+    raise(EvtLaunched, 'config -> nodeCfg)
   }
 
   onMessage {
     case m: ForwardToService => context.actorSelection("bootstrap").forward(m)
   }
-
+  override val evtSource: EvtSource = EvtSourceId
 }
 
