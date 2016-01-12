@@ -30,14 +30,21 @@ import scala.collection.mutable
 
 
 object RemoteStreamsBroadcaster {
+
   case object EvtStreamStateTransition extends TraceE
+
   case object EvtInitiatingStreamForDestination extends TraceE
+
   case object EvtClosingStreamForDestination extends TraceE
+
   case object EvtStreamUpdateSent extends TraceE
+
 }
 
 trait RemoteStreamsBroadcaster extends BaseActor {
+
   import RemoteStreamsBroadcaster._
+
   private val targets: mutable.Map[ActorRef, ConsumerWithStreamSinks] = mutable.HashMap()
   private val streams: mutable.Map[StreamId, StreamBroadcaster] = mutable.HashMap()
 
@@ -47,41 +54,39 @@ trait RemoteStreamsBroadcaster extends BaseActor {
     locateTarget(consumer).addDemand(demand)
   }
 
-  final def stateTransitionFor(key: StreamId, transition: => StreamStateTransition): Boolean = raiseWith(EvtStreamStateTransition) { ctx =>
-    ctx + ('stream -> key)
+  final def stateTransitionFor(key: StreamId, transition: => StreamStateTransition): Boolean = {
     streams get key match {
       case None =>
-        ctx + ('active -> false)
+        raise(EvtStreamStateTransition, 'stream -> key, 'active -> false)
         true
       case Some(s) =>
         val result = s.run(transition)
-        ctx +('active -> true, 'successful -> result, 'tx -> transition)
+        raise(EvtStreamStateTransition, 'stream -> key, 'active -> true, 'successful -> result, 'tx -> transition)
         result
     }
   }
 
   final def initiateTarget(ref: ActorRef): Unit = if (!targets.contains(ref)) newTarget(ref)
+
   private def locateTarget(ref: ActorRef) = targets.getOrElse(ref, newTarget(ref))
 
-  final def initiateStreamFor(ref: ActorRef, key: StreamId) = raiseWithTimer(EvtInitiatingStreamForDestination, 'stream -> key, 'ref -> ref) { ctx =>
+  final def initiateStreamFor(ref: ActorRef, key: StreamId) = {
     val target = locateTarget(ref)
     val stream = streams getOrElse(key, {
-      ctx + ('broadcaster -> "new")
       newStreamBroadcaster(key)
     })
 
     val sink = target locateExistingSinkFor key match {
       case None =>
-        ctx + ('consumer -> "new")
         val newSink = target addStream key
         stream addSink newSink
         newSink
-      case Some(s) =>
-        ctx + ('consumer -> "existing")
-        s
+      case Some(s) => s
     }
     sink.resetDownstreamView()
+    raise(EvtInitiatingStreamForDestination, 'stream -> key, 'ref -> ref)
   }
+
 
   private def newStreamBroadcaster(key: StreamId) = {
     val sb = new StreamBroadcaster()
@@ -95,7 +100,7 @@ trait RemoteStreamsBroadcaster extends BaseActor {
     target
   }
 
-  final def closeStreamFor(ref: ActorRef, key: StreamId) = raiseWithTimer(EvtClosingStreamForDestination, 'stream -> key, 'ref -> ref) { ctx =>
+  final def closeStreamFor(ref: ActorRef, key: StreamId) = {
     targets get ref foreach { target =>
       target locateExistingSinkFor key foreach { existingSink =>
         target.closeStream(key)
@@ -104,6 +109,7 @@ trait RemoteStreamsBroadcaster extends BaseActor {
         }
       }
     }
+    raise(EvtClosingStreamForDestination, 'stream -> key, 'ref -> ref)
   }
 
   onActorTerminated { ref => targets -= ref }

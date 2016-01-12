@@ -683,14 +683,14 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
     serviceOnNode1("client/c1") ! OpenSubscriptionFromStub(Subject("auth", "token"))
     on node1 expectOne of EvtStringUpdate +('sourceService -> "auth", 'topic -> "token")
-    val auth1Token = locateFirstEventFieldValue(EvtStringUpdate, "value")
+    val auth1Token = locateFirstEventFieldValue[String](EvtStringUpdate, "value")
 
     clearEvents()
 
 
     serviceOnNode1("client2/c2") ! OpenSubscriptionFromStub(Subject("auth", "token"))
     on node1 expectOne of EvtStringUpdate +('sourceService -> "auth", 'topic -> "token")
-    val auth2Token = locateFirstEventFieldValue(EvtStringUpdate, "value")
+    val auth2Token = locateFirstEventFieldValue[String](EvtStringUpdate, "value")
 
 
     clearEvents()
@@ -698,7 +698,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
     serviceOnNode3("client3/c3") ! OpenSubscriptionFromStub(Subject("auth", "token"))
     on node3 expectOne of EvtStringUpdate +('sourceService -> "auth", 'topic -> "token", 'value -> auth1Token)
     // same token as the same user
-    val auth3Token = locateFirstEventFieldValue(EvtStringUpdate, "value")
+    val auth3Token = locateFirstEventFieldValue[String](EvtStringUpdate, "value")
 
   }
 
@@ -729,21 +729,21 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
     serviceOnNode1("client/c1") ! OpenSubscriptionFromStub(Subject("auth", "token"))
     on node1 expectOne of EvtStringUpdate +('sourceService -> "auth", 'topic -> "token")
-    val auth1Token = locateFirstEventFieldValue(EvtStringUpdate, "value").asInstanceOf[String]
+    val auth1Token = locateFirstEventFieldValue[String](EvtStringUpdate, "value").asInstanceOf[String]
 
     clearEvents()
 
 
     serviceOnNode1("client2/c2") ! OpenSubscriptionFromStub(Subject("auth", "token"))
     on node1 expectOne of EvtStringUpdate +('sourceService -> "auth", 'topic -> "token")
-    val auth2Token = locateFirstEventFieldValue(EvtStringUpdate, "value").asInstanceOf[String]
+    val auth2Token = locateFirstEventFieldValue[String](EvtStringUpdate, "value").asInstanceOf[String]
 
     clearEvents()
 
     serviceOnNode3("client3/c3") ! OpenSubscriptionFromStub(Subject("auth", "token"))
     on node3 expectOne of EvtStringUpdate +('sourceService -> "auth", 'topic -> "token", 'value -> auth1Token)
     // same token as the same user
-    val auth3Token = locateFirstEventFieldValue(EvtStringUpdate, "value").asInstanceOf[String]
+    val auth3Token = locateFirstEventFieldValue[String](EvtStringUpdate, "value").asInstanceOf[String]
 
     clearEvents()
 

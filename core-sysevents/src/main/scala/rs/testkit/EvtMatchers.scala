@@ -34,7 +34,8 @@ trait EvtMatchers {
             v._1 == kv._1 && (kv._2 match {
               case x: Regex => x.findFirstMatchIn(v._2.toString).isDefined
               case EventFieldMatcher(f) => f(v._2.toString)
-              case x => v._2 == x
+              case x if x.getClass == v._2.getClass => v._2 == x
+              case x => String.valueOf(v._2) == String.valueOf(x)
             })
           }
         })

@@ -23,6 +23,7 @@ import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
 import rs.core.evt.{EvtSource, InfoE}
 import rs.core.services.BaseServiceActor.StopRequest
+import rs.core.sysevents.CommonEvt
 import rs.node.core.ClusterNodeActor._
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.{JoinStrategy, RolePriorityStrategy, UdpClusterManagerActor}
@@ -37,14 +38,20 @@ object ClusterNodeActor {
   val EvtSourceId = "Node"
 
   case object EvtAvailableSeeds extends InfoE
-  case object EvtClustersDiscovered extends InfoE
-  case object EvtJoiningCluster extends InfoE
-  case object EvtJoinedCluster extends InfoE
-  case object EvtUnableToJoinCluster extends InfoE
-  case object EvtClusterMergeTrigger extends InfoE
-  case object EvtStartingService extends InfoE
-  case object EvtStoppingService extends InfoE
 
+  case object EvtClustersDiscovered extends InfoE
+
+  case object EvtJoiningCluster extends InfoE
+
+  case object EvtJoinedCluster extends InfoE
+
+  case object EvtUnableToJoinCluster extends InfoE
+
+  case object EvtClusterMergeTrigger extends InfoE
+
+  case object EvtStartingService extends InfoE
+
+  case object EvtStoppingService extends InfoE
 
 
   case class ServiceNodeData(joinStrategy: JoinStrategy, availableSeeds: Set[Address] = Set.empty, seedsToJoin: Set[Address] = Set.empty, reachableClusters: Option[ReachableClusters] = None)
@@ -55,6 +62,7 @@ object ClusterNodeActor {
   private case class ServiceMeta(id: String, cl: String)
 
   private object States {
+
     case object Initial extends ActorState
 
     case object ClusterDiscovery extends ActorState
@@ -68,6 +76,7 @@ object ClusterNodeActor {
   }
 
   private object InternalMessages {
+
     case object Start
 
     case object JoinTimeout
@@ -75,12 +84,14 @@ object ClusterNodeActor {
     case object DiscoveryTimeout
 
     case object CheckState
+
   }
 
 }
 
 
 class ClusterNodeActor extends StatefulActor[Any] {
+
   import States._
   import InternalMessages._
 
@@ -109,8 +120,7 @@ class ClusterNodeActor extends StatefulActor[Any] {
   override def supervisorStrategy: SupervisorStrategy =
     OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
       case x: Exception =>
-        ServiceClusterBootstrapActorEvt.EvtSupervisorRestartTrigger('Message -> x.getMessage, 'Cause -> x)
-        x.printStackTrace(); // !>>> REMOVE
+        raise(CommonEvt.EvtSupervisorRestartTrigger, 'Message -> x.getMessage, 'Cause -> x)
         Restart
       case x =>
         Escalate
@@ -131,7 +141,7 @@ class ClusterNodeActor extends StatefulActor[Any] {
 
 
   startWith(Initial, ServiceNodeData(
-    joinStrategy = nodeCfg.asClass("node.cluster.join.strategy", classOf[RolePriorityStrategy]).newInstance().asInstanceOf[JoinStrategy]
+    joinStrategy = nodeCfg.asClass[JoinStrategy]("node.cluster.join.strategy", classOf[RolePriorityStrategy]).newInstance()
   ))
 
   self ! Start
@@ -197,14 +207,12 @@ class ClusterNodeActor extends StatefulActor[Any] {
       stop(FSM.Failure("Service terminated " + ref))
 
     case Event(StopRequest, _) if runningServices.contains(sender()) =>
-      raiseWithTimer(EvtStoppingService) { ctx =>
-        val actor = sender()
-        context.unwatch(actor)
-        ctx + ('ref -> actor)
-        runningServices -= actor
-        context.stop(actor)
-        stay()
-      }
+      val actor = sender()
+      context.unwatch(actor)
+      raise(EvtStoppingService, 'ref -> actor)
+      runningServices -= actor
+      context.stop(actor)
+      stay()
   }
 
 
@@ -228,9 +236,9 @@ class ClusterNodeActor extends StatefulActor[Any] {
   }
 
 
-  private def startProvider(sm: ServiceMeta) = raiseWithTimer(EvtStartingService) { ctx =>
+  private def startProvider(sm: ServiceMeta) = {
     val actor = context.watch(context.actorOf(Props(Class.forName(sm.cl), sm.id), sm.id))
-    ctx +('service -> sm.id, 'class -> sm.cl, 'ref -> actor)
+    raise(EvtStartingService, 'service -> sm.id, 'class -> sm.cl, 'ref -> actor)
     runningServices += actor
   }
 

@@ -150,8 +150,8 @@ final class StreamAggregatorActor(consumerId: String)
     super.postStop()
   }
 
-  private def onUpdate(key: Subject, tran: StreamState): Unit = raiseWith(EvtSubjectUpdateReceived) { ctx =>
-    ctx +('subj -> key, 'payload -> tran)
+  private def onUpdate(key: Subject, tran: StreamState): Unit = {
+    raise(EvtSubjectUpdateReceived, 'subj -> key, 'payload -> tran)
     upstreamDemandFulfilled(sender(), 1)
     streamToBucket get key foreach { b =>
       b.onNewState(canUpdate, tran, send)
@@ -190,11 +190,11 @@ final class StreamAggregatorActor(consumerId: String)
     }
   }
 
-  private def switchLocation(service: ServiceKey, location: Option[ActorRef]): Unit = raiseWith(EvtServiceLocationUpdated) { ctx =>
+  private def switchLocation(service: ServiceKey, location: Option[ActorRef]): Unit = {
     closeLocation(service)
     serviceLocations += service -> location
     openLocation(service)
-    ctx +('service -> service, 'ref -> location)
+    raise(EvtServiceLocationUpdated, 'service -> service, 'ref -> location)
   }
 
   private def closeLocation(service: ServiceKey) =

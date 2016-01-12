@@ -84,10 +84,10 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) {
 
   var connectionCounter = new AtomicInteger(0)
 
-  def handleWebsocket(upgrade: UpgradeToWebsocket, headers: Seq[HttpHeader], id: String) =
-    raiseWithTimer(EvtNewConnection, 'token -> id, 'headers -> headers.map(_.toString)) { ctx =>
-      upgrade.handleMessages(buildFlow(id))
-    }
+  def handleWebsocket(upgrade: UpgradeToWebsocket, headers: Seq[HttpHeader], id: String) = {
+    raise(EvtNewConnection, 'token -> id, 'headers -> headers.map(_.toString))
+    upgrade.handleMessages(buildFlow(id))
+  }
 
   def buildFlow(id: String) = {
 

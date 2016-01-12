@@ -113,15 +113,12 @@ trait RegistryRef extends BaseActor {
       sendPending()
       unsubscribeFromRegistryLocation()
     case LocationUpdate(name, maybeLocation) =>
-      raiseWith(EvtServiceLocationUpdate) { ctx =>
-        ctx +('service -> name, 'location -> maybeLocation)
-        val was = localLocation.get(name).flatten
-        if (was != maybeLocation) {
-          ctx + ('new -> true)
-          localLocation += name -> maybeLocation
-          localLocationHandlerFunc((name, maybeLocation))
-        } else ctx + ('new -> false)
+      val was = localLocation.get(name).flatten
+      if (was != maybeLocation) {
+        localLocation += name -> maybeLocation
+        localLocationHandlerFunc((name, maybeLocation))
       }
+      raise(EvtServiceLocationUpdate, 'service -> name, 'location -> maybeLocation, 'new -> (was != maybeLocation))
   }
 
 }

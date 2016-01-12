@@ -88,13 +88,13 @@ class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor {
 
 
   private def startCluster() = {
-    raiseWithTimer(EvtStartingCluster) { ctx =>
-      clusterSystem = Some(ActorSystem(clusterSystemId, nodeCfg.config))
-      clusterSystem foreach { sys =>
-        context.watch(sys.actorOf(Props[ClusterNodeActor], "node"))
-      }
+    raise(EvtStartingCluster)
+    clusterSystem = Some(ActorSystem(clusterSystemId, nodeCfg.config))
+    clusterSystem foreach { sys =>
+      context.watch(sys.actorOf(Props[ClusterNodeActor], "node"))
     }
   }
+
 
   onMessage {
     case ForwardToService(id, m) => clusterSystem.foreach(_.actorSelection("/user/node/" + id) ! m)

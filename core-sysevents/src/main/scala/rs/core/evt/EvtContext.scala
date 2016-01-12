@@ -33,9 +33,9 @@ trait EvtContext {
 
   def raise(e: Evt, fields: EvtFieldValue*): Unit = macro EvtContextMacro.raise
 
-  def raiseWith[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWith[T]
+//  def raiseWith[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWith[T]
 
-  def raiseWithTimer[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWithTimer[T]
+//  def raiseWithTimer[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWithTimer[T]
 
   def addEvtFields(fields: EvtFieldValue*): Unit = commonFields ++= fields.toList.reverse
 }
@@ -84,9 +84,6 @@ private object EvtContextMacro {
           $f(rs.core.evt.MuteEvtFieldBuilder)
         }
       """
-//    q"""
-//          $f(rs.core.evt.MuteEvtFieldBuilder)
-//      """
 
   }
 
@@ -96,21 +93,18 @@ private object EvtContextMacro {
     val src = q"${c.prefix}.evtSource"
     val initialList = toList(c)(fields: _*)
     q"""
+        if ($pub.canPublish($src, $e)) {
+          val b = new rs.core.evt.EvtFieldBuilderWithList($initialList)
+          val start = java.lang.System.nanoTime()
+          val result = $f(b)
+          val diff = java.lang.System.nanoTime() - start
+          b + ('ms -> (diff / 1000).toDouble / 1000)
+          $pub.raise ($src, $e, b.result)
+          result
+        } else {
           $f(rs.core.evt.MuteEvtFieldBuilder)
+        }
       """
-//    q"""
-//        if ($pub.canPublish($src, $e)) {
-//          val b = new rs.core.evt.EvtFieldBuilderWithList($initialList)
-//          val start = java.lang.System.nanoTime()
-//          val result = $f(b)
-//          val diff = java.lang.System.nanoTime() - start
-//          b + ('ms -> (diff / 1000).toDouble / 1000)
-//          $pub.raise ($src, $e, b.result)
-//          result
-//        } else {
-//          $f(rs.core.evt.MuteEvtFieldBuilder)
-//        }
-//      """
   }
 
 }

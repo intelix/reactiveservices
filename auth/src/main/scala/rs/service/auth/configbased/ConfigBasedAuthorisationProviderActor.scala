@@ -34,10 +34,11 @@ class ConfigBasedAuthorisationProviderActor extends StatelessActor {
   addEvtFields('type -> "config-based")
 
   onMessage {
-    case PermissionsRequest(u) => raiseWithTimer(Authorisation, 'user -> u) { ctx =>
+    case PermissionsRequest(u) =>
+      raise(Authorisation, 'user -> u)
       sender() ! DomainPermissions(u, config.asStringList("users." + u + ".domains").toSet)
       sender() ! SubjectPermissions(u, config.asStringList("users." + u + ".subjects").toSet)
-    }
   }
+
   override val evtSource: EvtSource = EvtSourceId
 }

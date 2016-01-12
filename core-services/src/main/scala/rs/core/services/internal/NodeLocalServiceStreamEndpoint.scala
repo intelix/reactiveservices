@@ -47,7 +47,11 @@ object NodeLocalServiceStreamEndpoint {
 
   case object EvtEndpointStopped extends InfoE
 
+  case object EvtRejectedLocalStream extends TraceE
+
   case object EvtOpenedLocalStream extends TraceE
+
+  case object EvtReusedLocalStream extends TraceE
 
   case object EvtClosedLocalStream extends TraceE
 
@@ -77,11 +81,11 @@ object NodeLocalServiceStreamEndpoint {
 
 class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, serviceRef: ActorRef)
   extends StatelessActor
-    with StreamDemandBinding
-    with DemandProducerContract
-    with LocalStreamsBroadcaster
-    with ActorWithTicks
-    with RegistryRef {
+  with StreamDemandBinding
+  with DemandProducerContract
+  with LocalStreamsBroadcaster
+  with ActorWithTicks
+  with RegistryRef {
 
   import NodeLocalServiceStreamEndpoint._
 
@@ -146,20 +150,19 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   }
 
 
-  private def openLocalStream(subscriber: ActorRef, subj: Subject): Unit = raiseWith(EvtOpenedLocalStream) { ctx =>
-    ctx +('subj -> subj, 'subscriber -> subscriber)
+  private def openLocalStream(subscriber: ActorRef, subj: Subject): Unit = {
     interests += subscriber -> (interests.getOrElse(subscriber, Set.empty) + subj)
     mappings get subj match {
       case Some(Some(key)) =>
         initiateStreamFor(subscriber, key, subj)
-        ctx + ('info -> "Active stream")
+        raise(EvtOpenedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
       case Some(None) =>
         publishNotAvailable(subscriber, subj)
-        ctx + ('info -> "Stream not available")
+        raise(EvtRejectedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
       case None =>
         initiateConsumer(subscriber)
         requestMapping(subj)
-        ctx + ('info -> "Requested mapping")
+        raise(EvtReusedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
     }
   }
 
@@ -171,14 +174,14 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     }
   }
 
-  private def requestMapping(subj: Subject): Unit = raiseWith(EvtSubjectMappingRequested) { ctx =>
+  private def requestMapping(subj: Subject): Unit = {
     serviceRef ! GetMappingFor(subj)
     pendingMappings += subj -> now
-    ctx +('subj -> subj, 'pending -> pendingMappings.size)
+    raise(EvtSubjectMappingRequested, 'subj -> subj, 'pending -> pendingMappings.size)
   }
 
-  private def onReceivedStreamMapping(subj: Subject, maybeKey: Option[StreamId]): Unit = raiseWith(EvtSubjectMappingReceived) { ctx =>
-    ctx +('subj -> subj, 'stream -> maybeKey)
+  private def onReceivedStreamMapping(subj: Subject, maybeKey: Option[StreamId]): Unit = {
+    raise(EvtSubjectMappingReceived, 'subj -> subj, 'stream -> maybeKey)
     pendingMappings -= subj
     mappings get subj match {
       case Some(x) if x == maybeKey =>
@@ -212,8 +215,8 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
 
   private def publishNotAvailable(subscriber: ActorRef, subj: Subject): Unit = subscriber ! InvalidRequest(subj)
 
-  private def updateLocalStream(key: StreamId, tran: StreamStateTransition): Unit = raiseWith(EvtStreamUpdateReceived) { ctx =>
-    ctx +('stream -> key, 'payload -> tran)
+  private def updateLocalStream(key: StreamId, tran: StreamStateTransition): Unit = {
+    raise(EvtStreamUpdateReceived, 'stream -> key, 'payload -> tran)
     upstreamDemandFulfilled(serviceRef, 1)
     if (!onStateTransition(key, tran)) {
       serviceRef ! StreamResyncRequest(key)
@@ -227,20 +230,18 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   }
 
 
-  private def closeLocalStream(subscriber: ActorRef, subj: Subject): Unit = raiseWith(EvtClosedLocalStream) { ctx =>
-    ctx +('subj -> subj, 'subscriber -> subscriber)
+  private def closeLocalStream(subscriber: ActorRef, subj: Subject): Unit = {
     interests.get(subscriber) foreach { currentInterestsForSubscriber =>
       val remainingInterests = currentInterestsForSubscriber - subj
       closeStreamFor(subscriber, subj)
       if (remainingInterests.isEmpty) {
         context.unwatch(subscriber)
         interests -= subscriber
-        ctx + ('subscribers -> 0)
       } else {
         interests += subscriber -> remainingInterests
         val remaining = remainingInterests.size
-        ctx + ('subscribers -> remaining)
       }
+      raise(EvtClosedLocalStream, 'subj -> subj, 'subscriber -> subscriber, 'subscribers -> remainingInterests.size)
     }
   }
 
@@ -462,8 +463,8 @@ object AgentActor {
 
 class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String)
   extends StatelessActor
-    with MessageAcknowledging
-    with SimpleInMemoryAcknowledgedDelivery {
+  with MessageAcknowledging
+  with SimpleInMemoryAcknowledgedDelivery {
 
   import AgentActor._
 

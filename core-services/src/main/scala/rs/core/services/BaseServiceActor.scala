@@ -96,13 +96,14 @@ abstract class ServiceActorWithId(override val id: String) extends Actor with Wi
 
 trait BaseServiceActor
   extends BaseActor
-    with WithId
-    with ClusterAwareness
-    with SimpleInMemoryAcknowledgedDelivery
-    with StreamDemandBinding
-    with RemoteStreamsBroadcaster
-    with MessageAcknowledging
-    with StreamPublishers {
+  with WithId
+  with ClusterAwareness
+  with SimpleInMemoryAcknowledgedDelivery
+  with StreamDemandBinding
+  with RemoteStreamsBroadcaster
+  with MessageAcknowledging
+  with StreamPublishers {
+
   import BaseServiceActor._
 
   type SubjectToStreamIdMapper = PartialFunction[Subject, Option[StreamId]]
@@ -221,11 +222,10 @@ trait BaseServiceActor
     case OpenStreamFor(streamKey) =>
       registerStreamInterest(streamKey, sender())
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
-    case StreamResyncRequest(key) => raiseWithTimer(ServiceEvt.EvtStreamResync, 'stream -> key, 'ref -> sender()) { ctx =>
+    case StreamResyncRequest(key) =>
+      raise(ServiceEvt.EvtStreamResync, 'stream -> key, 'ref -> sender())
       reopenStream(sender(), key)
-    }
     case StopRequest => context.parent ! StopRequest
-
   }
 
   onActorTerminated { ref =>
@@ -245,26 +245,22 @@ trait BaseServiceActor
   protected def terminate(reason: String) = throw new RuntimeException(reason)
 
   private def ensureAgentIsRunningAt(address: Address) = {
-    if (!activeAgents.contains(address.toString))
-      raiseWithTimer(ServiceEvt.EvtStartingRemoveAgent) { ctx =>
+    if (!activeAgents.contains(address.toString)) {
 
-        val id = randomUUID
+      val id = randomUUID
 
-        val name = s"agt-$serviceKey-$id"
+      val name = s"agt-$serviceKey-$id"
 
-        ctx +('address -> address, 'host -> address.host, 'name -> name)
+      val newAgent = context.watch(
+        context.actorOf(NodeLocalServiceStreamEndpoint
+          .remoteStreamAgentProps(serviceKey, self, id)
+          .withDeploy(Deploy(scope = RemoteScope(address))), name)
+      )
 
-        val newAgent = context.watch(
-          context.actorOf(NodeLocalServiceStreamEndpoint
-            .remoteStreamAgentProps(serviceKey, self, id)
-            .withDeploy(Deploy(scope = RemoteScope(address))), name)
-        )
-
-        ctx + ('remotePath -> newAgent.path)
-
-        val newActiveLocation = new AgentView(newAgent)
-        activeAgents += address.toString -> newActiveLocation
-      }
+      raise(ServiceEvt.EvtStartingRemoveAgent, 'address -> address, 'host -> address.host, 'name -> name, 'remotePath -> newAgent.path)
+      val newActiveLocation = new AgentView(newAgent)
+      activeAgents += address.toString -> newActiveLocation
+    }
   }
 
   private def reinitialiseStreams(address: Address) =
@@ -280,14 +276,13 @@ trait BaseServiceActor
 
   private def closeStreamAt(endpoint: ActorRef, streamKey: StreamId) = {
     agentWithEndpointAt(endpoint) foreach { loc =>
-      raiseWithTimer(ServiceEvt.EvtStreamInterestRemoved, 'stream -> streamKey, 'location -> endpoint.path.address) { ctx =>
-        loc.endpoint foreach { ref => closeStreamFor(ref, streamKey) }
-        loc remove streamKey
-        val total = loc.currentStreams.size
-        ctx + ('streamsAtLocation -> total)
-      }
+      loc.endpoint foreach { ref => closeStreamFor(ref, streamKey) }
+      loc remove streamKey
+      val total = loc.currentStreams.size
+      raise(ServiceEvt.EvtStreamInterestRemoved, 'stream -> streamKey, 'location -> endpoint.path.address, 'streamsAtLocation -> total)
     }
-    if (!hasAgentWithInterestIn(streamKey)) raiseWithTimer(ServiceEvt.EvtIdleStream, 'stream -> streamKey) { ctx =>
+    if (!hasAgentWithInterestIn(streamKey)) {
+      raise(ServiceEvt.EvtIdleStream, 'stream -> streamKey)
       activeStreams -= streamKey
       streamPassiveFunc(streamKey)
     }
@@ -299,27 +294,25 @@ trait BaseServiceActor
 
   private def registerStreamInterest(streamKey: StreamId, requestor: ActorRef): Unit =
     agentWithEndpointAt(requestor) foreach { agentView =>
-      raiseWithTimer(ServiceEvt.EvtStreamInterestAdded) { ctx =>
-        val existingStream = isStreamActive(streamKey)
-        activeStreams += streamKey
-        agentView add streamKey
-        agentView.endpoint foreach { ref => initiateStreamFor(ref, streamKey) }
-        if (!existingStream) streamActiveFunc(streamKey)
+      val existingStream = isStreamActive(streamKey)
+      activeStreams += streamKey
+      agentView add streamKey
+      agentView.endpoint foreach { ref => initiateStreamFor(ref, streamKey) }
+      if (!existingStream) streamActiveFunc(streamKey)
 
-        val total = agentView.currentStreams.size
-        ctx +('stream -> streamKey, 'location -> requestor.path.address, 'existing -> existingStream, 'streamsAtLocation -> total)
-      }
+      val total = agentView.currentStreams.size
+      raise(ServiceEvt.EvtStreamInterestAdded, 'stream -> streamKey, 'location -> requestor.path.address, 'existing -> existingStream, 'streamsAtLocation -> total)
     }
 
   final def isStreamActive(streamKey: StreamId) = activeStreams.contains(streamKey)
 
-  private def addEndpointAddress(id: String, endpoint: ActorRef): Unit =
-    raiseWithTimer(ServiceEvt.EvtRemoteEndpointRegistered, 'location -> id, 'ref -> endpoint) { ctx =>
-      activeAgents get id foreach { agentView =>
-        agentView.addEndpoint(endpoint)
-        initiateTarget(endpoint)
-      }
+  private def addEndpointAddress(id: String, endpoint: ActorRef): Unit = {
+    activeAgents get id foreach { agentView =>
+      agentView.addEndpoint(endpoint)
+      initiateTarget(endpoint)
     }
+    raise(ServiceEvt.EvtRemoteEndpointRegistered, 'location -> id, 'ref -> endpoint)
+  }
 
   sealed trait SignalResponse
 

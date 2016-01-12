@@ -127,10 +127,10 @@ object ServicePort {
 
       @throws[Exception](classOf[Exception])
       override def postStop(): Unit = {
-        evtCtx.raiseWithTimer(EvtFlowStopping, 'token -> tokenId) { ctx =>
-          context.stop(aggregator)
-          context.stop(signalPort)
-        }
+        evtCtx.raise(EvtFlowStopping, 'token -> tokenId)
+        context.stop(aggregator)
+        context.stop(signalPort)
+
         super.postStop()
       }
     }

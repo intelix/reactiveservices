@@ -63,7 +63,7 @@ class Slf4jPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport {
 
   private def buildEventLogMessage(source: EvtSource, event: Evt, values: Seq[EvtFieldValue]): String = {
     val fields = values.foldLeft(new StringBuilder) {
-      case (aggr, next) if isFieldEnabled(next._1) => aggr.append(fieldPrefix).append(next._1).append(fieldPostfix).append(transformValue(source, event, next._2)).append("  ")
+      case (aggr, next) if isFieldEnabled(next._1) => aggr.append(fieldPrefix).append(next._1.name).append(fieldPostfix).append(transformValue(source, event, next._2)).append("  ")
       case (aggr, next) => aggr
     }
     logFormat.format(source.evtSourceId, event.name, fields.toString())

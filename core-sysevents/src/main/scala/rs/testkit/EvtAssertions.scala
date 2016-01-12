@@ -39,7 +39,7 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
 
   private def buildEventLogMessage(source: EvtSource, e: Evt, values: Seq[EvtFieldValue]): String = {
     val fields = values.foldLeft(new StringBuilder) {
-      (aggr, next) => aggr.append(fieldPrefix).append(next._1).append(fieldPostfix).append(next._2).append(fieldsSeparator)
+      (aggr, next) => aggr.append(fieldPrefix).append(next._1.name).append(fieldPostfix).append(next._2).append(fieldsSeparator)
     }
     logFormat.format(source.evtSourceId, e.name, fields.toString())
   }
@@ -140,7 +140,7 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
   def locateFirstEventFieldValue[T](event: EvtSelection, field: String): T =
     locateFirstEvent(event).values.find(_._1 == field).get._2.asInstanceOf[T]
 
-  def locateFirstEventFieldValue[T](event: Evt, field: String): T = locateFirstEventFieldValue(EvtSelection(event, None), field)
+  def locateFirstEventFieldValue[T](event: Evt, field: String): T = locateFirstEventFieldValue[T](EvtSelection(event, None), field)
 
 
   def locateLastEventFieldValue[T](event: EvtSelection, field: String): T =

@@ -178,7 +178,7 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with testkit.TestEv
   def buildConfig(configs: ConfigReference*): Config = {
     val config = configs.foldLeft[String]("") {
       case (cfg, next) =>
-        logger.debug(s"Adding config: $next")
+//        logger.debug(s"Adding config: $next")
         cfg + next.toConfig
     }
     ConfigFactory.parseString(config).resolve()

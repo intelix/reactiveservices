@@ -106,29 +106,28 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     }
   }
 
-  def unorderedAcknowledgedDelivery(msg: Any, route: DestinationRoute)(implicit sender: ActorRef): Unit =
-    raiseWithTimer(EvtUnorderedDeliveryScheduled) { ctx =>
-      val ackTo = if (sender == self) None else Some(self)
-      val ackMsg = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
-      val di = DeliveryInfo(ackMsg, sender, 0, route, None, 0)
-      pendingUnorderedDeliveries += ackMsg.messageId -> process(di)
-      ctx +('id -> ackMsg.messageId, 'target -> route)
-    }
+  def unorderedAcknowledgedDelivery(msg: Any, route: DestinationRoute)(implicit sender: ActorRef): Unit = {
+    val ackTo = if (sender == self) None else Some(self)
+    val ackMsg = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
+    val di = DeliveryInfo(ackMsg, sender, 0, route, None, 0)
+    pendingUnorderedDeliveries += ackMsg.messageId -> process(di)
+    raise(EvtUnorderedDeliveryScheduled, 'id -> ackMsg.messageId, 'target -> route)
+  }
 
-  def acknowledgedDelivery(orderedGroupId: Any, msg: Any, route: DestinationRoute, cancelWithSelection: Option[MessageSelection] = None)(implicit sender: ActorRef): Unit =
-    raiseWithTimer(EvtOrderedDeliveryScheduled) { ctx =>
-      val id = GroupId(orderedGroupId, route)
-      cancelWithSelection foreach (cancelMessages(id, _))
-      val group = groupsMap getOrElse(id, newOrderedGroup(id))
-      val ackTo = if (sender == self) None else Some(self)
-      val acknowledgeable: AcknowledgeableWithSpecificId = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
-      group.deliver(acknowledgeable, sender)
-      ctx +('group -> id, 'id -> acknowledgeable.messageId)
-    }
+  def acknowledgedDelivery(orderedGroupId: Any, msg: Any, route: DestinationRoute, cancelWithSelection: Option[MessageSelection] = None)(implicit sender: ActorRef): Unit = {
 
-  def cancelDelivery(id: MessageId) = raiseWithTimer(EvtDeliveryCancelled) { ctx =>
+    val id = GroupId(orderedGroupId, route)
+    cancelWithSelection foreach (cancelMessages(id, _))
+    val group = groupsMap getOrElse(id, newOrderedGroup(id))
+    val ackTo = if (sender == self) None else Some(self)
+    val acknowledgeable: AcknowledgeableWithSpecificId = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
+    group.deliver(acknowledgeable, sender)
+    raise(EvtOrderedDeliveryScheduled, 'group -> id, 'id -> acknowledgeable.messageId)
+  }
+
+  def cancelDelivery(id: MessageId) = {
     markAsDelivered(id)
-    ctx + ('id -> id)
+    raise(EvtDeliveryCancelled, 'id -> id)
   }
 
   onTick {
@@ -199,9 +198,9 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
 
   onMessage {
     case Acknowledgement(id) if pendingOrderedDeliveries.contains(id) || pendingUnorderedDeliveries.contains(id) =>
-      raiseWithTimer(EvtDeliveryAcknowledged, 'id -> id) { ctx =>
-        markAsDelivered(id)
-      }
+      raise(EvtDeliveryAcknowledged, 'id -> id)
+      markAsDelivered(id)
+
   }
 
   case class SpecificDestination(ref: ActorRef) extends DestinationRoute

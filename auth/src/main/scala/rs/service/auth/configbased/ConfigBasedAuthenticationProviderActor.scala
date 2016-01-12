@@ -28,21 +28,21 @@ object ConfigBasedAuthenticationProviderActor {
 }
 
 class ConfigBasedAuthenticationProviderActor extends StatelessActor {
+
   import ConfigBasedAuthenticationProviderActor._
 
   addEvtFields('type -> "config-based")
 
   onMessage {
-    case Authenticate(u, p) => raiseWithTimer(Authentication, 'user -> u) { ctx =>
+    case Authenticate(u, p) =>
       config asOptString ("users." + u + ".passw") match {
         case Some(h) if hashFor(p) == h =>
-          ctx + ('allowed -> true)
+          raise(Authentication, 'user -> u, 'allowed -> true)
           sender() ! AuthenticationResponse(true)
         case _ =>
-          ctx + ('allowed -> false, 'provided -> hashFor(p))
+          raise(Authentication, 'user -> u, 'allowed -> false, 'provided -> hashFor(p))
           sender() ! AuthenticationResponse(false)
       }
-    }
   }
 
   def hashFor(s: String): String = {

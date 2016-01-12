@@ -40,17 +40,29 @@ object AuthServiceActor {
 
 
   case object EvtAuthToken extends TraceE
+
   case object EvtUserInfo extends TraceE
+
   case object EvtUserDomainPermissions extends TraceE
+
   case object EvtUserSubjectsPermissions extends TraceE
+
   case object EvtUserTokenAdded extends InfoE
+
   case object EvtSessionCreated extends InfoE
+
   case object EvtUserSessionExpired extends InfoE
+
   case object EvtUserSessionInvalidated extends InfoE
+
   case object EvtAuthRequest extends InfoE
+
   case object EvtSuccessfulCredentialsAuth extends InfoE
+
   case object EvtSuccessfulTokenAuth extends InfoE
+
   case object EvtFailedCredentialsAuth extends InfoE
+
   case object EvtFailedTokenAuth extends InfoE
 
   val EvtSourceId = "Auth"
@@ -99,36 +111,36 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) {
 
   onSignalAsync {
     case (Subject(_, TopicKey("cauth"), UserToken(ut)), body: String) =>
-      raiseWithTimer(EvtAuthRequest, 'token -> ut) { ctx =>
-        parseCredentials(body) match {
-          case None =>
-            raise(EvtFailedCredentialsAuth, 'reason -> "invalid request")
-            Future.successful(SignalOk(false))
-          case Some((user, pass)) =>
-            authenticateWithCredentials(user, pass, ut) map {
-              case true =>
-                self ! AuthOk(ut, user)
-                SignalOk(true)
-              case _ => self ! AuthFailed(ut, user)
-                SignalOk(false)
-            }
-        }
+      raise(EvtAuthRequest, 'token -> ut)
+      parseCredentials(body) match {
+        case None =>
+          raise(EvtFailedCredentialsAuth, 'reason -> "invalid request")
+          Future.successful(SignalOk(false))
+        case Some((user, pass)) =>
+          authenticateWithCredentials(user, pass, ut) map {
+            case true =>
+              self ! AuthOk(ut, user)
+              SignalOk(true)
+            case _ => self ! AuthFailed(ut, user)
+              SignalOk(false)
+          }
       }
+
   }
 
   onSignal {
     case (Subject(_, TopicKey("tauth"), UserToken(ut)), securityToken: String) =>
-      raiseWithTimer(EvtAuthRequest, 'token -> ut, 'authkey -> securityToken) { ctx =>
-        authenticateWithToken(securityToken, ut) match {
-          case Some(sess) =>
-            raise(EvtSuccessfulTokenAuth, 'token -> ut, 'authkey -> securityToken, 'userid -> sess.user)
-            publishAllForUserToken(ut)
-            SignalOk(true)
-          case _ =>
-            raise(EvtFailedTokenAuth, 'token -> ut, 'authkey -> securityToken, 'reason -> "access denied")
-            SignalOk(false)
-        }
+      raise(EvtAuthRequest, 'token -> ut, 'authkey -> securityToken)
+      authenticateWithToken(securityToken, ut) match {
+        case Some(sess) =>
+          raise(EvtSuccessfulTokenAuth, 'token -> ut, 'authkey -> securityToken, 'userid -> sess.user)
+          publishAllForUserToken(ut)
+          SignalOk(true)
+        case _ =>
+          raise(EvtFailedTokenAuth, 'token -> ut, 'authkey -> securityToken, 'reason -> "access denied")
+          SignalOk(false)
       }
+
   }
 
 
@@ -219,7 +231,7 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) {
         val newSess = Session(Set(ut), user, randomUUID, None)
         sessions += user -> newSess
         authorisationProviderRef ! PermissionsRequest(user)
-        EvtSessionCreated('token -> ut, 'userid -> user, 'authkey -> newSess.securityToken)
+        raise(EvtSessionCreated, 'token -> ut, 'userid -> user, 'authkey -> newSess.securityToken)
         newSess
       case Some(s) => addUserToken(s, ut)
     }
@@ -227,7 +239,7 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) {
   def addUserToken(session: Session, ut: String) = {
     val newSess = session.copy(userTokens = session.userTokens + ut, idleSince = None)
     sessions += session.user -> newSess
-    EvtUserTokenAdded('token -> ut, 'userid -> newSess.user, 'authkey -> newSess.securityToken)
+    raise(EvtUserTokenAdded, 'token -> ut, 'userid -> newSess.user, 'authkey -> newSess.securityToken)
     newSess
   }
 

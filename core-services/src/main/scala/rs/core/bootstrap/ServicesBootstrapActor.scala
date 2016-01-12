@@ -43,9 +43,9 @@ class ServicesBootstrapActor extends StatelessActor {
 
   var servicesCounter = 0
 
-  private def startProvider(sm: ServiceMeta) = raiseWithTimer(EvtStartingService) { ctx =>
+  private def startProvider(sm: ServiceMeta) = {
     val actor = context.actorOf(Props(Class.forName(sm.cl), sm.id), sm.id)
-    ctx +('service -> sm.id, 'class -> sm.cl, 'ref -> actor)
+    raise(EvtStartingService, 'service -> sm.id, 'class -> sm.cl, 'ref -> actor)
   }
 
   @throws[Exception](classOf[Exception]) override
