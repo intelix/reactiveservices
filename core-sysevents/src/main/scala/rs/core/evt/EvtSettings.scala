@@ -2,13 +2,13 @@ package rs.core.evt
 
 
 import com.typesafe.config.ConfigFactory
-import com.typesafe.scalalogging.StrictLogging
+import com.typesafe.scalalogging.LazyLogging
 
 object EvtSettings {
   lazy val config = ConfigRef.config
 }
 
-private object ConfigRef extends StrictLogging {
+private object ConfigRef extends LazyLogging {
 
   private lazy val configName: String = {
     val cfg = java.lang.System.getProperty("evt-config", "evt")

@@ -2,7 +2,7 @@ package rs.testkit
 
 import akka.actor.{ActorRef, ActorSystem, Props, Terminated}
 import com.typesafe.config._
-import com.typesafe.scalalogging.StrictLogging
+import com.typesafe.scalalogging.LazyLogging
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import rs.core.actors.StatelessActor
 import rs.core.config.WithBlankConfig
@@ -110,7 +110,7 @@ case class ConfigFromContents(contents: String) extends ConfigReference {
   override def toConfig: String = contents + "\n"
 }
 
-trait MultiActorSystemTestContext extends BeforeAndAfterEach with testkit.TestEvtContext with WithBlankConfig with EvtContext with StrictLogging {
+trait MultiActorSystemTestContext extends BeforeAndAfterEach with testkit.TestEvtContext with WithBlankConfig with EvtContext with LazyLogging {
 
   self: Suite with ActorSystemManagement with EvtAssertions =>
 

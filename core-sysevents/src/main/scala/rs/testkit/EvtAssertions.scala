@@ -138,13 +138,13 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
   def locateFirstEvent(event: EvtSelection): RaisedEvent = locateAllEvents(event).head
 
   def locateFirstEventFieldValue[T](event: EvtSelection, field: String): T =
-    locateFirstEvent(event).values.find(_._1 == field).get._2.asInstanceOf[T]
+    locateFirstEvent(event).values.find(_._1.name == field).get._2.asInstanceOf[T]
 
   def locateFirstEventFieldValue[T](event: Evt, field: String): T = locateFirstEventFieldValue[T](EvtSelection(event, None), field)
 
 
   def locateLastEventFieldValue[T](event: EvtSelection, field: String): T =
-    locateLastEvent(event).values.find(_._1 == field).get._2.asInstanceOf[T]
+    locateLastEvent(event).values.find(_._1.name == field).get._2.asInstanceOf[T]
 
   def locateLastEventFieldValue[T](event: Evt, field: String): T = locateLastEventFieldValue(EvtSelection(event, None), field)
 
