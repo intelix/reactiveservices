@@ -178,7 +178,7 @@ class UdpClusterManagerActor extends StatefulActor[ManagerStateData] {
 
   val udpEndpointHost = config.asString("node.cluster.discovery.udp-endpoint.host", "localhost")
   val udpEndpointPort = config.asInt("node.cluster.discovery.udp-endpoint.port", 0)
-  val initialDiscoveryTimeout = nodeCfg.asFiniteDuration("node.cluster.discovery.pre-discovery-timeout", 10 seconds)
+  val initialDiscoveryTimeout = nodeCfg.asFiniteDuration("node.cluster.discovery.pre-discovery-timeout", 15 seconds)
 
   val endpoints = config.asStringList("node.cluster.discovery.udp-contacts").map { s =>
     s.split(":") match {

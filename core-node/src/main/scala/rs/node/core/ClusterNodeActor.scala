@@ -21,9 +21,8 @@ import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
 import rs.core.actors._
 import rs.core.config.ConfigOps.wrap
-import rs.core.evt.{EvtSource, InfoE}
+import rs.core.evt.{CommonEvt, EvtSource, InfoE}
 import rs.core.services.BaseServiceActor.StopRequest
-import rs.core.sysevents.CommonEvt
 import rs.node.core.ClusterNodeActor._
 import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
 import rs.node.core.discovery.{JoinStrategy, RolePriorityStrategy, UdpClusterManagerActor}

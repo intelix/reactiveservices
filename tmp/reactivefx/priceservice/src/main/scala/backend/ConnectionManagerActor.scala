@@ -10,6 +10,7 @@ import backend.DatasourceStreamLinkStage.LinkRef
 import com.typesafe.scalalogging.StrictLogging
 import rs.core.actors.ActorState
 import rs.core.config.ConfigOps.wrap
+import rs.core.evt.EvtSource
 import rs.core.services.{CompoundStreamIdTemplate, SimpleStreamIdTemplate, SimpleStreamId, StatefulServiceActor}
 import rs.core.stream.DictionaryMapStreamState.Dictionary
 import rs.core.{CompositeTopicKey, Subject, TopicKey}
@@ -72,7 +73,7 @@ class ConnectionManagerActor(id: String) extends StatefulServiceActor[StateData]
   self ! Connect
 
   when(Disconnected) {
-    case Event(Terminated(r), _) => stay()
+    case Event(Terminated(r), data) if data.datasourceLinkRef.contains(r) => stay()
     case Event(Connect, data) =>
       goto(ConnectionPending) using data.copy(endpoints = data.endpoints.tail :+ data.endpoints.head)
   }
@@ -92,7 +93,7 @@ class ConnectionManagerActor(id: String) extends StatefulServiceActor[StateData]
   }
 
   otherwise {
-    case Event(Terminated(r), data) =>
+    case Event(Terminated(r), data) if data.datasourceLinkRef.contains(r) =>
       goto(Disconnected) using data.copy(datasourceLinkRef = None)
     case Event(m@LinkRef(r), data) =>
       stay() using data.copy(datasourceLinkRef = Some(context.watch(r)))
@@ -173,7 +174,9 @@ class ConnectionManagerActor(id: String) extends StatefulServiceActor[StateData]
 
 
 
-  override def componentId: String = "PricingEngine" // TODO move to event
+
+//  override def componentId: String = "PricingEngine" // TODO move to event
+  override val evtSource: EvtSource = "PricingEngine"
 }
 
 

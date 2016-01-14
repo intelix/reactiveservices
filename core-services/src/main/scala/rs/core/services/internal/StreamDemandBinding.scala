@@ -17,10 +17,9 @@ package rs.core.services.internal
 
 import akka.actor.ActorRef
 import rs.core.actors.{BaseActor, StatelessActor}
-import rs.core.evt.TraceE
+import rs.core.evt.{CommonEvt, TraceE}
 import rs.core.services.internal.InternalMessages.DownstreamDemandRequest
 import rs.core.services.internal.acks.Acknowledgeable
-import rs.core.sysevents.CommonEvt
 
 object StreamDemandBinding {
   case object EvtDuplicateDemandRequest extends TraceE

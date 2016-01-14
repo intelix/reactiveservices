@@ -1,10 +1,9 @@
 package rs.core.evt
 
-import com.typesafe.config.{ConfigFactory, Config}
+import com.typesafe.config.{Config, ConfigFactory}
 import rs.core.config.ConfigOps.wrap
-import rs.core.config.{WithNodeConfig, NodeConfig}
+import rs.core.config.{NodeConfig, WithNodeConfig}
 import rs.core.evt.disruptor.DisruptorPublisher
-import rs.core.sysevents.EvtPublisherContext
 
 import scala.language.experimental.macros
 import scala.language.implicitConversions
@@ -13,12 +12,14 @@ import scala.reflect.macros.blackbox
 
 object EvtContext {
   val publisher = EvtSettings.config.asConfigurableInstance[EvtPublisher]("evt.publisher", classOf[DisruptorPublisher])
+
   def apply(evtSourceId: String, cfg: Config, staticFields: (Symbol, Any)*): EvtContext = new EvtContext with WithNodeConfig {
     override val evtSource: EvtSource = evtSourceId
     override implicit lazy val nodeCfg: NodeConfig = NodeConfig(cfg)
     addEvtFields('nodeid -> nodeId)
     addEvtFields(staticFields: _*)
   }
+
   def apply(evtSourceId: String, staticFields: (Symbol, Any)*): EvtContext = EvtContext(evtSourceId, ConfigFactory.empty(), staticFields: _*)
 }
 
@@ -33,9 +34,9 @@ trait EvtContext {
 
   def raise(e: Evt, fields: EvtFieldValue*): Unit = macro EvtContextMacro.raise
 
-//  def raiseWith[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWith[T]
+  //  def raiseWith[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWith[T]
 
-//  def raiseWithTimer[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWithTimer[T]
+  //  def raiseWithTimer[T](e: Evt, fields: EvtFieldValue*)(f: EvtFieldBuilder => T): T = macro EvtContextMacro.raiseWithTimer[T]
 
   def addEvtFields(fields: EvtFieldValue*): Unit = commonFields ++= fields.toList.reverse
 }

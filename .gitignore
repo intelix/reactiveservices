@@ -10,7 +10,7 @@
 /core-js/target
 /core-node/target
 /core-services/target
-/core-sysevents/target
+/core-evt/target
 /examples/counter/node-service/target
 /examples/counter/node-statics/target
 /examples/counter/node-websocket/target

@@ -27,11 +27,10 @@ import akka.util.ByteString
 import rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound}
 import rs.core.codec.binary._
 import rs.core.config.ConfigOps.wrap
-import rs.core.evt.{EvtSource, ErrorE, InfoE}
+import rs.core.evt.{CommonEvt, EvtSource, ErrorE, InfoE}
 import rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
 import rs.core.services.StatelessServiceActor
 import rs.core.services.endpoint.akkastreams._
-import rs.core.sysevents.CommonEvt
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

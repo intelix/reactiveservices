@@ -53,6 +53,11 @@ object DictionaryMapStreamState {
     }
 
     override def toString: String = asString
+
+    override def equals(obj: scala.Any): Boolean = obj match {
+      case x: Dictionary => fields sameElements x.fields
+      case _ => false
+    }
   }
 
   case object NoChange
@@ -84,6 +89,12 @@ case class DictionaryMapStreamState(seed: Int, seq: Int, values: Array[Any], dic
   override def applicableTo(state: Option[StreamState]): Boolean = true
 
   override def toString: String = asString
+
+  override def equals(obj: scala.Any): Boolean = obj match {
+    case x: DictionaryMapStreamState => seed == x.seed && seq == x.seq && dict == x.dict && (values sameElements x.values)
+    case _ => false
+  }
+
 }
 
 
@@ -115,7 +126,9 @@ case class DictionaryMapStreamTransitionPartial(seed: Int, seq: Int, seq2: Int, 
 
   override lazy val toString: String = s"""DictionaryMapStreamTransitionPartial($seed,$seq,$seq2,${diffs.mkString("[", ",", "]")})"""
 
-
+  override def equals(obj: scala.Any): Boolean = obj match {
+    case x: DictionaryMapStreamTransitionPartial => seed == x.seed && x.seq == seq && seq2 == x.seq2 && (x.diffs sameElements diffs)
+  }
 }
 
 

@@ -13,11 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package rs.core.sysevents
 
-import scala.language.implicitConversions
+package rs.core.evt
 
-trait EvtGroup extends EvtImplicits {
-  implicit val component = this
-  def componentId: String
+object CommonEvt {
+
+  case object EvtInvalid extends WarningE
+  case object EvtWarning extends WarningE
+  case object EvtError extends ErrorE
+  case object EvtSupervisorRestartTrigger extends WarningE
+  case object EvtSupervisorStopTrigger extends WarningE
+
+
 }

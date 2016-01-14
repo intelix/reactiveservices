@@ -6,8 +6,7 @@ import com.typesafe.scalalogging.LazyLogging
 import org.scalatest.{BeforeAndAfterEach, Suite, Tag}
 import rs.core.actors.StatelessActor
 import rs.core.config.WithBlankConfig
-import rs.core.evt.{EvtContext, EvtSource, TraceE}
-import rs.core.sysevents.CommonEvt
+import rs.core.evt.{CommonEvt, EvtContext, EvtSource, TraceE}
 import rs.core.utils.UUIDTools
 import rs.testkit
 

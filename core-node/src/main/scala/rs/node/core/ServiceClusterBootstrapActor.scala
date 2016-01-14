@@ -22,8 +22,7 @@ import rs.core.actors.StatelessActor
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
-import rs.core.evt.{EvtSource, InfoE, WarningE}
-import rs.core.sysevents.CommonEvt
+import rs.core.evt.{CommonEvt, EvtSource, InfoE, WarningE}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt

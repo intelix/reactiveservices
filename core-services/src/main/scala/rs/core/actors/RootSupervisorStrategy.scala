@@ -2,8 +2,7 @@ package rs.core.actors
 
 import akka.actor.SupervisorStrategy.{Decider, Restart, Stop}
 import akka.actor._
-import rs.core.evt.{EvtSource, EvtContext}
-import rs.core.sysevents.{CommonEvt, EvtPublisher}
+import rs.core.evt.{CommonEvt, EvtSource, EvtContext}
 
 class RootSupervisorStrategy extends SupervisorStrategyConfigurator {
 

@@ -23,10 +23,9 @@ import akka.stream.stage._
 import akka.stream.{Attributes, FlowShape, UniformFanOutShape}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
-import rs.core.evt.{EvtContext, InfoE, WarningE}
+import rs.core.evt.{CommonEvt, EvtContext, InfoE, WarningE}
 import rs.core.services.Messages._
 import rs.core.services.internal.{SignalPort, StreamAggregatorActor}
-import rs.core.sysevents.CommonEvt
 
 
 object ServicePort {

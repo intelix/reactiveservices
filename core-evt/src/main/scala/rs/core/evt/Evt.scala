@@ -8,7 +8,10 @@ trait Evt {
 }
 
 trait EvtWithDerivedName extends Evt {
-  override val name: String = toString
+  override val name: String = toString match {
+    case x if x.startsWith("Evt") => x.substring(3)
+    case x => x
+  }
 }
 
 trait TraceE extends EvtWithDerivedName {

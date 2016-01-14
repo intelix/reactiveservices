@@ -2,7 +2,7 @@ import com.typesafe.sbt.pgp.PgpKeys.pgpSigningKey
 import play.sbt.PlayScala
 
 lazy val root = project.in(file(".")).
-  aggregate(utils, sysevents, core, node, websocket_server, auth, codec_binary, js).
+  aggregate(utils, evt, core, node, websocket_server, auth, codec_binary, js).
   settings(Build.settings("reactiveservices", publishToSonatype = false))
 
 lazy val utils = Project(
@@ -11,9 +11,9 @@ lazy val utils = Project(
 )
 
 
-lazy val sysevents = Project(
-  id = "core-sysevents",
-  base = file("core-sysevents"),
+lazy val evt = Project(
+  id = "core-evt",
+  base = file("core-evt"),
   dependencies = Seq(
     utils
   )
@@ -24,7 +24,7 @@ lazy val core = Project(
   id = "core-services",
   base = file("core-services"),
   dependencies = Seq(
-    sysevents
+    evt
   )
 )
 
@@ -33,7 +33,7 @@ lazy val node = Project(
   id = "core-node",
   base = file("core-node"),
   dependencies = Seq(
-    sysevents ,
+    evt ,
     core
   )
 )
@@ -61,7 +61,7 @@ lazy val auth = Project(
   id = "auth",
   base = file("auth"),
   dependencies = Seq(
-    sysevents ,
+    evt ,
     core ,
     node
   )

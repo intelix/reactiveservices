@@ -78,7 +78,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
   protected def udpPortFor(idx: Int) = portFor(idx) + 10000
 
   override protected def startWithConfig(idx: Int, configs: ConfigReference*): ActorRef =
-    withSystem(instanceId(idx), ConfigFromFile("sysevents-log")) { implicit sys =>
+    withSystem(instanceId(idx)) { implicit sys =>
       val config = buildConfig(configs: _*)
       sys.start(ServiceClusterGuardianActor.props(NodeConfig(config)), UUIDTools.generateShortUUID)
     }

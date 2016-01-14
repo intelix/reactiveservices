@@ -24,7 +24,6 @@ import rs.core.evt.{EvtSource, EvtContext, TraceE}
 import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.stream.{StreamState, StreamStateTransition}
-import rs.core.sysevents.{CommonEvt, EvtPublisherContext}
 
 import scala.collection.mutable
 

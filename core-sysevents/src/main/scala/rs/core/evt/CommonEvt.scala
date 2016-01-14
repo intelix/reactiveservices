@@ -14,9 +14,7 @@
  * limitations under the License.
  */
 
-package rs.core.sysevents
-
-import rs.core.evt.{ErrorE, WarningE}
+package rs.core.evt
 
 object CommonEvt {
 

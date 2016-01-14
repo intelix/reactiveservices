@@ -31,7 +31,6 @@ import rs.core.services.StreamId
 import rs.core.services.internal.InternalMessages.StreamUpdate
 import rs.core.services.internal.acks.Acknowledgeable
 import rs.core.stream.{StreamState, StreamStateTransition}
-import rs.core.sysevents.EvtPublisherContext
 import rs.core.utils.NowProvider
 import rs.core.{ServiceKey, Subject}
 
@@ -252,7 +251,7 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
 private class LocalSubjectStreamSink(val streamKey: StreamId, subj: Subject, canUpdate: () => Boolean, updateDownstream: StreamState => Unit) {
 
   private var pendingState: Option[StreamState] = None
-  private var remoteView: Option[StreamState] = None
+  private var remoteView: Option[StreamState] = None // TODO review
 
   def resetDownstreamView() = remoteView = None
 
@@ -398,7 +397,7 @@ trait LocalStreamsBroadcaster extends StatelessActor with ActorWithTicks {
   }
 
 
-  private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String)(implicit val config: Config) extends ConsumerDemandTracker with EvtPublisherContext {
+  private class LocalTargetWithSinks(ref: ActorRef, self: ActorRef, serviceId: String)(implicit val config: Config) extends ConsumerDemandTracker {
     private val subjectToSink: mutable.Map[Subject, LocalSubjectStreamSink] = mutable.HashMap()
     private val streams: util.ArrayList[LocalSubjectStreamSink] = new util.ArrayList[LocalSubjectStreamSink]()
     private val canUpdate = () => hasDemand

@@ -21,8 +21,7 @@ import rs.core.actors.StatelessActor
 import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
-import rs.core.evt.{EvtSource, InfoE}
-import rs.core.sysevents.CommonEvt
+import rs.core.evt.{CommonEvt, EvtSource, InfoE}
 import rs.node.core.ServiceClusterGuardianActor.{EvtLaunched, RestartRequestException}
 
 import scala.concurrent.duration._
