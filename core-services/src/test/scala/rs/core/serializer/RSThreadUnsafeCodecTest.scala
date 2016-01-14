@@ -170,7 +170,7 @@ class RSThreadUnsafeCodecTest extends FlatSpec with Matchers with BeforeAndAfter
     validateAll(None, Some(123), Some(true), Some(List(1, 2, 'C')))
   }
   it should "correctly convert String" in {
-    validateAll("", "Hello", "?? ???????", "123-37^&@^\n\r\t\u2202")
+    validateAll("", "Hello", "на русском", "123-37^&@^\n\r\t\u2202")
   }
   it should "correctly convert Acknowledgement" in {
     validateAll(
