@@ -326,7 +326,7 @@ trait LocalStreamsBroadcaster extends StatelessActor with ActorWithTicks {
   def idleThreshold: FiniteDuration
 
   def newConsumerDemand(consumer: ActorRef, demand: Long): Unit = {
-    targets get consumer foreach (_.addDemand(demand))
+    (targets getOrElse(consumer, newTarget(consumer))).addDemand(demand)
   }
 
   final def onStateUpdate(subj: StreamId, state: StreamState) = {

@@ -39,12 +39,16 @@ class Slf4jPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport {
 
 
   private def logEvent(source: EvtSource, event: Evt, values: Seq[EvtFieldValue]) = {
-    val logger = loggerFor(buildEventLoggerName(source.evtSourceId, event.name))
-    eventLevelOverrides.getOrElse(event.name, event.level) match {
-      case EvtLevelTrace => if (logger.isDebugEnabled) logger.debug(buildEventLogMessage(source, event, values))
-      case EvtLevelInfo => if (logger.isInfoEnabled) logger.info(buildEventLogMessage(source, event, values))
-      case EvtLevelWarning => if (logger.isWarnEnabled) logger.warn(buildEventLogMessage(source, event, values))
-      case EvtLevelError => if (logger.isErrorEnabled) logger.error(buildEventLogMessage(source, event, values))
+    try {
+      val logger = loggerFor(buildEventLoggerName(source.evtSourceId, event.name))
+      eventLevelOverrides.getOrElse(event.name, event.level) match {
+        case EvtLevelTrace => if (logger.isDebugEnabled) logger.debug(buildEventLogMessage(source, event, values))
+        case EvtLevelInfo => if (logger.isInfoEnabled) logger.info(buildEventLogMessage(source, event, values))
+        case EvtLevelWarning => if (logger.isWarnEnabled) logger.warn(buildEventLogMessage(source, event, values))
+        case EvtLevelError => if (logger.isErrorEnabled) logger.error(buildEventLogMessage(source, event, values))
+      }
+    } catch {
+      case x: Throwable => loggerFor("errors").warn(s"Unable to raise event $event from $source", x)
     }
   }
 
