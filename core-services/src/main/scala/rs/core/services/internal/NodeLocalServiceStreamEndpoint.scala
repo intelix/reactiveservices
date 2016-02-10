@@ -85,6 +85,7 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   with LocalStreamsBroadcaster
   with ActorWithTicks
   with RegistryRef {
+  override val evtSource: EvtSource = NodeLocalServiceStreamEndpoint.EvtSourceId
 
   import NodeLocalServiceStreamEndpoint._
 
@@ -244,7 +245,6 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     }
   }
 
-  override val evtSource: EvtSource = EvtSourceId
 }
 
 

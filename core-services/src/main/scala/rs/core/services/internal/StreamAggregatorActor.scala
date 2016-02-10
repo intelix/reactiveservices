@@ -53,6 +53,8 @@ object StreamAggregatorActor {
 final class StreamAggregatorActor(consumerId: String)
   extends StatelessActor with DemandProducerContract with StreamDemandBinding with ConsumerDemandTracker {
 
+  override val evtSource: EvtSource = EvtSourceId
+
   import StreamAggregatorActor._
 
   private val streamToBucket: mutable.Map[Subject, Bucket] = mutable.HashMap()
@@ -247,7 +249,6 @@ final class StreamAggregatorActor(consumerId: String)
 
   private case object SendPending
 
-  override val evtSource: EvtSource = EvtSourceId
 }
 
 

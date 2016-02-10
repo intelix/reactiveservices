@@ -41,9 +41,6 @@ trait Terminal
 
   override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(consumerId = self.path.toStringWithoutAddress), "stream-aggregator")
 
-  startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)
-
-
   override def preStart(): Unit = {
     super.preStart()
     startDemandProducerFor(streamAggregator, withAcknowledgedDelivery = false)

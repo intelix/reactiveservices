@@ -41,6 +41,7 @@ object TestServiceConsumer {
 class TestServiceConsumer(id: String) extends Terminal {
 
   import TestServiceConsumer._
+  override val evtSource: EvtSource = EvtSourceId
 
   implicit val ec = context.dispatcher
 
@@ -79,5 +80,4 @@ class TestServiceConsumer(id: String) extends Terminal {
   onMessage {
     case m: SignalAckOk =>
   }
-  override val evtSource: EvtSource = EvtSourceId
 }
