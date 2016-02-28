@@ -1,6 +1,6 @@
 # What is it?
 
-Framework for building resilient streaming systems with single-page web fronts.
+Framework for building Reactive Streaming systems with single-page web fronts.
 
 # Why?
 
