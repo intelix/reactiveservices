@@ -121,7 +121,7 @@ object Dependencies {
     jodaConvert,
     prettyTime,
     playJson,
-    playJsonZipper,
+//    playJsonZipper,
     Test.scalaTest,
     trove,
     guava,
