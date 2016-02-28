@@ -24,7 +24,7 @@ class PriceSourceService(id: String) extends StatelessServiceActor(id) {
 }
 ```
 
-Map subject subscription to a topic:
+Map subject subscription to stream id:
 
 ```scala
 onSubjectMapping {
@@ -46,7 +46,7 @@ onStreamPassive {
 }
 ```
 
-Publish data:
+At any point, publish data into the stream:
 
 ```scala
 instrument !# ("price" -> getPrice)
@@ -56,7 +56,7 @@ Define and configure the service:
 
 ```hocon
 node.services.price-source = "rs.examples.stocks.PriceSourceService"
-price-source.cfg-value = 12345
+price-source.custom-config-param = "some value"
 ```
 
 On the client side, subscribe to the stream:
