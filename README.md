@@ -1,3 +1,5 @@
+!["build status"](https://travis-ci.org/intelix/reactiveservices.svg "build status")
+
 # What is it?
 
 Framework for building Reactive Streaming systems with Websocket based web fronts
