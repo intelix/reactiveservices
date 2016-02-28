@@ -32,7 +32,7 @@ onSubjectMapping {
 }
 ```
 
-Set topic lifecycle hooks:
+Add stream lifecycle hooks:
 
 ```scala
 onStreamActive {
