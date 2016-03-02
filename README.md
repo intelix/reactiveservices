@@ -2,7 +2,7 @@
 
 # What is it?
 
-Framework for building Reactive Streaming systems with Websocket based web fronts
+Framework for building Reactive Streaming systems with SPA Websocket clients
 
 # Why?
 
