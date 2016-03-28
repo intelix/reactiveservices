@@ -15,8 +15,7 @@ private object Settings {
   lazy val baseSettings = Defaults.coreDefaultSettings
 
   lazy val artifactSettings = Seq(
-    version := "0.1.3",
-//    version := "0.1.2_12-SNAPSHOT",
+    version := "0.1.3_1-SNAPSHOT",
     organization := "au.com.intelix",
     licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
     homepage := Some(url("http://reactiveservices.org/"))
