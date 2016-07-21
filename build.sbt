@@ -57,6 +57,7 @@ lazy val websocket_server = Project(
 )
 
 
+
 lazy val auth = Project(
   id = "auth",
   base = file("auth"),
@@ -80,11 +81,11 @@ lazy val js = Project(
 
 
 
-lazy val reactiveFxWeb = Project(id = "reactivefx-web", base = file("tmp/reactivefx/web"), dependencies = Seq(core, js)).enablePlugins(PlayScala, SbtWeb)
-lazy val reactiveFxLegacyServiceAPI = Project(id = "reactivefx-legacyservice-api", base = file("tmp/reactivefx/legacyservice-api"))
-lazy val reactiveFxLegacyService = Project(id = "reactivefx-legacyservice", base = file("tmp/reactivefx/legacyservice")).dependsOn(reactiveFxLegacyServiceAPI, core, node).enablePlugins(JavaAppPackaging)
-lazy val reactiveFxPricesource = Project(id = "reactivefx-priceservice", base = file("tmp/reactivefx/priceservice")).dependsOn(reactiveFxLegacyServiceAPI, core, node).enablePlugins(JavaAppPackaging)
-lazy val reactiveFxWebsocket = Project(id = "reactivefx-websocket", base = file("tmp/reactivefx/websocket")).dependsOn(websocket_server, auth, core, node).enablePlugins(JavaAppPackaging)
+//lazy val reactiveFxWeb = Project(id = "reactivefx-web", base = file("tmp/reactivefx/web"), dependencies = Seq(core, js)).enablePlugins(PlayScala, SbtWeb)
+//lazy val reactiveFxLegacyServiceAPI = Project(id = "reactivefx-legacyservice-api", base = file("tmp/reactivefx/legacyservice-api"))
+//lazy val reactiveFxLegacyService = Project(id = "reactivefx-legacyservice", base = file("tmp/reactivefx/legacyservice")).dependsOn(reactiveFxLegacyServiceAPI, core, node).enablePlugins(JavaAppPackaging)
+//lazy val reactiveFxPricesource = Project(id = "reactivefx-priceservice", base = file("tmp/reactivefx/priceservice")).dependsOn(reactiveFxLegacyServiceAPI, core, node).enablePlugins(JavaAppPackaging)
+//lazy val reactiveFxWebsocket = Project(id = "reactivefx-websocket", base = file("tmp/reactivefx/websocket")).dependsOn(websocket_server, auth, core, node).enablePlugins(JavaAppPackaging)
 
 
 

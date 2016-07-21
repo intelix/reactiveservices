@@ -676,8 +676,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectSome of EvtReceivedSignalAckOk +('correlation -> "Some(auth2)", 'payload -> "Some(true)", 'id -> "c2")
     on node3 expectSome of EvtReceivedSignalAckOk +('correlation -> "Some(auth3)", 'payload -> "Some(true)", 'id -> "c3")
 
-    on node1 expect(2) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('userid -> "user1")
-    on node1 expect(1) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('userid -> "user2")
+    on node1 expect(2) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('user -> "user1")
+    on node1 expect(1) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('user -> "user2")
 
     clearEvents()
 
@@ -721,8 +721,8 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expectSome of EvtReceivedSignalAckOk +('correlation -> "Some(auth2)", 'payload -> "Some(true)", 'id -> "c2")
     on node3 expectSome of EvtReceivedSignalAckOk +('correlation -> "Some(auth3)", 'payload -> "Some(true)", 'id -> "c3")
 
-    on node1 expect(2) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('userid -> "user1")
-    on node1 expect(1) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('userid -> "user2")
+    on node1 expect(2) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('user -> "user1")
+    on node1 expect(1) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('user -> "user2")
 
 
     clearEvents()

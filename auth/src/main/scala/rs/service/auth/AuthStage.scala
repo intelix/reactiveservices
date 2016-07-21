@@ -18,7 +18,7 @@ package rs.service.auth
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
-import rs.core.SubjectTags.{SubjectTag, UserId, UserToken}
+import rs.core.SubjectTags.{StringSubjectTag, UserId, UserToken}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.evt.{EvtContext, InfoE, WarningE}
@@ -49,7 +49,7 @@ object AuthStage {
   val EvtSourceId = "Endpoint.Auth"
 }
 
-private object PrivateIdToken extends SubjectTag("pid")
+private object PrivateIdToken extends StringSubjectTag("pid")
 
 class AuthStage extends ServiceDialectStageBuilder {
 
@@ -87,7 +87,8 @@ class AuthStage extends ServiceDialectStageBuilder {
       val InfoSubSubject = Subject(authServiceKey, infoTopic, UserToken(sessionId) + PrivateIdToken(privateKey))
 
 
-      var userId: Option[String] = None
+      var userId: Option[Int] = None
+      var tags: Option[String] = None
       var permissions = Array[SubjectPermission]()
 
       override def preStart(): Unit = {
@@ -147,22 +148,31 @@ class AuthStage extends ServiceDialectStageBuilder {
       def filterLocalUpdates(s: ServiceOutbound): Option[ServiceOutbound] = s match {
         case ServiceNotAvailable(a) if a == authServiceKey =>
           evtCtx.raise(EvtAuthServiceDown, 'service -> authServiceKey, 'clientAccessReset -> closeOnServiceDown)
-          if (closeOnServiceDown) userId = None
+          if (closeOnServiceDown) {
+            userId = None
+            tags = None
+          }
           Some(s)
         case StreamStateUpdate(SubjectPermissionsSubSubject, SetStreamState(_, _, set, _)) =>
           permissions = convertPermissions(set.asInstanceOf[Set[String]])
           if (permissions.isEmpty) evtCtx.raise(EvtSubjectPermissionsReset) else evtCtx.raise(EvtSubjectPermissionsProvided)
           None
         case StreamStateUpdate(InfoSubSubject, DictionaryMapStreamState(_, _, values, d)) =>
-          d.locateIdx(AuthServiceActor.InfoUserId) match {
-            case -1 =>
-            case i => values(i) match {
-              case v: String if v != "" =>
-                evtCtx.raise(EvtUserIdProvided, 'id -> v)
+          (d.locateIdx(AuthServiceActor.InfoUserId),d.locateIdx(AuthServiceActor.InfoUsername)) match {
+            case (-1, _) =>
+            case (_, -1) =>
+            case (i,j) => (values(i),values(j)) match {
+              case (v: Int, un: String) if v > 0 =>
+                evtCtx.raise(EvtUserIdProvided, 'id -> v, 'user -> un)
                 userId = Some(v)
+                tags = d.locateIdx(AuthServiceActor.InfoTags) match {
+                  case -1 => None
+                  case k => Some(values(k).asInstanceOf[String])
+                }
               case _ =>
                 evtCtx.raise(EvtUserIdReset)
                 userId = None
+                tags = None
             }
           }
           None
@@ -172,9 +182,9 @@ class AuthStage extends ServiceDialectStageBuilder {
       }
 
       def enrich(s: ServiceInbound): ServiceInbound = s match {
-        case s: OpenSubscription => s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
-        case s: CloseSubscription => s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
-        case s: Signal => s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)))
+        case s: OpenSubscription => s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)) + tags.getOrElse(""))
+        case s: CloseSubscription => s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)) + tags.getOrElse(""))
+        case s: Signal => s.copy(subj = s.subj + UserToken(sessionId) + userId.map(UserId(_)) + tags.getOrElse(""))
       }
 
       def strip(s: ServiceOutbound): ServiceOutbound = s match {

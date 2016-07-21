@@ -20,7 +20,8 @@ import akka.dispatch.Futures
 import akka.pattern.Patterns
 import akka.stream.scaladsl._
 import akka.stream.stage._
-import akka.stream.{Attributes, FlowShape, UniformFanOutShape}
+import akka.stream._
+import akka.util.ByteString
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.NodeConfig
 import rs.core.evt.{CommonEvt, EvtContext, InfoE, WarningE}
@@ -54,6 +55,11 @@ object ServicePort {
 
     val signalParallelism = nodeCfg.asInt("signal-parallelism", 100)
 
+    val aggregator = context.actorOf(StreamAggregatorActor.props(tokenId), s"aggregator-$tokenId")
+    val signalPort = context.actorOf(SignalPort.props, s"signal-port-$tokenId")
+
+
+
     class MessageRouter extends GraphStage[UniformFanOutShape[ServiceInbound, ServiceInbound]] {
       override val shape: UniformFanOutShape[ServiceInbound, ServiceInbound] = new UniformFanOutShape(2)
 
@@ -61,7 +67,12 @@ object ServicePort {
         val pendingSignals = scala.collection.mutable.Queue[ServiceInbound]()
         val pendingSubscriptions = scala.collection.mutable.Queue[ServiceInbound]()
 
-        override def preStart(): Unit = pull(shape.in)
+        override def preStart(): Unit = {
+          evtCtx.raise(EvtFlowStarting, 'token -> tokenId)
+          pull(shape.in)
+        }
+
+
 
         setHandler(shape.in, new InHandler {
           override def onPush(): Unit = {
@@ -87,6 +98,13 @@ object ServicePort {
           override def onPull(): Unit = doPushSignal()
         })
 
+        override def postStop(): Unit = {
+          evtCtx.raise(EvtFlowStopping, 'token -> tokenId)
+          context.stop(aggregator)
+          context.stop(signalPort)
+          super.postStop()
+        }
+
         def doPull() = if (canPull) pull(shape.in)
 
         def canPull = !hasBeenPulled(shape.in) && hasCapacity
@@ -108,30 +126,6 @@ object ServicePort {
         def canPushSubscription = isAvailable(shape.out(0)) && pendingSubscriptions.nonEmpty
       }
 
-    }
-
-    val aggregator = context.actorOf(StreamAggregatorActor.props(tokenId), s"aggregator-$tokenId")
-    val signalPort = context.actorOf(SignalPort.props, s"signal-port-$tokenId")
-
-    val lifecycleMonitor = new PushStage[ServiceInbound, ServiceInbound] {
-      override def onPush(elem: ServiceInbound, ctx: Context[ServiceInbound]): SyncDirective = {
-        ctx.push(elem)
-      }
-
-      @throws[Exception](classOf[Exception])
-      override def preStart(ctx: LifecycleContext): Unit = {
-        evtCtx.raise(EvtFlowStarting, 'token -> tokenId)
-        super.preStart(ctx)
-      }
-
-      @throws[Exception](classOf[Exception])
-      override def postStop(): Unit = {
-        evtCtx.raise(EvtFlowStopping, 'token -> tokenId)
-        context.stop(aggregator)
-        context.stop(signalPort)
-
-        super.postStop()
-      }
     }
 
     val publisher = Source.actorPublisher(ServicePortStreamSource.props(aggregator, tokenId))
@@ -179,14 +173,11 @@ object ServicePort {
 
     val router = b.add(new MessageRouter)
 
-    val monitor = b.add(Flow[ServiceInbound].transform(() => lifecycleMonitor))
-
-    monitor ~> router.in
     router.out(0) ~> requestSink // stream subscriptions
     router.out(1) ~> signalExecStage ~> merge.preferred // signals
     merge <~ publisherSource
 
-    FlowShape(monitor.in, merge.out)
+    FlowShape(router.in, merge.out)
 
   })
 

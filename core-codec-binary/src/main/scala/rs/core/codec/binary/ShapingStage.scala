@@ -1,5 +1,6 @@
 package rs.core.codec.binary
 
+import akka.NotUsed
 import akka.stream._
 import akka.stream.scaladsl.{BidiFlow, Flow, GraphDSL}
 import akka.stream.stage._
@@ -14,7 +15,7 @@ import scala.language.postfixOps
 
 
 class ShapingStage extends BytesStageBuilder {
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[ByteString, ByteString, ByteString, ByteString, Unit]] =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[ByteString, ByteString, ByteString, ByteString, NotUsed]] =
     if (serviceCfg.asBoolean("shaping.enabled", defaultValue = true)) Some(BidiFlow.fromGraph(GraphDSL.create() { b =>
       val in = b.add(Flow[ByteString])
       val out = b.add(Flow.fromGraph(new SimpleShapedFlow(serviceCfg)))
@@ -43,9 +44,12 @@ private class SimpleShapedFlow(serviceCfg: ServiceConfig) extends GraphStage[Flo
     override def preStart(): Unit = {
       schedulePeriodically(Timer, checkInterval)
       pull(in)
+      refresh()
     }
 
-    override protected def onTimer(timerKey: Any): Unit = {
+    override protected def onTimer(timerKey: Any): Unit = refresh()
+
+    def refresh() = {
       allowed = bSec * checkInterval.toMillis / 1000
       forward()
     }

@@ -17,9 +17,10 @@ package rs.service.websocket
 
 import java.util.concurrent.atomic.AtomicInteger
 
+import akka.NotUsed
 import akka.http.javadsl.model.HttpMethods
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.ws.{Message, UpgradeToWebsocket}
+import akka.http.scaladsl.model.ws.{Message, UpgradeToWebSocket}
 import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, Uri}
 import akka.stream.scaladsl.BidiFlow
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
@@ -27,7 +28,7 @@ import akka.util.ByteString
 import rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound}
 import rs.core.codec.binary._
 import rs.core.config.ConfigOps.wrap
-import rs.core.evt.{CommonEvt, EvtSource, ErrorE, InfoE}
+import rs.core.evt.{CommonEvt, ErrorE, EvtSource, InfoE}
 import rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
 import rs.core.services.StatelessServiceActor
 import rs.core.services.endpoint.akkastreams._
@@ -77,34 +78,35 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) {
   implicit val mat = ActorMaterializer(
     ActorMaterializerSettings(context.system)
       .withDebugLogging(serviceCfg.asBoolean("log.flow-debug", defaultValue = false))
+      .withInputBuffer(initialSize = 64, maxSize = 64)
       .withSupervisionStrategy(decider))
 
   import rs.core.codec.binary.BinaryCodec.DefaultBinaryCodecImplicits._
 
   var connectionCounter = new AtomicInteger(0)
 
-  def handleWebsocket(upgrade: UpgradeToWebsocket, headers: Seq[HttpHeader], id: String) = {
+  def handleWebsocket(upgrade: UpgradeToWebSocket, headers: Seq[HttpHeader], id: String) = {
     raise(EvtNewConnection, 'token -> id, 'headers -> headers.map(_.toString))
     upgrade.handleMessages(buildFlow(id))
   }
 
   def buildFlow(id: String) = {
 
-    val bytesStage = bytesStagesList.foldLeft[BidiFlow[Message, ByteString, ByteString, Message, Unit]](WebsocketBinaryFrameFolder.buildStage(id, EvtSourceId)) {
+    val bytesStage = bytesStagesList.foldLeft[BidiFlow[Message, ByteString, ByteString, Message, NotUsed]](WebsocketBinaryFrameFolder.buildStage(id, EvtSourceId)) {
       case (flow, builder) =>
         builder.newInstance().asInstanceOf[BytesStageBuilder].buildStage(id, EvtSourceId) match {
           case Some(stage) => flow atop stage
           case None => flow
         }
     }
-    val protocolDialectStage = protocolDialectStagesList.foldLeft[BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit]](BinaryCodec.Streams.buildServerSideSerializer(id, EvtSourceId)) {
+    val protocolDialectStage = protocolDialectStagesList.foldLeft[BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, NotUsed]](BinaryCodec.Streams.buildServerSideSerializer(id, EvtSourceId)) {
       case (flow, builder) =>
         builder.newInstance().asInstanceOf[BinaryDialectStageBuilder].buildStage(id, EvtSourceId) match {
           case Some(stage) => flow atop stage
           case None => flow
         }
     }
-    val serviceDialectStage = serviceDialectStagesList.foldLeft[BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit]](BinaryCodec.Streams.buildServerSideTranslator(id, EvtSourceId)) {
+    val serviceDialectStage = serviceDialectStagesList.foldLeft[BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, NotUsed]](BinaryCodec.Streams.buildServerSideTranslator(id, EvtSourceId)) {
       case (flow, builder) =>
         builder.newInstance().asInstanceOf[ServiceDialectStageBuilder].buildStage(id, EvtSourceId) match {
           case Some(stage) => flow atop stage
@@ -139,9 +141,9 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) {
   }
 
   object WSRequest {
-    def unapply(req: HttpRequest): Option[(UpgradeToWebsocket, HttpRequest)] = {
-      if (req.header[UpgradeToWebsocket].isDefined) {
-        req.header[UpgradeToWebsocket] match {
+    def unapply(req: HttpRequest): Option[(UpgradeToWebSocket, HttpRequest)] = {
+      if (req.header[UpgradeToWebSocket].isDefined) {
+        req.header[UpgradeToWebSocket] match {
           case Some(upgrade) => Some((upgrade, req))
           case None => None
         }

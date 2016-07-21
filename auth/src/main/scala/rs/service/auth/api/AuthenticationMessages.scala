@@ -19,8 +19,8 @@ object AuthenticationMessages {
 
   case class Authenticate(user: String, password: String)
 
-  case class AuthenticationResponse(allow: Boolean)
+  case class AuthenticationResponse(userId: Option[Int], tags: Option[String] = None)
 
-  case class Invalidate(user: String)
+  case class Invalidate(userId: Int)
 
 }

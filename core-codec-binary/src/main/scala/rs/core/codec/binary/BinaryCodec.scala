@@ -17,6 +17,7 @@ package rs.core.codec.binary
 
 import java.nio.ByteOrder
 
+import akka.NotUsed
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
@@ -24,7 +25,7 @@ import akka.util.{ByteIterator, ByteString, ByteStringBuilder}
 import rs.core.codec.binary.BinaryCodec.Codecs._
 import rs.core.codec.binary.BinaryProtocolMessages._
 import rs.core.config.{NodeConfig, ServiceConfig}
-import rs.core.evt.{TraceE, EvtContext}
+import rs.core.evt.{EvtContext, TraceE}
 import rs.core.services.Messages._
 import rs.core.stream.DictionaryMapStreamState.{Dictionary, NoChange}
 import rs.core.stream.ListStreamState.{FromHead, FromTail, ListSpecs, RejectAdd}
@@ -66,6 +67,8 @@ object BinaryCodec {
 
 
   object Streams {
+
+    def serviceSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig): Graph[BidiShape[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound], NotUsed] = new ServiceSideTranslator(sessionId, componentId)
 
     private class ServiceSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig) extends GraphStage[BidiShape[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound]] {
       val in1: Inlet[BinaryDialectInbound] = Inlet("BytesIn")
@@ -146,11 +149,11 @@ object BinaryCodec {
     }
 
 
-    def buildServerSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig): BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, Unit] =
-      BidiFlow.fromGraph(new ServiceSideTranslator(sessionId, componentId))
+    def buildServerSideTranslator(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig): BidiFlow[BinaryDialectInbound, ServiceInbound, ServiceOutbound, BinaryDialectOutbound, NotUsed] =
+      BidiFlow.fromGraph(serviceSideTranslator(sessionId, componentId))
 
 
-    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, nodeCfg: NodeConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, Unit] =
+    def buildServerSideSerializer(sessionId: String, componentId: String)(implicit codec: ServerBinaryCodec, nodeCfg: NodeConfig): BidiFlow[ByteString, BinaryDialectInbound, BinaryDialectOutbound, ByteString, NotUsed] =
       BidiFlow.fromGraph(GraphDSL.create() { b =>
         implicit val byteOrder = ByteOrder.BIG_ENDIAN
 
@@ -173,7 +176,7 @@ object BinaryCodec {
         BidiShape.fromFlows(top, bottom)
       })
 
-    def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutbound, BinaryDialectInbound, ByteString, Unit] =
+    def buildClientSideSerializer()(implicit codec: ClientBinaryCodec): BidiFlow[ByteString, BinaryDialectOutbound, BinaryDialectInbound, ByteString, NotUsed] =
       BidiFlow.fromGraph(GraphDSL.create() { b =>
         implicit val byteOrder = ByteOrder.BIG_ENDIAN
         val top = b add Flow[ByteString].mapConcat[BinaryDialectOutbound] { x =>

@@ -15,6 +15,7 @@
  */
 package rs.core.codec.binary
 
+import akka.NotUsed
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
@@ -27,7 +28,7 @@ import scala.collection.mutable
 
 class PartialUpdatesStage extends BinaryDialectStageBuilder {
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit]] =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, NotUsed]] =
     if (serviceCfg.asBoolean("partials.enabled", defaultValue = true)) Some(BidiFlow.fromGraph(new PartialUpdatesProducer(serviceCfg))) else None
 
   private class PartialUpdatesProducer(serviceCfg: ServiceConfig) extends GraphStage[BidiShape[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound]] {

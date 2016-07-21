@@ -66,6 +66,7 @@ object ServiceEvt {
   case object EvtSignalProcessed extends InfoE
 
   case object EvtSignalPayload extends InfoE
+  case object EvtSignalResponsePayload extends InfoE
 
   case object EvtRemoteEndpointRegistered extends InfoE
 
@@ -107,6 +108,7 @@ trait BaseServiceActor
   import BaseServiceActor._
 
   type SubjectToStreamIdMapper = PartialFunction[Subject, Option[StreamId]]
+  type SubjectToFutureStreamIdMapper = PartialFunction[Subject, Future[Option[StreamId]]]
   type StreamEventCallback = PartialFunction[StreamId, Unit]
   type SignalHandler = PartialFunction[(Subject, Any), Option[SignalResponse]]
   type SignalHandlerAsync = PartialFunction[(Subject, Any), Option[Future[SignalResponse]]]
@@ -122,6 +124,8 @@ trait BaseServiceActor
   private var subjectToStreamKeyMapperFunc: SubjectToStreamIdMapper = {
     case _ => None
   }
+  private var subjectToFutureStreamKeyMapperFunc: SubjectToFutureStreamIdMapper = PartialFunction.empty
+
   private var streamActiveFunc: StreamEventCallback = {
     case _ =>
   }
@@ -131,12 +135,17 @@ trait BaseServiceActor
   private var signalHandlerFunc: PartialFunction[(Subject, Any), Option[Any]] = {
     case _ => None
   }
+  private var defaultSignalResponseFunc: PartialFunction[(Subject, Any), Option[SignalResponse]] = {
+    case _ => None
+  }
+
   private var activeStreams: Set[StreamId] = Set.empty
   private var activeAgents: Map[String, AgentView] = Map.empty
 
   final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
 
   final def onSubjectMapping(f: SubjectToStreamIdMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
+  final def onSubjectMappingAsync(f: SubjectToFutureStreamIdMapper): Unit = subjectToFutureStreamKeyMapperFunc = f orElse subjectToFutureStreamKeyMapperFunc
 
   final def onStreamActive(f: StreamEventCallback): Unit = streamActiveFunc = f orElse streamActiveFunc
 
@@ -145,6 +154,9 @@ trait BaseServiceActor
   final def onSignal(f: SignalHandler): Unit = signalHandlerFunc = f orElse signalHandlerFunc
 
   final def onSignalAsync(f: SignalHandlerAsync): Unit = signalHandlerFunc = f orElse signalHandlerFunc
+
+  final def defaultSignalResponseFor(f: PartialFunction[(Subject, Any), Option[SignalResponse]]): Unit = defaultSignalResponseFunc = f orElse defaultSignalResponseFunc
+
 
   final def performStateTransition(key: StreamId, transition: => StreamStateTransition) = stateTransitionFor(key, transition)
 
@@ -177,6 +189,7 @@ trait BaseServiceActor
 
   onMessage {
     case m: SignalPayload =>
+      val dsr = defaultSignalResponseFunc
       val timer = NanoTimer()
       raise(ServiceEvt.EvtSignalPayload, 'correlation -> m.correlationId, 'payload -> m.payload)
       if (m.expireAt > now) {
@@ -185,32 +198,71 @@ trait BaseServiceActor
           case Some(SignalOk(p)) =>
             origin ! SignalAckOk(m.correlationId, m.subj, p)
             raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
+            raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
           case Some(SignalFailed(p)) =>
             origin ! SignalAckFailed(m.correlationId, m.subj, p)
             raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+            raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
           case Some(f: Future[_]) =>
             f.onComplete {
               case Success(SignalOk(p)) =>
                 origin ! SignalAckOk(m.correlationId, m.subj, p)
                 raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
               case Success(SignalFailed(p)) =>
                 origin ! SignalAckFailed(m.correlationId, m.subj, p)
                 raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
               case Success(_) =>
-                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+                dsr((m.subj, m.payload)) match {
+                  case Some(SignalOk(p)) =>
+                    origin ! SignalAckOk(m.correlationId, m.subj, p)
+                    raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'default -> true, 'ms -> timer.toMillis)
+                    raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                  case Some(SignalFailed(p)) =>
+                    origin ! SignalAckFailed(m.correlationId, m.subj, p)
+                    raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'default -> true, 'ms -> timer.toMillis)
+                    raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                  case _ =>
+                    raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+                }
               case Failure(t) =>
                 origin ! SignalAckFailed(m.correlationId, m.subj, None)
                 raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'reason -> t, 'ms -> timer.toMillis)
             }
           case None =>
-            raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+            dsr((m.subj, m.payload)) match {
+              case Some(SignalOk(p)) =>
+                origin ! SignalAckOk(m.correlationId, m.subj, p)
+                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'default -> true, 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+              case Some(SignalFailed(p)) =>
+                origin ! SignalAckFailed(m.correlationId, m.subj, p)
+                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'default -> true, 'ms -> timer.toMillis)
+                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+              case _ =>
+                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+            }
           case _ =>
         }
       } else raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
 
     case ServiceEndpoint(ref, id) => addEndpointAddress(id, ref)
     case OpenAgentAt(address) => if (isAddressReachable(address)) ensureAgentIsRunningAt(address)
-    case GetMappingFor(subj) =>
+    case GetMappingFor(subj) if subjectToFutureStreamKeyMapperFunc.isDefinedAt(subj) =>
+      val ref = sender()
+      subjectToFutureStreamKeyMapperFunc(subj).onComplete {
+        case Failure(x) =>
+          //          sender() ! StreamMapping(subj, None)
+          raise(ServiceEvt.EvtSubjectMappingError, 'subj -> subj, 'cause -> x)
+        case Success(None) =>
+          ref ! StreamMapping(subj, None)
+          raise(ServiceEvt.EvtSubjectMappingError, 'subj -> subj)
+        case Success(x@Some(streamKey)) =>
+          ref ! StreamMapping(subj, x)
+          raise(ServiceEvt.EvtSubjectMapped, 'stream -> streamKey, 'subj -> subj)
+      }
+    case GetMappingFor(subj) if subjectToStreamKeyMapperFunc.isDefinedAt(subj) =>
       subjectToStreamKeyMapperFunc(subj) match {
         case None =>
           sender() ! StreamMapping(subj, None)

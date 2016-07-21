@@ -46,7 +46,7 @@ define(['lodash', 'module', './logging', 'signals'], function (_, Module, Log, S
     var reconnectTimer = false;
 
     function _connected() {
-        return currentState == WebSocket.OPEN;
+        return socket && currentState == WebSocket.OPEN;
     }
 
     function _nextEndpoint() {
@@ -107,10 +107,10 @@ define(['lodash', 'module', './logging', 'signals'], function (_, Module, Log, S
 
         socket.onclose = function (x) {
             clearTimeout(timeout);
+            currentState = WebSocket.CLOSED;
             socket = false;
             connectedToEndpoint = false;
             signals.disconnected.dispatch({wasOpen: (currentState == WebSocket.OPEN )});
-            currentState = WebSocket.CLOSED;
             if (!forcedClose) {
                 endpointFailureCount++;
                 reconnectTimer = setTimeout(function () {

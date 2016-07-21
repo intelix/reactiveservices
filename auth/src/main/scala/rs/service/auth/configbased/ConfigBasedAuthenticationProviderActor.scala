@@ -38,10 +38,10 @@ class ConfigBasedAuthenticationProviderActor extends StatelessActor {
       config asOptString ("users." + u + ".passw") match {
         case Some(h) if hashFor(p) == h =>
           raise(Authentication, 'user -> u, 'allowed -> true)
-          sender() ! AuthenticationResponse(true)
+          sender() ! AuthenticationResponse(config.asOptInt("users." + u + ".id"))
         case _ =>
           raise(Authentication, 'user -> u, 'allowed -> false, 'provided -> hashFor(p))
-          sender() ! AuthenticationResponse(false)
+          sender() ! AuthenticationResponse(None)
       }
   }
 

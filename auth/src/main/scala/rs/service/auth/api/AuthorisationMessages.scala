@@ -17,10 +17,10 @@ package rs.service.auth.api
 
 object AuthorisationMessages {
 
-  case class PermissionsRequest(user: String)
-  case class PermissionsRequestCancel(user: String)
+  case class PermissionsRequest(userId: Int)
+  case class PermissionsRequestCancel(userId: Int)
 
-  case class DomainPermissions(user: String, domains: Set[String])
-  case class SubjectPermissions(user: String, patterns: Set[String])
+  case class DomainPermissions(userId: Int, domains: Set[String])
+  case class SubjectPermissions(userId: Int, patterns: Set[String])
 
 }

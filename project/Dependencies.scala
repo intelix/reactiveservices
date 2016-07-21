@@ -11,9 +11,9 @@ object Dependencies {
     val playJsonZipperVersion = "1.2"
     val guavaVersion = "15.0"
     val googleProtobufVersion = "2.5.0"
-    val akkaVersion = "2.4.1"
-    val akkaStreamVersion = "2.0.1"
-    val akkaHTTPVersion = "2.0.1"
+    val akkaVersion = "2.4.2"
+    val akkaStreamVersion = "2.0.3"
+    val akkaHTTPVersion = "2.0.3"
     val scalaLoggingVersion = "3.1.0"
     val logbackVersion = "1.1.2"
     val jodaTimeVersion = "2.3"
@@ -63,9 +63,9 @@ object Dependencies {
     val akkaRemote        = "com.typesafe.akka"           %% "akka-remote"                    % akkaVersion
     val akkaCluster       = "com.typesafe.akka"           %% "akka-cluster"                   % akkaVersion
     val akkaPersistence   = "com.typesafe.akka"           %% "akka-persistence-experimental"  % akkaVersion
-    val akkaStreams       = "com.typesafe.akka"           %% "akka-stream-experimental"       % akkaStreamVersion
-    val akkaHttpCore      = "com.typesafe.akka"           %% "akka-http-core-experimental"    % akkaHTTPVersion
-    val akkaHttp          = "com.typesafe.akka"           %% "akka-http-experimental"         % akkaHTTPVersion
+    val akkaStreams       = "com.typesafe.akka"           %% "akka-stream"                    % akkaVersion
+    val akkaHttpCore      = "com.typesafe.akka"           %% "akka-http-core"                 % akkaVersion
+//    val akkaHttp          = "com.typesafe.akka"           %% "akka-http-experimental"         % akkaHTTPVersion
     val akkaContrib       = "com.typesafe.akka"           %% "akka-contrib"                   % akkaVersion
 
     val googleProtobuf    = "com.google.protobuf"         %  "protobuf-java"                  % googleProtobufVersion
@@ -136,7 +136,7 @@ object Dependencies {
     akkaSlf4j,
     akkaStreams,
     akkaHttpCore,
-    akkaHttp,
+//    akkaHttp,
     kryoser,
     googleProtobuf,
     Test.akkaTestKit,

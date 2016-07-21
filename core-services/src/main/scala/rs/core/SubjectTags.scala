@@ -15,12 +15,15 @@
  */
 package rs.core
 
+import scala.util.Try
+
 object SubjectTags {
 
-  abstract class SubjectTag(tagId: String) {
+  val tagPrefix = "+"
+  val tagPostfix = ":"
 
-    val tagPrefix = "+"
-    val tagPostfix = ":"
+  abstract class StringSubjectTag(tagId: String) {
+
     private lazy val completeTagId = tagPrefix + tagId + tagPostfix
 
     final def apply(value: String) = completeTagId + value
@@ -36,10 +39,27 @@ object SubjectTags {
     }
   }
 
+  abstract class IntSubjectTag(tagId: String) {
 
-  object UserToken extends SubjectTag("ut")
+    private lazy val completeTagId = tagPrefix + tagId + tagPostfix
 
-  object UserId extends SubjectTag("uid")
+    final def apply(value: Int) = completeTagId + value
+
+    final def unapply(value: String): Option[Int] = {
+      value.indexOf(completeTagId) match {
+        case -1 => None
+        case i => value.indexOf(tagPrefix, i + 1) match {
+          case -1 => Try(value.substring(i + completeTagId.length).toInt).toOption
+          case j => Try(value.substring(i + completeTagId.length, j).toInt).toOption
+        }
+      }
+    }
+  }
+
+
+  object UserToken extends StringSubjectTag("ut")
+
+  object UserId extends IntSubjectTag("uid")
 
 
 }

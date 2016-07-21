@@ -345,18 +345,18 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     override def node1Services: Map[String, Class[_]] = super.node1Services +("consumer1" -> classOf[TestServiceConsumer], "consumer2" -> classOf[TestServiceConsumer])
 
     on node1 expectOne of ClusterNodeActor.EvtStartingService + ('service -> "consumer1")
-    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id1"))
-    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id2"))
-    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> TestServiceActor.AutoStringReply)
-    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id2"), 'value -> TestServiceActor.AutoStringReply)
+    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId(1))
+    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId(2))
+    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId(1), 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId(2), 'value -> TestServiceActor.AutoStringReply)
 
     clearEvents()
 
-    serviceOnNode1("test") ! PublishString(CompoundStreamId("string", "id1"), "latest")
+    serviceOnNode1("test") ! PublishString(CompoundStreamId("string", 1), "latest")
 
-    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> "latest")
+    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId(1), 'value -> "latest")
     within(3 seconds) {
-      on node1 expectNone of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id2"), 'value -> "latest")
+      on node1 expectNone of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId(2), 'value -> "latest")
 
     }
 
@@ -366,9 +366,9 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     override def node1Services: Map[String, Class[_]] = super.node1Services +("consumer1" -> classOf[TestServiceConsumer], "consumer2" -> classOf[TestServiceConsumer])
 
     on node1 expectOne of ClusterNodeActor.EvtStartingService + ('service -> "consumer1")
-    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id1"))
+    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId(1))
 
-    on node1 expectOne of TestServiceActor.EvtStreamActive + ('stream -> "string#id1")
+    on node1 expectOne of TestServiceActor.EvtStreamActive + ('stream -> "string#1")
 
   }
 
@@ -376,15 +376,15 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     override def node1Services: Map[String, Class[_]] = super.node1Services +("consumer1" -> classOf[TestServiceConsumer], "consumer2" -> classOf[TestServiceConsumer])
 
     on node1 expectOne of ClusterNodeActor.EvtStartingService + ('service -> "consumer1")
-    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId("id1"))
+    serviceOnNode1("consumer1") ! Open("test", "stringWithId", UserId(1))
 
 
-    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId("id1"), 'value -> TestServiceActor.AutoStringReply)
+    on node1 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer1", 'sourceService -> "test", 'topic -> "stringWithId", 'keys -> UserId(1), 'value -> TestServiceActor.AutoStringReply)
     clearEvents()
 
-    serviceOnNode1("consumer1") ! Close("test", "stringWithId", UserId("id1"))
+    serviceOnNode1("consumer1") ! Close("test", "stringWithId", UserId(1))
 
-    on node1 expectOne of TestServiceActor.EvtStreamPassive + ('stream -> "string#id1")
+    on node1 expectOne of TestServiceActor.EvtStreamPassive + ('stream -> "string#1")
   }
 
 

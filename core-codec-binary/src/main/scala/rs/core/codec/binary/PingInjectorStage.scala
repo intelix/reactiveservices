@@ -63,6 +63,7 @@ class PingInjectorStage extends BinaryDialectStageBuilder {
       override def preStart(): Unit = {
         pull(in1)
         pull(in2)
+        doPing()
         schedulePeriodicallyWithInitialDelay(Timer, interval, interval)
       }
 
@@ -102,15 +103,17 @@ class PingInjectorStage extends BinaryDialectStageBuilder {
       })
 
 
-      override protected def onTimer(timerKey: Any): Unit = pushToClient(BinaryDialectPing((System.currentTimeMillis() % Int.MaxValue).toInt))
+      override protected def onTimer(timerKey: Any): Unit = doPing()
+
+      def doPing() = pushToClient(BinaryDialectPing((System.currentTimeMillis() % Int.MaxValue).toInt))
 
       def pushToClient(x: BinaryDialectOutbound) = {
         if (isAvailable(out2) && clientBound.isEmpty) push(out2, x)
         else {
           val shouldEnqueue = x match {
-            case _: BinaryDialectPing => clientBound.exists {
-              case _: BinaryDialectPing => false
-              case _ => true
+            case _: BinaryDialectPing => !clientBound.exists {
+              case _: BinaryDialectPing => true
+              case _ => false
             }
             case _ => true
           }

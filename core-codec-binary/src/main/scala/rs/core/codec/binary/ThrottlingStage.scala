@@ -1,5 +1,6 @@
 package rs.core.codec.binary
 
+import akka.NotUsed
 import akka.stream._
 import akka.stream.scaladsl.{BidiFlow, Flow, GraphDSL}
 import akka.stream.stage._
@@ -12,7 +13,7 @@ import scala.language.postfixOps
 
 
 class ThrottlingStage extends BinaryDialectStageBuilder {
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, Unit]] =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[BinaryDialectInbound, BinaryDialectInbound, BinaryDialectOutbound, BinaryDialectOutbound, NotUsed]] =
     if (serviceCfg.asBoolean("throttling.enabled", defaultValue = true)) Some(BidiFlow.fromGraph(GraphDSL.create() { b =>
       val in = b.add(Flow[BinaryDialectInbound])
       val out = b.add(Flow.fromGraph(new SimpleThrottledFlow(serviceCfg)))

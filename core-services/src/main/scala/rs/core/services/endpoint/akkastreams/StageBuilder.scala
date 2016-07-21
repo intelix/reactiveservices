@@ -15,13 +15,14 @@
  */
 package rs.core.services.endpoint.akkastreams
 
+import akka.NotUsed
 import akka.stream.scaladsl.BidiFlow
 import akka.util.ByteString
 import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
 
 trait StageBuilder[I1, O1, I2, O2] {
-  def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[I1, O1, I2, O2, Unit]]
+  def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[I1, O1, I2, O2, NotUsed]]
 }
 
 trait BytesStageBuilder extends StageBuilder[ByteString, ByteString, ByteString, ByteString]
