@@ -48,16 +48,16 @@ class DisruptorPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport
 
   val ringSize = cfg.asInt("evt.disruptor.ring-size", 1024 * 16)
   val handler = cfg.asConfigurableInstance[EvtPublisher]("evt.disruptor.delegate-to-publisher", classOf[Slf4jPublisher])
-  val exec = Executors.newCachedThreadPool(new ThreadFactory {
+  val threadFactory = new ThreadFactory {
     override def newThread(r: Runnable): Thread = new Thread(r, "disruptorConsumer") {
       setDaemon(true)
     }
-  })
+  }
   val factory = new EventFactory[Event] {
     override def newInstance(): Event = new Event
   }
 
-  val disruptor = new Disruptor[Event](factory, ringSize, exec)
+  val disruptor = new Disruptor[Event](factory, ringSize, threadFactory)
 
   disruptor.handleEventsWith(new CleaningWrapper(new PublisherWrapper(handler)))
   val rb = disruptor.getRingBuffer

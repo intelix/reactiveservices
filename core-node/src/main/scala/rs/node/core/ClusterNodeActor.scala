@@ -236,7 +236,7 @@ class ClusterNodeActor extends StatefulActor[Any] {
 
 
   private def startProvider(sm: ServiceMeta) = {
-    val actor = context.watch(context.actorOf(Props(Class.forName(sm.cl), sm.id), sm.id))
+    val actor = context.watch(context.actorOf(Props(Class.forName(sm.cl)), sm.id))
     raise(EvtStartingService, 'service -> sm.id, 'class -> sm.cl, 'ref -> actor)
     runningServices += actor
   }

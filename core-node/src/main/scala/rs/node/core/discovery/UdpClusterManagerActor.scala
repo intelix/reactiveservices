@@ -211,13 +211,18 @@ class UdpClusterManagerActor extends StatefulActor[ManagerStateData] {
 
   startWith(Initial, ManagerStateData(endpoints = endpoints, system = context.system))
 
-
   IO(Udp) ! Udp.Bind(self, new InetSocketAddress(udpEndpointHost, udpEndpointPort))
+
+  onTermination {
+    case StopEvent(_, state, data) => data.socket.foreach(_ ! Udp.Unbind)
+  }
 
   when(Initial) {
     case Event(Udp.Bound(local), state: ManagerStateData) =>
       raise(EvtUdpBound, 'local -> local)
       transitionTo(InitialDiscovery) using state.copy(socket = Some(sender()))
+    case Event(Udp.CommandFailed(cmd), state: ManagerStateData) =>
+      stay()
   }
 
   when(InitialDiscovery) {

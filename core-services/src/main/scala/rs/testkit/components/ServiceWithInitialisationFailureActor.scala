@@ -11,7 +11,7 @@ object ServiceWithInitialisationFailureActor {
   val EvtSourceId = "Test.FaultyService"
 }
 
-class ServiceWithInitialisationFailureActor(id: String) extends StatelessServiceActor(id) {
+class ServiceWithInitialisationFailureActor extends StatelessServiceActor {
 
   import ServiceWithInitialisationFailureActor._
 

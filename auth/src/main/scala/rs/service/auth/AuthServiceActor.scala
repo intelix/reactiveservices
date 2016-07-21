@@ -72,7 +72,7 @@ object AuthServiceActor {
 
 }
 
-class AuthServiceActor(id: String) extends StatelessServiceActor(id) {
+class AuthServiceActor extends StatelessServiceActor {
 
   import AuthServiceActor._
 
@@ -131,7 +131,7 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) {
   }
 
   onSignal {
-    case (Subject(_, TopicKey("ivalidate"), UserToken(ut)), _) =>
+    case (Subject(_, TopicKey("invalidate"), UserToken(ut)), _) =>
       sessionByUserToken(ut) foreach invalidateSession
       SignalOk()
     case (Subject(_, TopicKey("tauth"), UserToken(ut)), securityToken: String) =>
@@ -148,6 +148,10 @@ class AuthServiceActor(id: String) extends StatelessServiceActor(id) {
 
   }
 
+
+  defaultSignalResponseFor {
+    case _ => SignalFailed()
+  }
 
   onMessage {
     case Invalidate(user) => invalidateUser(user)

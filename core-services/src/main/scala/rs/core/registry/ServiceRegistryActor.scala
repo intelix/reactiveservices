@@ -37,7 +37,7 @@ object ServiceRegistryActor {
 
 }
 
-class ServiceRegistryActor(id: String)
+class ServiceRegistryActor
   extends StatelessActor {
 
   import ServiceRegistryActor._
@@ -47,7 +47,7 @@ class ServiceRegistryActor(id: String)
 
   context.system.eventStream.subscribe(self, classOf[RegistryLocationRequest])
 
-  addEvtFields('service -> id)
+  addEvtFields('service -> self.path.name)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {

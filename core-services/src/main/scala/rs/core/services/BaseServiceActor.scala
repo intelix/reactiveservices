@@ -84,20 +84,10 @@ object ServiceEvt {
 
 }
 
-
-trait WithId {
-  def id: String
-}
-
-abstract class StatelessServiceActor(id: String) extends ServiceActorWithId(id) with StatelessActor with BaseServiceActor
-
-abstract class StatefulServiceActor[T](id: String) extends ServiceActorWithId(id) with StatefulActor[T] with BaseServiceActor
-
-abstract class ServiceActorWithId(override val id: String) extends Actor with WithId
+abstract class StatelessServiceActor extends StatelessActor with BaseServiceActor
 
 trait BaseServiceActor
   extends BaseActor
-  with WithId
   with ClusterAwareness
   with SimpleInMemoryAcknowledgedDelivery
   with StreamDemandBinding
@@ -113,9 +103,11 @@ trait BaseServiceActor
   type SignalHandler = PartialFunction[(Subject, Any), Option[SignalResponse]]
   type SignalHandlerAsync = PartialFunction[(Subject, Any), Option[Future[SignalResponse]]]
 
-  implicit lazy val serviceCfg = ServiceConfig(config.asConfig(id))
+  private val serviceId = self.path.name
 
-  implicit lazy val serviceKey: ServiceKey = id
+  implicit lazy val serviceCfg = ServiceConfig(config.asConfig(serviceId))
+
+  implicit lazy val serviceKey: ServiceKey = serviceId
 
   implicit val execCtx = context.dispatcher
 

@@ -28,10 +28,10 @@
         </layout>
     </appender>
 
-    <logger name="events" level="ERROR" additivity="false">
+    <logger name="events" level="DEBUG" additivity="false">
         <appender-ref ref="Events" />
     </logger>
-    <logger name="test" level="INFO" additivity="false">
+    <logger name="test" level="DEBUG" additivity="false">
         <appender-ref ref="Events" />
     </logger>
 
@@ -42,7 +42,7 @@
     <logger name="akka.cluster.ClusterRemoteWatcher" level="OFF" />
     <logger name="akka" level="OFF" />
 
-    <root level="WARN">
+    <root level="DEBUG">
         <appender-ref ref="Standard" />
     </root>
 

@@ -58,7 +58,7 @@ object TestServiceActor {
 
 }
 
-class TestServiceActor(id: String) extends StatelessServiceActor(id) with ClusterAwareness with RegistryRef {
+class TestServiceActor extends StatelessServiceActor with ClusterAwareness with RegistryRef {
 
   import TestServiceActor._
 

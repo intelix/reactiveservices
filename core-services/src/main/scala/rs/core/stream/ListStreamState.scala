@@ -183,7 +183,9 @@ trait ListStreamPublisher {
     def streamListSnapshot(l: => List[Any])(implicit specs: ListSpecs): Unit = !:!(l)
 
     def !:!(l: => List[Any])(implicit specs: ListSpecs): Unit = ?:(s) match {
-      case Some(x) => performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
+      case Some(x) =>
+        val list = l
+        if (list != x.list) performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, list, specs, List.empty))
       case None => performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
     }
 

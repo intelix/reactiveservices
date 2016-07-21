@@ -47,6 +47,7 @@ object TestEvtPublisher {
 
 class TestEvtPublisher extends EvtPublisher {
 
+
   override def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue]): Unit =
     TestEvtPublisher + RaisedEvent(System.currentTimeMillis(), s, e, fields)
 

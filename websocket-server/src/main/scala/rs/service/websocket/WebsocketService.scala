@@ -15,6 +15,7 @@
  */
 package rs.service.websocket
 
+import java.io.{FileInputStream, InputStream}
 import java.util.concurrent.atomic.AtomicInteger
 
 import akka.NotUsed
@@ -22,6 +23,7 @@ import akka.http.javadsl.model.HttpMethods
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.ws.{Message, UpgradeToWebSocket}
 import akka.http.scaladsl.model.{HttpHeader, HttpRequest, HttpResponse, Uri}
+import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.scaladsl.BidiFlow
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import akka.util.ByteString
@@ -50,7 +52,7 @@ object WebsocketService {
   val EvtSourceId = "Service.WebsocketServer"
 }
 
-class WebsocketService(id: String) extends StatelessServiceActor(id) {
+class WebsocketService extends StatelessServiceActor {
 
   import WebsocketService._
 
@@ -69,6 +71,45 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) {
   val protocolDialectStagesList = serviceCfg.asClassesList("stage-protocol-dialect")
   val serviceDialectStagesList = serviceCfg.asClassesList("stage-service-dialect")
 
+
+  def resourceStream(resourceName: String): InputStream = {
+    new FileInputStream(resourceName)
+    //    val is = getClass.getClassLoader.getResourceAsStream(resourceName)
+    //    require(is ne null, s"Resource $resourceName not found")
+    //    is
+  }
+
+  /*
+    val httpsCtx: ConnectionContext = try {
+      val keyStore = KeyStore.getInstance(KeyStore.getDefaultType)
+  //    keyStore.load(resourceStream("/home/uat/ssl/keystore"), "keystore".toCharArray)
+      keyStore.load(resourceStream("/Users/maks/Desktop/work/sandbox/ssl/keystore"), "keystore".toCharArray)
+  //    keyStore.load(resourceStream("w:/cygwin/home/maks/ssl/keystore"), "keystore".toCharArray)
+
+      val keyManagerFactory = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm)
+      keyManagerFactory.init(keyStore, "password".toCharArray)
+
+      val ciphers = List(
+  //      "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA",
+  //      "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+  //      "TLS_DHE_RSA_WITH_AES_256_CBC_SHA",
+  //      "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA",
+  //      "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+  //      "TLS_DHE_RSA_WITH_AES_128_CBC_SHA",
+  //      "TLS_RSA_WITH_AES_256_CBC_SHA",
+        "TLS_RSA_WITH_AES_128_CBC_SHA",
+        "SSL_RSA_WITH_3DES_EDE_CBC_SHA"
+      )
+
+      val sslContext = SSLContext.getInstance("TLS")
+      sslContext.init(keyManagerFactory.getKeyManagers, null, new SecureRandom)
+      ConnectionContext.https(sslContext = sslContext, enabledProtocols = Some(List("TLSv1", "TLSv1.1", "TLSv1.2")))
+    } catch {
+      case x: Throwable =>
+        x.printStackTrace()
+        ConnectionContext.noEncryption()
+    }*/
+
   val decider: Supervision.Decider = {
     case x =>
       raise(EvtFlowFailure, 'error -> x, 'stacktrace -> x.getStackTrace)
@@ -77,7 +118,7 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) {
 
   implicit val mat = ActorMaterializer(
     ActorMaterializerSettings(context.system)
-      .withDebugLogging(serviceCfg.asBoolean("log.flow-debug", defaultValue = false))
+      .withDebugLogging(serviceCfg.asBoolean("log.flow-debug", defaultValue = true))
       .withInputBuffer(initialSize = 64, maxSize = 64)
       .withSupervisionStrategy(decider))
 
@@ -118,16 +159,22 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) {
   }
 
 
-  Http().bindAndHandleSync(handler = {
-    case WSRequest(upgrade, HttpRequest(HttpMethods.GET, Uri.Path("/"), headers, entity, proto)) =>
-      val count = connectionCounter.incrementAndGet()
-      val id = count + "_" + randomUUID
-      handleWebsocket(upgrade, headers, id)
+  Http().bindAndHandleSync(
+    handler = {
+      case WSRequest(upgrade, HttpRequest(HttpMethods.GET, Uri.Path("/"), headers, entity, proto)) =>
+        val count = connectionCounter.incrementAndGet()
+        val id = count + "_" + randomUUID
+        handleWebsocket(upgrade, headers, id)
 
-    case r: HttpRequest =>
-      raise(CommonEvt.EvtInvalid, 'uri -> r.uri.path.toString(), 'method -> r.method.name)
-      HttpResponse(400, entity = "Invalid websocket request")
-  }, interface = host, port = port) onComplete {
+      case r: HttpRequest =>
+        raise(CommonEvt.EvtInvalid, 'uri -> r.uri.path.toString(), 'method -> r.method.name)
+        HttpResponse(400, entity = "Invalid websocket request")
+    },
+    interface = host,
+    port = port,
+    settings = ServerSettings(system).withVerboseErrorMessages(true)
+    //    connectionContext = httpsCtx
+  ) onComplete {
     case Success(binding) => self ! SuccessfulBinding(binding)
     case Failure(x) => self ! BindingFailed(x)
   }
@@ -152,4 +199,5 @@ class WebsocketService(id: String) extends StatelessServiceActor(id) {
   }
 
   override val evtSource: EvtSource = EvtSourceId
+
 }

@@ -44,7 +44,7 @@ object MgmtService {
 
 }
 
-class MgmtService(id: String) extends StatelessActor {
+class MgmtService extends StatelessActor {
 
   private def exec(c: Any) = RARP(context.system).provider.transport.managementCommand(c)
 

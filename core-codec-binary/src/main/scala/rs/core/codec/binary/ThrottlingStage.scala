@@ -32,7 +32,6 @@ private class SimpleThrottledFlow(serviceCfg: ServiceConfig) extends GraphStage[
   override def createLogic(inheritedAttributes: Attributes): GraphStageLogic = new TimerGraphStageLogic(shape) {
 
     val msgSec = serviceCfg.asInt("throttling.target-msg-sec-per-session", 1000)
-    println(s"!>>>> $msgSec ")
 
     val tokenReplenishInterval = serviceCfg.asFiniteDuration("throttling.token-refresh-interval", 200 millis) match {
       case i if msgSec * i.toMillis / 1000 < 1 => (1000 / msgSec) millis

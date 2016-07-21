@@ -24,8 +24,8 @@ import rs.core.stream._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-abstract class JServiceActor(id: String)
-  extends ServiceActorWithId(id) with JBaseActor with BaseServiceActor with JStringStreamPublisher with JListStreamPublisher with JSetStreamPublisher with JDictionaryMapStreamPublisher {
+abstract class JServiceActor
+  extends JBaseActor with BaseServiceActor with JStringStreamPublisher with JListStreamPublisher with JSetStreamPublisher with JDictionaryMapStreamPublisher {
 
   self: Actor =>
 

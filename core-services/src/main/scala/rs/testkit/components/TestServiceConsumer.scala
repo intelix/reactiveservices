@@ -38,7 +38,7 @@ object TestServiceConsumer {
 
 }
 
-class TestServiceConsumer(id: String) extends Terminal {
+class TestServiceConsumer extends Terminal {
 
   import TestServiceConsumer._
   override val evtSource: EvtSource = EvtSourceId

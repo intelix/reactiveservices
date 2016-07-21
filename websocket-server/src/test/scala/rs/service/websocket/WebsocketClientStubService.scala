@@ -53,7 +53,7 @@ object WebsocketClientStubService {
 
 }
 
-class WebsocketClientStubService(serviceId: String) extends StatelessServiceActor(serviceId) {
+class WebsocketClientStubService extends StatelessServiceActor {
 
   import WebsocketClientStubService._
 

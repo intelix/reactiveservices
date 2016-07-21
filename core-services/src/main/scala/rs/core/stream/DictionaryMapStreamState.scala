@@ -99,6 +99,17 @@ case class DictionaryMapStreamState(seed: Int, seq: Int, values: Array[Any], dic
 
 
 case class DictionaryMapStreamTransitionPartial(seed: Int, seq: Int, seq2: Int, diffs: Array[Any]) extends StreamStateTransition {
+
+  def isBlank = {
+    var i = 0
+    var found = false
+    while (!found && i < diffs.length) {
+      found = diffs(i) != NoChange
+      i += 1
+    }
+    !found
+  }
+
   override def toNewStateFrom(state: Option[StreamState]): Option[StreamState] = state match {
     case Some(st@DictionaryMapStreamState(otherSeed, otherSeq, a, _)) if otherSeed == seed && otherSeq == seq && a.length == diffs.length =>
       Some(st.copy(seq = seq2, values = applyDiffsTo(a)))
@@ -201,10 +212,15 @@ trait DictionaryMapStreamPublisher {
 
     def !#(values: Array[Any])(implicit dict: Dictionary): Unit = transition(values)
 
-    private def transition(values: Array[Any])(implicit dict: Dictionary): Unit = performStateTransition(s, ?#(s) match {
+    private def calculateTransition(values: Array[Any])(implicit dict: Dictionary) = ?#(s) match {
       case Some(state) => state.transitionTo(values)
       case None => new DictionaryMapStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, values, dict)
-    })
+    }
+
+    private def transition(values: Array[Any])(implicit dict: Dictionary): Unit = calculateTransition(values) match {
+      case t: DictionaryMapStreamTransitionPartial if t.isBlank => // no transition needed
+      case t => performStateTransition(s, t)
+    }
 
     def streamMapSnapshot(values: Array[Any])(implicit dict: Dictionary): Unit = transition(values)
 

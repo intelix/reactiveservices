@@ -18,7 +18,7 @@ package rs.core.services.endpoint
 import akka.actor.ActorRef
 import akka.pattern.Patterns
 import rs.core.Subject
-import rs.core.actors.StatefulActor
+import rs.core.actors.{BaseActor, StatefulActor}
 import rs.core.services.Messages._
 import rs.core.services.endpoint.akkastreams.ServicePortSubscriptionRequestSink
 import rs.core.services.internal.{DemandProducerContract, SignalPort, StreamAggregatorActor}
@@ -36,7 +36,7 @@ trait Terminal
     with ListStreamConsumer
     with DemandProducerContract {
 
-  _: StatefulActor[_] =>
+  _: BaseActor =>
 
 
   override val streamAggregator: ActorRef = context.actorOf(StreamAggregatorActor.props(consumerId = self.path.toStringWithoutAddress), "stream-aggregator")

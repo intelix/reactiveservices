@@ -708,7 +708,7 @@ class CoreServiceTest extends StandardMultiNodeSpec {
 
   }
 
-  "List stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" in new With3Consumers1Service {
+  "List stream subscriber" should "receive an initial update when subscribed, followed by all consequent updates" taggedAs (OnlyThisTest)  in new With3Consumers1Service {
     serviceOnNode3("consumer3") ! Open("test", "list1") // reject add when reached 5 items
     serviceOnNode3("consumer3") ! Open("test", "list2") // remove from head when reached 5 items
     serviceOnNode3("consumer3") ! Open("test", "list3") // remove from tail when reached 5 items

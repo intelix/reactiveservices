@@ -16,18 +16,19 @@
 
 package rs.core.actors
 
+import akka.actor.Terminated
 
-trait StatelessActor extends StatefulActor[None.type] {
+trait StatelessActor extends BaseActor {
 
-  case object Default extends ActorState
-
-  @throws[Exception](classOf[Exception]) override
-  def preStart(): Unit = {
-    startWith(Default, None)
-    super.preStart()
+  private var func: Receive = {
+    case Terminated(ref) => terminatedFuncChain.foreach(_ (ref))
   }
 
-  when(Default)(PartialFunction.empty)
+  override def onMessage(f: Receive): Unit = func = f orElse func
 
-
+  override def receive: Receive = {
+    case m if func.isDefinedAt(m) => func(m)
+    case m =>
+      unhandled(m)
+  }
 }

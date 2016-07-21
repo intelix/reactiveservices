@@ -23,7 +23,7 @@ object ClusterAwareService {
 }
 
 
-class ClusterAwareService(id: String) extends StatelessServiceActor(id) with ClusterAwareness {
+class ClusterAwareService extends StatelessServiceActor with ClusterAwareness {
 
   import ClusterAwareService._
 

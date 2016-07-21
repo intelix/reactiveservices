@@ -1,11 +1,11 @@
-package rs.core.codec.binary
+package websocket
 
 import akka.NotUsed
 import akka.stream._
+import akka.stream.scaladsl.GraphDSL.Implicits.flow2flow
 import akka.stream.scaladsl.{BidiFlow, Flow, GraphDSL}
 import akka.stream.stage._
 import akka.util.ByteString
-import rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound, HighPriority}
 import rs.core.config.ConfigOps.wrap
 import rs.core.config.{NodeConfig, ServiceConfig}
 import rs.core.services.endpoint.akkastreams.BytesStageBuilder
@@ -17,7 +17,7 @@ import scala.language.postfixOps
 class ShapingStage extends BytesStageBuilder {
   override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig): Option[BidiFlow[ByteString, ByteString, ByteString, ByteString, NotUsed]] =
     if (serviceCfg.asBoolean("shaping.enabled", defaultValue = true)) Some(BidiFlow.fromGraph(GraphDSL.create() { b =>
-      val in = b.add(Flow[ByteString])
+      val in = b.add(Flow[ByteString].buffer(2, OverflowStrategy.backpressure))
       val out = b.add(Flow.fromGraph(new SimpleShapedFlow(serviceCfg)))
       BidiShape.fromFlows(in, out)
     }))
@@ -62,7 +62,9 @@ private class SimpleShapedFlow(serviceCfg: ServiceConfig) extends GraphStage[Flo
     })
 
     setHandler(out, new OutHandler {
-      override def onPull(): Unit = forward()
+      override def onPull(): Unit = {
+        forward()
+      }
     })
 
     def pushNext(x: ByteString) = {
@@ -73,6 +75,7 @@ private class SimpleShapedFlow(serviceCfg: ServiceConfig) extends GraphStage[Flo
 
 
     def account(x: Int): Unit = allowed -= x
+
     def canPush: Boolean = isAvailable(out) && allowed > 0
 
     def forward() = onHold foreach { next =>

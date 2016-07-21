@@ -129,7 +129,9 @@ trait SetStreamPublisher {
     def streamSetSnapshot(l: => Set[Any])(implicit specs: SetSpecs): Unit = !%(l)
 
     def !%[T](l: => Set[T])(implicit specs: SetSpecs): Unit = ?%(s) match {
-      case Some(x) => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l.asInstanceOf[Set[Any]], specs))
+      case Some(x) =>
+        val set = l
+        if (set != x.set) performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l.asInstanceOf[Set[Any]], specs))
       case None => performStateTransition(s, SetStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l.asInstanceOf[Set[Any]], specs))
     }
 

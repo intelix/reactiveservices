@@ -22,7 +22,7 @@ See [https://github.com/intelix/reactfx](https://github.com/intelix/reactfx)
 Create a service:
 
 ```scala
-class PriceSourceService(id: String) extends StatelessServiceActor(id) {
+class PriceSourceService extends StatelessServiceActor {
 }
 ```
 

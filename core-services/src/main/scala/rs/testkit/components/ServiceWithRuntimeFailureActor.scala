@@ -10,7 +10,7 @@ object ServiceWithRuntimeFailureActor {
   val EvtSourceId = "Test.ServiceWithRuntimeFailure"
 }
 
-class ServiceWithRuntimeFailureActor(id: String) extends StatelessServiceActor(id) {
+class ServiceWithRuntimeFailureActor extends StatelessServiceActor {
 
   import ServiceWithRuntimeFailureActor._
 

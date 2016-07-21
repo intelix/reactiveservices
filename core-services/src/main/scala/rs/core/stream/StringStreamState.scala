@@ -52,9 +52,19 @@ trait StringStreamPublisher {
 
   implicit def toStringPublisher(v: StreamId): StringPublisher = StringPublisher(v)
 
+
+  def ?~(s: StreamId): Option[StringStreamState] = currentStreamState(s) flatMap {
+    case s: StringStreamState => Some(s)
+    case _ => None
+  }
+
   case class StringPublisher(s: StreamId) {
 
-    def !~(v: String) = performStateTransition(s, StringStreamState(v))
+    def !~(v: String) = ?~(s) match {
+      case Some(x) =>
+        if (x.value != v) performStateTransition(s, StringStreamState(v))
+      case None => performStateTransition(s, StringStreamState(v))
+    }
 
     def strRec = !~ _
   }
