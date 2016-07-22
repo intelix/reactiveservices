@@ -724,7 +724,6 @@ class WebsocketTest extends StandardMultiNodeSpec {
     on node1 expect(2) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('user -> "user1")
     on node1 expect(1) of AuthServiceActor.EvtSuccessfulCredentialsAuth + ('user -> "user2")
 
-
     clearEvents()
 
     serviceOnNode1("client/c1") ! OpenSubscriptionFromStub(Subject("auth", "token"))
@@ -768,7 +767,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
     clearEvents()
 
-    serviceOnNode1("test") ! PublishString(CompoundStreamId("string", "user1"), "update-user1")
+    serviceOnNode1("test") ! PublishString(CompoundStreamId("string", 1), "update-user1")
     on node1 expectSome of EvtStringUpdate +('sourceService -> "test", 'topic -> "stringWithId", 'id -> "c1", 'value -> "update-user1")
     on node3 expectSome of EvtStringUpdate +('sourceService -> "test", 'topic -> "stringWithId", 'id -> "c3", 'value -> "update-user1")
 
@@ -778,7 +777,7 @@ class WebsocketTest extends StandardMultiNodeSpec {
 
     clearEvents()
 
-    serviceOnNode1("test") ! PublishString(CompoundStreamId("string", "user2"), "update-user2")
+    serviceOnNode1("test") ! PublishString(CompoundStreamId("string", 2), "update-user2")
     on node1 expectSome of EvtStringUpdate +('sourceService -> "test", 'topic -> "stringWithId", 'id -> "c2", 'value -> "update-user2")
 
     within(2 seconds) {

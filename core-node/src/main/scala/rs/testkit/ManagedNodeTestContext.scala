@@ -22,8 +22,8 @@ import org.scalatest.Suite
 import rs.core.actors.CommonActorEvt
 import rs.core.config.NodeConfig
 import rs.core.utils.UUIDTools
-import rs.node.core.discovery.UdpClusterManagerActor
-import rs.node.core.discovery.UdpClusterManagerActor.Messages.{BlockCommunicationWith, UnblockCommunicationWith}
+import rs.node.core.discovery.ClusterWatcherActor
+import rs.node.core.discovery.tcp.TrafficBlocking.{BlockCommunicationWith, UnblockCommunicationWith}
 import rs.node.core.{ClusterNodeActor, ServiceClusterGuardianActor}
 
 import scala.concurrent.duration.DurationInt
@@ -46,15 +46,19 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
        |node {
        |  id = "${nodeId(idx)}"
        |  host = "localhost"
-       |  port = ${portFor(idx)}
+       |  port = ${akkaPortFor(idx)}
        |  cluster {
        |    discovery {
        |      pre-discovery-timeout = ${if (idx == 1) "2" else "5"} seconds
-       |      timeout = 5 seconds
-       |      udp-endpoint.port = ${udpPortFor(idx)}
-       |      udp-contacts = [
-       |        "localhost:${udpPortFor(1)}",
-       |        "localhost:${udpPortFor(2)}"
+       |      timeout = ${if (idx == 1) "1" else "5"} seconds
+       |      exposure.enabled = on
+       |      exposure.port = ${discoveryPortFor(idx)}
+       |      regions-required = ["Region1", "Region2"]
+       |      region.Region1.contacts = [
+       |        "localhost:${discoveryPortFor(1)}"
+       |      ]
+       |      region.Region2.contacts = [
+       |        "localhost:${discoveryPortFor(2)}"
        |      ]
        |    }
        |  }
@@ -75,7 +79,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
        |     """.stripMargin
 
 
-  protected def udpPortFor(idx: Int) = portFor(idx) + 10000
+  protected def discoveryPortFor(idx: Int) = akkaPortFor(idx) + 10000
 
   override protected def startWithConfig(idx: Int, configs: ConfigReference*): ActorRef =
     withSystem(instanceId(idx)) { implicit sys =>
@@ -130,64 +134,77 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
   trait WithGremlinOnNode1 extends WithNode1 {
     private val nodeIdx = 1
 
+    def onNode1BlockClusterExposure() = serviceOnNode1(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", discoveryPortFor(1))
+
+    def onNode1UnblockClusterExposure() = serviceOnNode1(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", discoveryPortFor(1))
+
     def onNode1BlockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode1("mgmt") ! Block(Seq(portFor(i)))
-      serviceOnNode1(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode1("mgmt") ! Block(Seq(akkaPortFor(i)))
     }
 
     def onNode1UnblockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode1("mgmt") ! Unblock(Seq(portFor(i)))
-      serviceOnNode1(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode1("mgmt") ! Unblock(Seq(akkaPortFor(i)))
     }
   }
 
   trait WithGremlinOnNode2 extends WithNode2 {
+    def onNode2BlockClusterExposure() = serviceOnNode2(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", discoveryPortFor(2))
+
+    def onNode2UnblockClusterExposure() = serviceOnNode2(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", discoveryPortFor(2))
+
     def onNode2BlockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode2("mgmt") ! Block(Seq(portFor(i)))
-      serviceOnNode2(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode2("mgmt") ! Block(Seq(akkaPortFor(i)))
     }
 
     def onNode2UnblockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode2("mgmt") ! Unblock(Seq(portFor(i)))
-      serviceOnNode2(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode2("mgmt") ! Unblock(Seq(akkaPortFor(i)))
     }
 
   }
 
   trait WithGremlinOnNode3 extends WithNode3 {
+
+    def onNode3BlockClusterExposure() = serviceOnNode3(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", discoveryPortFor(3))
+
+    def onNode3UnblockClusterExposure() = serviceOnNode3(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", discoveryPortFor(3))
+
     def onNode3BlockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode3("mgmt") ! Block(Seq(portFor(i)))
-      serviceOnNode3(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode3("mgmt") ! Block(Seq(akkaPortFor(i)))
     }
 
     def onNode3UnblockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode3("mgmt") ! Unblock(Seq(portFor(i)))
-      serviceOnNode3(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode3("mgmt") ! Unblock(Seq(akkaPortFor(i)))
     }
 
   }
 
   trait WithGremlinOnNode4 extends WithNode4 {
+
+    def onNode4BlockClusterExposure() = serviceOnNode4(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", discoveryPortFor(4))
+
+    def onNode4UnblockClusterExposure() = serviceOnNode4(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", discoveryPortFor(4))
+
     def onNode4BlockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode4("mgmt") ! Block(Seq(portFor(i)))
-      serviceOnNode4(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode4("mgmt") ! Block(Seq(akkaPortFor(i)))
     }
 
     def onNode4UnblockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode4("mgmt") ! Unblock(Seq(portFor(i)))
-      serviceOnNode4(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode4("mgmt") ! Unblock(Seq(akkaPortFor(i)))
     }
   }
 
   trait WithGremlinOnNode5 extends WithNode5 {
+
+    def onNode5BlockClusterExposure() = serviceOnNode5(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", discoveryPortFor(5))
+
+    def onNode5UnblockClusterExposure() = serviceOnNode5(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", discoveryPortFor(5))
+
     def atNode5BlockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode5("mgmt") ! Block(Seq(portFor(i)))
-      serviceOnNode5(ClusterNodeActor.DiscoveryMgrId) ! BlockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode5("mgmt") ! Block(Seq(akkaPortFor(i)))
     }
 
     def atNode5UnblockNode(idx: Int*) = idx.foreach { i =>
-      serviceOnNode5("mgmt") ! Unblock(Seq(portFor(i)))
-      serviceOnNode5(ClusterNodeActor.DiscoveryMgrId) ! UnblockCommunicationWith("localhost", udpPortFor(i))
+      serviceOnNode5("mgmt") ! Unblock(Seq(akkaPortFor(i)))
     }
   }
 
@@ -197,9 +214,9 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
     def expectFullyBuilt() {
       on node1 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
       on node2 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
-      on node2 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
-      on node2 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
-      on node1 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
+      on node2 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node1Address)
+      on node2 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node2Address)
+      on node1 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node2Address)
     }
   }
 
@@ -207,10 +224,10 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
       on node3 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
-      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
-      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
-      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
-      on node1 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node3 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node1Address)
+      on node3 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node2Address)
+      on node3 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node3Address)
+      on node1 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node3Address)
     }
   }
 
@@ -218,13 +235,13 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
     override def expectFullyBuilt(): Unit = {
       super.expectFullyBuilt()
       on node4 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
-      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
-      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
-      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
-      on node4 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-      on node1 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-      on node2 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-      on node3 expectOne of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node4 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node1Address)
+      on node4 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node2Address)
+      on node4 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node3Address)
+      on node4 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
+      on node1 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
+      on node2 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
+      on node3 expectOne of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
     }
   }
 

@@ -64,6 +64,7 @@ trait StringStreamPublisher {
       case Some(x) =>
         if (x.value != v) performStateTransition(s, StringStreamState(v))
       case None => performStateTransition(s, StringStreamState(v))
+      case _ =>
     }
 
     def strRec = !~ _

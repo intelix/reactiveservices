@@ -187,6 +187,7 @@ trait ListStreamPublisher {
         val list = l
         if (list != x.list) performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, list, specs, List.empty))
       case None => performStateTransition(s, ListStreamState((System.nanoTime() % Int.MaxValue).toInt, 0, l, specs, List.empty))
+      case _ =>
     }
 
     def streamListAdd(pos: Int, v: => Any): Unit = !:+(pos, v)

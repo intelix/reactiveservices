@@ -22,6 +22,7 @@ import akka.cluster.Member
 trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription {
 
   var reachableMembers: Map[Address, Member] = Map.empty
+  var allMembers: Map[Address, Member] = Map.empty
 
   var leader: Option[Address] = None
 
@@ -42,14 +43,20 @@ trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription
   private var clusterLeaderHandoverChain = List[() => Unit]()
   private var clusterLeaderTakeoverChain = List[() => Unit]()
   private var clusterLeaderChangedChain = List[PartialFunction[Option[Address], Unit]]()
+  private var clusterReachableMemberSetChangedChain = List[PartialFunction[Map[Address, Member], Unit]]()
+  private var clusterAnyMemberSetChangedChain = List[PartialFunction[Map[Address, Member], Unit]]()
 
-  final def reachableRoles = reachableMembers.values.flatMap(_.roles).toSet
+  final def clusterRoles = allMembers.values.flatMap(_.roles).toSet
 
   final def onClusterMemberUp(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberUpChain :+= f
 
   final def onClusterMemberUnreachable(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberUnreachableChain :+= f
 
   final def onClusterMemberRemoved(f: PartialFunction[(Address, Set[String]), Unit]): Unit = clusterMemberRemovedChain :+= f
+
+  final def onClusterReachableMemberSetChanged(f: PartialFunction[Map[Address, Member], Unit]): Unit = clusterReachableMemberSetChangedChain :+= f
+
+  final def onClusterAnyMemberSetChanged(f: PartialFunction[Map[Address, Member], Unit]): Unit = clusterAnyMemberSetChangedChain :+= f
 
   final def onClusterRolesChanged(f: PartialFunction[Set[String], Unit]): Unit = clusterRolesChangedChain :+= f
 
@@ -73,33 +80,64 @@ trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription
     }
 
   onMessage {
-    case MemberUp(member) => add(member, clusterMemberUpChain)
-    case ReachableMember(member) => add(member, clusterMemberUpChain)
-    case MemberRemoved(member, previousStatus) => remove(member, clusterMemberRemovedChain)
-    case MemberLeft(member) => remove(member, clusterMemberRemovedChain)
-    case MemberExited(member) => remove(member, clusterMemberRemovedChain)
-    case UnreachableMember(member) => remove(member, clusterMemberUnreachableChain)
-    case MemberJoined(_) =>
-    case MemberWeaklyUp(_) =>
+    case MemberUp(member) =>
+      addReachable(member, clusterMemberUpChain)
+      add(member)
+    case ReachableMember(member) =>
+      addReachable(member, clusterMemberUpChain)
+      add(member)
+    case MemberRemoved(member, previousStatus) =>
+      removeReachable(member, clusterMemberRemovedChain)
+      remove(member)
+    case MemberLeft(member) =>
+      removeReachable(member, clusterMemberRemovedChain)
+      remove(member)
+    case MemberExited(member) =>
+      removeReachable(member, clusterMemberRemovedChain)
+      remove(member)
+    case UnreachableMember(member) =>
+      removeReachable(member, clusterMemberUnreachableChain)
+      add(member)
+    case MemberJoined(member) =>
+      add(member)
+    case MemberWeaklyUp(member) =>
+      add(member)
     case LeaderChanged(l) => processLeaderChange(l)
   }
 
-  private def remove(member: Member, notify: List[PartialFunction[(Address, Set[String]), Unit]]) =
-    doWithRolesTracking {
-      reachableMembers = reachableMembers - member.address
-      notify.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
+  private def removeReachable(member: Member, notify: List[PartialFunction[(Address, Set[String]), Unit]]) = {
+    reachableMembers = reachableMembers - member.address
+    notify.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
+    notifyClusterReachableMemberSetChange()
+  }
+
+  private def addReachable(member: Member, notify: List[PartialFunction[(Address, Set[String]), Unit]]) = {
+    reachableMembers = reachableMembers + (member.address -> member)
+    notify.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
+    notifyClusterReachableMemberSetChange()
+  }
+
+  private def remove(member: Member) =
+    if (allMembers contains member.address) doWithRolesTracking {
+      allMembers = allMembers - member.address
+      notifyClusterMemberSetChange()
     }
 
-  private def add(member: Member, notify: List[PartialFunction[(Address, Set[String]), Unit]]) =
-    doWithRolesTracking {
-      reachableMembers = reachableMembers + (member.address -> member)
-      notify.foreach(_.applyOrElse((member.address, member.roles), (_: Any) => ()))
+  private def add(member: Member) =
+    if (!(allMembers contains member.address)) doWithRolesTracking {
+      allMembers = allMembers + (member.address -> member)
+      notifyClusterMemberSetChange()
     }
+
+  private def notifyClusterReachableMemberSetChange() = clusterReachableMemberSetChangedChain.foreach(_.applyOrElse(reachableMembers, (_: Any) => ()))
+
+  private def notifyClusterMemberSetChange() = clusterAnyMemberSetChangedChain.foreach(_.applyOrElse(allMembers, (_: Any) => ()))
+
 
   private def doWithRolesTracking(operation: => Unit): Unit = {
-    val rolesBeforeOp = reachableRoles
+    val rolesBeforeOp = clusterRoles
     operation
-    val rolesAfterOp = reachableRoles
+    val rolesAfterOp = clusterRoles
     if (rolesBeforeOp != rolesAfterOp) {
       clusterRolesChangedChain.foreach(_.applyOrElse(rolesAfterOp, (_: Any) => ()))
       val added = rolesAfterOp -- rolesBeforeOp

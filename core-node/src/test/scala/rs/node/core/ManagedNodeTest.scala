@@ -18,7 +18,6 @@ package rs.node.core
 import rs.core.actors.CommonActorEvt
 import rs.core.registry.ServiceRegistryActor
 import rs.core.services.ServiceEvt
-import rs.node.core.discovery.UdpClusterManagerActor
 import rs.testkit
 import rs.testkit._
 import rs.testkit.components._
@@ -61,8 +60,18 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
         """.stripMargin)
   }
 
-  it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg failure in preStart)" in new With2Nodes {
+  trait FaultyOnInitialisationWithoutRecovery {
     ServiceWithInitialisationFailureActor.recoveryEnabled = false
+  }
+  trait FaultyOnInitialisationWithRecovery {
+    ServiceWithInitialisationFailureActor.recoveryEnabled = true
+    ServiceWithInitialisationFailureActor.failureCounter = 0
+  }
+  trait FaultyOnRuntimeWithoutRecovery {
+    testkit.components.ServiceWithRuntimeFailureActor.recoveryEnabled = false
+  }
+
+  it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg failure in preStart)" in new FaultyOnInitialisationWithoutRecovery with With2Nodes {
     on node1 expectSome of CommonActorEvt.EvtPostStop + ServiceClusterGuardianActor.EvtSourceId
     on node1 expect(1) of CommonActorEvt.EvtPostRestart + ServiceClusterBootstrapActor.EvtSourceId
     on node1 expect(3 + 1 + 3 + 1) of CommonActorEvt.EvtPreStart + ServiceWithInitialisationFailureActor.EvtSourceId
@@ -78,8 +87,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
   }
 
-  it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg service runtime failure)" in new With2Nodes {
-    testkit.components.ServiceWithRuntimeFailureActor.recoveryEnabled = false
+  it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg service runtime failure)" in new FaultyOnRuntimeWithoutRecovery with With2Nodes {
     on node1 expectSome of CommonActorEvt.EvtPostStop + ServiceClusterGuardianActor.EvtSourceId
     on node1 expect(1) of CommonActorEvt.EvtPostRestart + ServiceClusterBootstrapActor.EvtSourceId
     on node1 expect(3 + 1 + 3 + 1) of CommonActorEvt.EvtPreStart + ServiceWithRuntimeFailureActor.EvtSourceId
@@ -95,9 +103,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     override def node1Services = super.node1Services ++ Map("test" -> classOf[testkit.components.ServiceWithRuntimeFailureActor])
   }
 
-  it should "not terminate if service recover after several failures, if max not exceeded" in new With2Nodes {
-    ServiceWithInitialisationFailureActor.recoveryEnabled = true
-    ServiceWithInitialisationFailureActor.failureCounter = 0
+  it should "not terminate if service recover after several failures, if max not exceeded" in new FaultyOnInitialisationWithRecovery with With2Nodes {
     on node1 expect(5) of CommonActorEvt.EvtPreStart + ServiceWithInitialisationFailureActor.EvtSourceId
     on node1 expectNone of CommonActorEvt.EvtPostStop + ServiceClusterGuardianActor.EvtSourceId
     on node1 expectNone of CommonActorEvt.EvtPostRestart + ServiceClusterBootstrapActor.EvtSourceId
@@ -113,8 +119,8 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
   }
 
-  "Service node" should "terminate all services when restarted (due to other service initialisation failure)" in new With2Nodes {
-    ServiceWithInitialisationFailureActor.recoveryEnabled = false
+
+  "Service node" should "terminate all services when restarted (due to other service initialisation failure)" in new FaultyOnInitialisationWithoutRecovery with With2Nodes {
     on node1 expectSome of CommonActorEvt.EvtPostStop + ServiceClusterGuardianActor.EvtSourceId
     on node1 expect(2) of CommonActorEvt.EvtPostRestart + ServiceClusterBootstrapActor.EvtSourceId
 
@@ -131,9 +137,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     override def node1Services = super.node1Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
   }
 
-  it should "not terminate any other services when restarting a service" in new With2Nodes {
-    ServiceWithInitialisationFailureActor.recoveryEnabled = true
-    ServiceWithInitialisationFailureActor.failureCounter = 0
+  it should "not terminate any other services when restarting a service" in new FaultyOnInitialisationWithRecovery with With2Nodes {
     on node1 expect(5) of CommonActorEvt.EvtPreStart + ServiceWithInitialisationFailureActor.EvtSourceId
     on node1 expectNone of CommonActorEvt.EvtPostStop + ServiceClusterGuardianActor.EvtSourceId
     on node1 expectNone of CommonActorEvt.EvtPostRestart + ServiceClusterBootstrapActor.EvtSourceId
@@ -236,6 +240,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
 
     // blocking traffic between node 1 and 2 so node 1 doesn't merge on startup
 
+    onNode2BlockClusterExposure()
     onNode2BlockNode(1)
 
     // creating island cluster on node 1
@@ -243,6 +248,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
       on node1 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
 
       // unblocking
+      onNode2UnblockClusterExposure()
       onNode2UnblockNode(1)
 
       on node2 expectOne of ClusterNodeActor.EvtClusterMergeTrigger
@@ -261,6 +267,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
 
     // blocking traffic between node 1 and 2 so node 1 doesn't merge on startup
     onNode1BlockNode(2)
+    onNode1BlockClusterExposure()
 
 
     // creating island cluster on node 2
@@ -268,6 +275,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
       on node2 expectSome of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined")
 
       // unblocking
+      onNode1UnblockClusterExposure()
       onNode1UnblockNode(2)
 
 
@@ -280,7 +288,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
 
   }
-
+/*
   it should "detect quarantine after network split (1,2/3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
 
     expectFullyBuilt()
@@ -501,6 +509,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
 
     override def node2Services: Map[String, Class[_]] = super.node2Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
   }
+  */
 
 
 }

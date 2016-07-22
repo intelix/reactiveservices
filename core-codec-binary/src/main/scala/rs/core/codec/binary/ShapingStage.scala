@@ -1,4 +1,4 @@
-package websocket
+package rs.core.codec.binary
 
 import akka.NotUsed
 import akka.stream._

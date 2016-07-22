@@ -19,7 +19,8 @@ class ServiceWithInitialisationFailureActor extends StatelessServiceActor {
   def preStart(): Unit = {
     super.preStart()
     if (ServiceWithInitialisationFailureActor.recoveryEnabled) ServiceWithInitialisationFailureActor.failureCounter += 1
-
+    println(s"!>>> ServiceWithInitialisationFailureActor.recoveryEnabled = ${ServiceWithInitialisationFailureActor.recoveryEnabled}")
+    println(s"!>>> ServiceWithInitialisationFailureActor.failureCounter = ${ServiceWithInitialisationFailureActor.failureCounter}")
     if (!ServiceWithInitialisationFailureActor.recoveryEnabled || ServiceWithInitialisationFailureActor.failureCounter < 5)
       throw new RuntimeException("simulated failure on preStart")
 

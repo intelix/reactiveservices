@@ -59,7 +59,7 @@ object ServiceEvt {
 
   case object EvtNodeAvailable extends InfoE
 
-  case object EvtStartingRemoveAgent extends InfoE
+  case object EvtStartingRemoteAgent extends InfoE
 
   case object EvtRemoveAgentTerminated extends InfoE
 
@@ -301,7 +301,7 @@ trait BaseServiceActor
           .withDeploy(Deploy(scope = RemoteScope(address))), name)
       )
 
-      raise(ServiceEvt.EvtStartingRemoveAgent, 'address -> address, 'host -> address.host, 'name -> name, 'remotePath -> newAgent.path)
+      raise(ServiceEvt.EvtStartingRemoteAgent, 'address -> address, 'host -> address.host, 'name -> name, 'remotePath -> newAgent.path)
       val newActiveLocation = new AgentView(newAgent)
       activeAgents += address.toString -> newActiveLocation
     }

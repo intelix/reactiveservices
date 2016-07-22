@@ -15,7 +15,7 @@ trait AbstractNodeTestContext {
 
   protected val basePort = 3800
 
-  protected def portFor(idx: Int) = basePort + idx - 1
+  protected def akkaPortFor(idx: Int) = basePort + idx - 1
 
   protected def nodeId(idx: Int) = "Node" + idx
 
@@ -70,7 +70,7 @@ trait AbstractNodeTestContext {
     implicit def convertToOnNode1(s: EventAssertionKey): OnNode1 = OnNode1()
 
 
-    def node1Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
+    def node1Address = s"$protocol://cluster@localhost:${akkaPortFor(nodeIdx)}"
 
     def node1System = locateExistingSystem(instanceId(nodeIdx))
 
@@ -80,7 +80,11 @@ trait AbstractNodeTestContext {
 
     def stopNode1() = stopNode(nodeIdx)
 
-    def node1Configs: Seq[ConfigReference] = Seq(ConfigFromContents( """akka.cluster.roles+="wCritical""""), ConfigFromContents( """akka.cluster.roles+="seed""""))
+    def node1Configs: Seq[ConfigReference] = Seq(
+      ConfigFromContents( """akka.cluster.roles+="wCritical""""),
+      ConfigFromContents( """akka.cluster.roles+="Region1""""),
+      ConfigFromContents( """akka.cluster.roles+="seed"""")
+    )
 
     def node1Services: Map[String, Class[_]] = Map.empty
 
@@ -104,7 +108,7 @@ trait AbstractNodeTestContext {
 
     implicit def convertToOnNode2(s: EventAssertionKey): OnNode2 = OnNode2()
 
-    def node2Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
+    def node2Address = s"$protocol://cluster@localhost:${akkaPortFor(nodeIdx)}"
 
     def node2System = locateExistingSystem(instanceId(nodeIdx))
 
@@ -114,7 +118,11 @@ trait AbstractNodeTestContext {
 
     def stopNode2() = stopNode(nodeIdx)
 
-    def node2Configs: Seq[ConfigReference] = Seq(ConfigFromContents( """akka.cluster.roles+="wPreferred""""), ConfigFromContents( """akka.cluster.roles+="seed""""))
+    def node2Configs: Seq[ConfigReference] = Seq(
+      ConfigFromContents( """akka.cluster.roles+="wPreferred""""),
+      ConfigFromContents( """akka.cluster.roles+="Region2""""),
+      ConfigFromContents( """akka.cluster.roles+="seed"""")
+    )
 
     def node2Services: Map[String, Class[_]] = Map.empty
 
@@ -137,7 +145,7 @@ trait AbstractNodeTestContext {
 
     implicit def convertToOnNode3(s: EventAssertionKey): OnNode3 = OnNode3()
 
-    def node3Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
+    def node3Address = s"$protocol://cluster@localhost:${akkaPortFor(nodeIdx)}"
 
     def node3System = locateExistingSystem(instanceId(nodeIdx))
 
@@ -171,7 +179,7 @@ trait AbstractNodeTestContext {
     implicit def convertToOnNode4(s: EventAssertionKey): OnNode4 = OnNode4()
 
 
-    def node4Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
+    def node4Address = s"$protocol://cluster@localhost:${akkaPortFor(nodeIdx)}"
 
     def node4System = locateExistingSystem(instanceId(nodeIdx))
 
@@ -205,7 +213,7 @@ trait AbstractNodeTestContext {
     implicit def convertToOnNode5(s: EventAssertionKey): OnNode5 = OnNode5()
 
 
-    def node5Address = s"$protocol://cluster@localhost:${portFor(nodeIdx)}"
+    def node5Address = s"$protocol://cluster@localhost:${akkaPortFor(nodeIdx)}"
 
     def node5System = locateExistingSystem(instanceId(nodeIdx))
 

@@ -20,7 +20,7 @@ import rs.core.registry.ServiceRegistryActor
 import rs.core.services.BaseServiceActor.StopRequest
 import rs.core.services.{CompoundStreamId, ServiceEvt}
 import rs.core.stream.ListStreamState.{ListSpecs, RejectAdd}
-import rs.node.core.discovery.UdpClusterManagerActor
+import rs.node.core.discovery.ClusterWatcherActor
 import rs.testkit
 import rs.testkit._
 import rs.testkit.components.TestServiceActor._
@@ -35,17 +35,16 @@ class CoreServiceTest extends StandardMultiNodeSpec {
 
   trait With4NodesAndTestOn1 extends With4Nodes {
 
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
-
     override def node1Services = super.node1Services ++ Map("test" -> classOf[TestServiceActor])
 
-    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("test.idle-stream-threshold=1s")
+    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+
+      ConfigFromContents("test.idle-stream-threshold=1s") :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
 
     expectFullyBuilt()
   }
 
   trait WithClusterAwareServiceOn1 extends WithNode1 {
-    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("node.cluster.discovery.timeout=5s")
+    override def node1Configs: Seq[ConfigReference] = super.node1Configs :+ ConfigFromContents("node.cluster.discovery.timeout=1s")
 
     override def node1Services: Map[String, Class[_]] = super.node1Services + ("test" -> classOf[testkit.components.ClusterAwareService])
   }
@@ -530,6 +529,12 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     serviceOnNode1("test") ! PublishString("string", "update1")
     on node3 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update1")
 
+    onNode1BlockClusterExposure()
+    onNode2BlockClusterExposure()
+    onNode3BlockClusterExposure()
+    onNode4BlockClusterExposure()
+
+
     onNode1BlockNode(3, 4)
     onNode2BlockNode(3, 4)
 
@@ -537,15 +542,20 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     onNode4BlockNode(1, 2)
 
     within(5 seconds) {
-      on node1 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node2 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node3 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node4 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+      on node1 expectNone of ClusterWatcherActor.EvtNodeRemoved
+      on node2 expectNone of ClusterWatcherActor.EvtNodeRemoved
+      on node3 expectNone of ClusterWatcherActor.EvtNodeRemoved
+      on node4 expectNone of ClusterWatcherActor.EvtNodeRemoved
     }
 
     serviceOnNode1("test") ! PublishString("string", "update2")
 
     within(5 seconds) {}
+
+    onNode1UnblockClusterExposure()
+    onNode2UnblockClusterExposure()
+    onNode3UnblockClusterExposure()
+    onNode4UnblockClusterExposure()
 
     onNode1UnblockNode(3, 4)
     onNode2UnblockNode(3, 4)
@@ -560,12 +570,12 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     }
 
 
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node2Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node1Address)
+    on node1 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node3Address)
+    on node1 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
+    on node2 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node3Address)
+    on node2 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
+    on node4 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node2Address)
+    on node4 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node1Address)
 
     on node3 expectSome of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update2")
 
@@ -583,6 +593,11 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     serviceOnNode1("test") ! PublishString("string", "update1")
     on node3 expectOne of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update1")
 
+    onNode1BlockClusterExposure()
+    onNode2BlockClusterExposure()
+    onNode3BlockClusterExposure()
+    onNode4BlockClusterExposure()
+
     onNode1BlockNode(3, 4)
     onNode2BlockNode(3, 4)
 
@@ -590,10 +605,10 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     onNode4BlockNode(1, 2)
 
     within(5 seconds) {
-      on node1 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node2 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node3 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node4 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+      on node1 expectNone of ClusterWatcherActor.EvtNodeRemoved
+      on node2 expectNone of ClusterWatcherActor.EvtNodeRemoved
+      on node3 expectNone of ClusterWatcherActor.EvtNodeRemoved
+      on node4 expectNone of ClusterWatcherActor.EvtNodeRemoved
     }
 
     serviceOnNode1("test") ! PublishString("string", "update2")
@@ -604,10 +619,16 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     within(5 seconds) {}
 
 
+    onNode1UnblockClusterExposure()
+    onNode2UnblockClusterExposure()
+    onNode3UnblockClusterExposure()
+    onNode4UnblockClusterExposure()
+
     onNode1UnblockNode(3, 4)
     onNode2UnblockNode(3, 4)
     onNode3UnblockNode(1, 2)
     onNode4UnblockNode(1, 2)
+
 
     within(10 seconds) {
       on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
@@ -617,12 +638,12 @@ class CoreServiceTest extends StandardMultiNodeSpec {
     }
 
 
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node2Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node1Address)
+    on node1 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node3Address)
+    on node1 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
+    on node2 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node3Address)
+    on node2 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node4Address)
+    on node4 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node2Address)
+    on node4 expectSome of ClusterWatcherActor.EvtNodeUp + ('addr -> node1Address)
 
     on node3 expectSome of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update5")
     on node3 expectNone of TestServiceConsumer.EvtStringUpdate +('path -> "/user/node/consumer3", 'sourceService -> "test", 'topic -> "string", 'value -> "update2")

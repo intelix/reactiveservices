@@ -24,8 +24,9 @@ import rs.core.config.ConfigOps.wrap
 import rs.core.evt.{CommonEvt, EvtSource, InfoE}
 import rs.core.services.BaseServiceActor.StopRequest
 import rs.node.core.ClusterNodeActor._
-import rs.node.core.discovery.DiscoveryMessages.{ReachableClusters, ReachableNodes}
-import rs.node.core.discovery.{JoinStrategy, RolePriorityStrategy, UdpClusterManagerActor}
+import rs.node.core.discovery.DiscoveryMessages.ReachableClusters
+import rs.node.core.discovery.tcp.ClusterRegionsMonitorActor
+import rs.node.core.discovery.{ClusterWatcherActor, JoinStrategy, RolePriorityStrategy}
 
 import scala.collection.JavaConversions
 import scala.concurrent.duration._
@@ -35,8 +36,6 @@ import scalaz.Scalaz._
 object ClusterNodeActor {
 
   val EvtSourceId = "Node"
-
-  case object EvtAvailableSeeds extends InfoE
 
   case object EvtClustersDiscovered extends InfoE
 
@@ -53,7 +52,7 @@ object ClusterNodeActor {
   case object EvtStoppingService extends InfoE
 
 
-  case class ServiceNodeData(joinStrategy: JoinStrategy, availableSeeds: Set[Address] = Set.empty, seedsToJoin: Set[Address] = Set.empty, reachableClusters: Option[ReachableClusters] = None)
+  case class ServiceNodeData(joinStrategy: JoinStrategy, seedsToJoin: Set[Address] = Set.empty, reachableClusters: Option[ReachableClusters] = None)
 
   val DiscoveryMgrId = "discovery-mgr"
 
@@ -91,8 +90,8 @@ object ClusterNodeActor {
 
 class ClusterNodeActor extends StatefulActor[Any] {
 
-  import States._
   import InternalMessages._
+  import States._
 
 
   implicit val sys = context.system
@@ -102,7 +101,11 @@ class ClusterNodeActor extends StatefulActor[Any] {
   private lazy val selfAddress = cluster.selfAddress
 
 
-  private val discoveryManager = context.actorOf(Props(nodeCfg.asClass("node.cluster.discovery.provider", classOf[UdpClusterManagerActor])), DiscoveryMgrId)
+  private val seedRoles = nodeCfg.asStringList("node.cluster.discovery.seed-roles")
+  private lazy val mySeed = if (seedRoles.exists(cluster.selfRoles.contains)) Some(cluster.selfAddress) else None
+
+
+  private val discoveryManager = context.actorOf(Props(nodeCfg.asClass("node.cluster.discovery.provider", classOf[ClusterRegionsMonitorActor])), DiscoveryMgrId)
   private val joinTimeout = nodeCfg.asFiniteDuration("node.cluster.join-timeout", 20 seconds)
   private val discoveryTimeout = nodeCfg.asFiniteDuration("node.cluster.discovery.timeout", 10 seconds)
 
@@ -120,6 +123,7 @@ class ClusterNodeActor extends StatefulActor[Any] {
     OneForOneStrategy(maxNrOfRetries = maxRetries, withinTimeRange = maxRetriesTimewindow, loggingEnabled = false) {
       case x: Exception =>
         raise(CommonEvt.EvtSupervisorRestartTrigger, 'Message -> x.getMessage, 'Cause -> x)
+        x.printStackTrace()
         Restart
       case x =>
         Escalate
@@ -138,6 +142,7 @@ class ClusterNodeActor extends StatefulActor[Any] {
     super.postStop()
   }
 
+  context.actorOf(Props[ClusterWatcherActor], "watcher") // TODO ok to do it here or should I move it to one of the lifecycle hooks?
 
   startWith(Initial, ServiceNodeData(
     joinStrategy = nodeCfg.asClass[JoinStrategy]("node.cluster.join.strategy", classOf[RolePriorityStrategy]).newInstance()
@@ -166,10 +171,14 @@ class ClusterNodeActor extends StatefulActor[Any] {
       raise(EvtUnableToJoinCluster, 'seeds -> state.seedsToJoin)
       stop(FSM.Failure("Unable to join cluster, seeds: " + state.seedsToJoin))
     case Event(LeaderChanged(Some(a)), _) => transitionTo(Joined)
+    case Event(CheckState, _) => stay()
   }
 
   when(Joined) {
-    case Event(CheckState, state: ServiceNodeData) => mergeWithExistingCluster(state) | stay()
+    case Event(CheckState, state: ServiceNodeData) if state.reachableClusters.exists(_.our.exists(_.members.nonEmpty)) =>
+      mergeWithExistingCluster(state) | stay()
+    case Event(LeaderChanged(_), _) => stay()
+    case Event(CheckState, _) => stay()
   }
 
   onTransition {
@@ -197,10 +206,6 @@ class ClusterNodeActor extends StatefulActor[Any] {
       self ! CheckState
       stay using state.copy(reachableClusters = Some(s))
 
-    case Event(ReachableNodes(ns), state: ServiceNodeData) =>
-      raise(EvtAvailableSeeds, 'list -> ns)
-      self ! CheckState
-      stay using state.copy(availableSeeds = ns)
 
     case Event(Terminated(ref), _) if runningServices.contains(ref) =>
       stop(FSM.Failure("Service terminated " + ref))
@@ -216,13 +221,14 @@ class ClusterNodeActor extends StatefulActor[Any] {
 
 
   private def joinExistingCluster(state: ServiceNodeData) = state.reachableClusters.flatMap { reachable =>
-    state.joinStrategy.selectClusterToJoin(reachable.our, reachable.other) map { c => transitionTo(Joining) using state.copy(seedsToJoin = c.members.filter(_ != selfAddress), reachableClusters = None) }
+    state.joinStrategy.selectClusterToJoin(reachable.our, reachable.other.filterNot(_.members.contains(selfAddress))) map { c =>
+      transitionTo(Joining) using state.copy(seedsToJoin = c.members.filter(_ != selfAddress), reachableClusters = None)
+    }
   }
 
-  private def ifSeedFormCluster(state: ServiceNodeData) =
-    state.availableSeeds.toList.sortBy(_.toString).headOption.flatMap { seed =>
-      if (seed == selfAddress) Some(transitionTo(Joining) using state.copy(seedsToJoin = Set(selfAddress))) else None
-    }
+  private def ifSeedFormCluster(state: ServiceNodeData) = mySeed.map { addr =>
+    transitionTo(Joining) using state.copy(seedsToJoin = Set(addr))
+  }
 
 
   private def mergeWithExistingCluster(state: ServiceNodeData) = state.reachableClusters.map { reachable =>
