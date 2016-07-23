@@ -81,6 +81,9 @@ lazy val js = Project(
 
 
 
+lazy val samples = Project(id = "samples", base = file("samples")).dependsOn(websocket_server, auth, core, node).enablePlugins(DockerPlugin, JavaAppPackaging)
+
+
 //lazy val reactiveFxWeb = Project(id = "reactivefx-web", base = file("tmp/reactivefx/web"), dependencies = Seq(core, js)).enablePlugins(PlayScala, SbtWeb)
 //lazy val reactiveFxLegacyServiceAPI = Project(id = "reactivefx-legacyservice-api", base = file("tmp/reactivefx/legacyservice-api"))
 //lazy val reactiveFxLegacyService = Project(id = "reactivefx-legacyservice", base = file("tmp/reactivefx/legacyservice")).dependsOn(reactiveFxLegacyServiceAPI, core, node).enablePlugins(JavaAppPackaging)

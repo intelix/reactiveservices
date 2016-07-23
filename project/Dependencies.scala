@@ -65,7 +65,7 @@ object Dependencies {
     val akkaPersistence   = "com.typesafe.akka"           %% "akka-persistence-experimental"  % akkaVersion
     val akkaStreams       = "com.typesafe.akka"           %% "akka-stream"                    % akkaVersion
     val akkaHttpCore      = "com.typesafe.akka"           %% "akka-http-core"                 % akkaVersion
-//    val akkaHttp          = "com.typesafe.akka"           %% "akka-http-experimental"         % akkaHTTPVersion
+    val akkaHttp          = "com.typesafe.akka"           %% "akka-http-experimental"         % akkaVersion
     val akkaContrib       = "com.typesafe.akka"           %% "akka-contrib"                   % akkaVersion
 
     val googleProtobuf    = "com.google.protobuf"         %  "protobuf-java"                  % googleProtobufVersion
@@ -136,7 +136,7 @@ object Dependencies {
     akkaSlf4j,
     akkaStreams,
     akkaHttpCore,
-//    akkaHttp,
+    akkaHttp,
     kryoser,
     googleProtobuf,
     Test.akkaTestKit,

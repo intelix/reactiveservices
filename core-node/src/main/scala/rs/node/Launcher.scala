@@ -22,7 +22,11 @@ import rs.node.core.ServiceClusterGuardianActor
 
 object Launcher extends App {
 
-  private val configName: String = java.lang.System.getProperty("config", "node.conf")
+  private val configName: String =
+    java.lang.System.getProperty("config", java.lang.System.getenv("NODE_CONFIG")) match {
+      case null => "node.conf"
+      case s => s
+    }
   private val config = if (configName == null) ConfigFactory.empty() else ConfigFactory.load(configName)
   implicit val nodeCfg: NodeConfig = NodeConfig(config)
 

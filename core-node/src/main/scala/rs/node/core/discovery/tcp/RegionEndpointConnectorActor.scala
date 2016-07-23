@@ -1,20 +1,18 @@
 package rs.node.core.discovery.tcp
 
-import java.nio.ByteOrder
-
-import akka.actor.ActorRef
-import akka.io.Tcp.{CommandFailed, Connect, Connected}
-import akka.io.{IO, Tcp}
-import akka.util.{ByteString, CompactByteString}
+import akka.actor.Status
+import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
+import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
+import akka.util.ByteString
 import com.typesafe.scalalogging.StrictLogging
 import rs.core.actors.{ActorState, StatefulActor}
 import rs.core.evt.EvtSource
-import rs.node.core.discovery.tcp.RegionEndpointConnectorActor.{Data, States, _}
-import rs.node.core.discovery.tcp.TcpMessages.RemoteClusterView
+import rs.node.core.discovery.tcp.RegionEndpointConnectorActor.{States, _}
 
-import scala.annotation.tailrec
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
+import scala.util.{Failure, Success}
 
 object RegionEndpointConnectorActor {
 
@@ -25,14 +23,18 @@ object RegionEndpointConnectorActor {
   }
 
   object Out {
+
     case class View(members: Set[String], roles: Set[String])
+
     case object Invalidate
+
   }
 
 
-  case class Data(socket: Option[ActorRef] = None, buffer: ByteString = CompactByteString())
+  //  case class Data(socket: Option[ActorRef] = None, buffer: ByteString = CompactByteString())
+  case class MyData()
 
-  private object States {
+  private object States2 {
 
     case object Connecting extends ActorState
 
@@ -44,9 +46,83 @@ object RegionEndpointConnectorActor {
 
   }
 
+  private object States {
+
+    case object Idle extends ActorState
+
+    case object Querying extends ActorState
+
+    case object Closing extends ActorState
+
+  }
+
 }
 
-class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends StatefulActor[Data] with StrictLogging {
+class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends StatefulActor[MyData] with StrictLogging {
+  override val evtSource: EvtSource = "RegionEndpointConnectorActor"
+
+  import akka.pattern.pipe
+  import context.dispatcher
+
+  case class Data(b: Option[ByteString])
+
+  final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
+
+  val http = Http(context.system)
+
+  startWith(States.Querying, MyData())
+
+  when(States.Idle, stateTimeout = 5 seconds) {
+    case Event(StateTimeout, _) => transitionTo(States.Querying)
+    case Event(In.Close, _) => stop()
+  }
+
+  when(States.Querying) {
+    case Event(In.Close, _) => transitionTo(States.Closing)
+    case Event(Data(None), data) => transitionTo(States.Idle)
+    case Event(Data(Some(bs)), data) =>
+      bs match {
+        case nextPkt@TcpMessages.RemoteClusterView(mem, roles) =>
+          logger.info(s"!>>>> Received ${nextPkt.utf8String} from $endpoint")
+          context.parent ! Out.View(mem, roles)
+        case x =>
+          logger.info("!>>>> Unrecognised: " + x.utf8String)
+      }
+      transitionTo(States.Idle)
+  }
+
+  when(States.Closing) {
+    case Event(t: Data, _) => stop()
+  }
+
+  otherwise {
+    case Event(HttpResponse(StatusCodes.OK, headers, entity, _), data) =>
+      val data = entity.dataBytes.runFold(ByteString(""))(_ ++ _)
+      data.onComplete {
+        case Success(d) => self ! Data(Some(d))
+        case Failure(e) =>
+          logger.error("Hmm...", e)
+          self ! Data(None)
+      }
+      stay()
+    case Event(HttpResponse(_, _, _, _), _) =>
+      self ! Data(None)
+      stay()
+    case Event(Status.Failure(e), _) =>
+      self ! Data(None)
+      stay()
+  }
+
+  onTransition {
+    case _ -> States.Querying =>
+      val uri = s"http://${endpoint.host}:${endpoint.port}/check"
+      logger.info(s"!>>> GET: $uri")
+      http.singleRequest(HttpRequest(uri = uri)).pipeTo(self)
+  }
+}
+
+/*
+class RegionEndpointConnectorActor2(regionId: String, endpoint: Endpoint) extends StatefulActor[Data] with StrictLogging {
   override val evtSource: EvtSource = s"RegionEndpointConnector.$regionId"
 
   import context.system
@@ -139,11 +215,10 @@ class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends
   }
 
 
-
   object Internal {
 
     case object Reconnect
 
   }
 
-}
+} */

@@ -52,7 +52,7 @@ class ClusterRegionsMonitorActor extends StatefulActor[Data] with ClusterAwarene
 
   var exposureActor: Option[ActorRef] = startExposureActor()
 
-  private def startExposureActor() = if (exposureEnabled) Some(context.actorOf(Props(classOf[ClusterViewExposureActor], endpointHost, endpointPort), "exposure")) else None
+  private def startExposureActor() = if (exposureEnabled) Some(context.actorOf(Props(classOf[ClusterViewExposureHTTPActor], endpointHost, endpointPort), "exposure")) else None
 
   private def startAll() = regionConfigs.map { case (id, list) => id -> RegionMeta(startLookupManagerFor(id, list)) }
 
