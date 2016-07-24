@@ -15,18 +15,19 @@
  */
 package rs.service.websocket
 
+import au.com.intelix.rs.core.Subject
 import play.api.libs.json.Json
-import rs.core.Subject
-import rs.core.actors.CommonActorEvt
-import rs.core.services.BaseServiceActor.StopRequest
-import rs.core.services.{ServiceEvt, CompoundStreamId}
+import au.com.intelix.rs.core.actors.CommonActorEvt
+import au.com.intelix.rs.core.services.BaseServiceActor.StopRequest
+import au.com.intelix.rs.core.services.{CompoundStreamId, ServiceEvt}
+import au.com.intelix.rs.core.testkit.{ConfigFromContents, ConfigFromFile, ConfigReference}
 import rs.node.core.ClusterNodeActor
 import rs.service.auth.{AuthServiceActor, AuthStage}
 import rs.service.websocket.WebSocketClient._
 import rs.service.websocket.WebsocketClientStubService._
 import rs.testkit._
-import rs.testkit.components.TestServiceActor
-import rs.testkit.components.TestServiceActor._
+import au.com.intelix.rs.core.testkit.components.TestServiceActor
+import au.com.intelix.rs.core.testkit.components.TestServiceActor._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

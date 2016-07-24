@@ -19,10 +19,10 @@ import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
 import akka.cluster.Cluster
 import akka.cluster.ClusterEvent._
-import rs.core.actors._
-import rs.core.config.ConfigOps.wrap
-import rs.core.evt.{CommonEvt, EvtSource, InfoE}
-import rs.core.services.BaseServiceActor.StopRequest
+import au.com.intelix.rs.core.actors._
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.evt.{CommonEvt, EvtSource, InfoE}
+import au.com.intelix.rs.core.services.BaseServiceActor.StopRequest
 import rs.node.core.ClusterNodeActor._
 import rs.node.core.discovery.DiscoveryMessages.ReachableClusters
 import rs.node.core.discovery.tcp.ClusterRegionsMonitorActor

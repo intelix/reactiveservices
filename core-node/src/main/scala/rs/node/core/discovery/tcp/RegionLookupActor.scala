@@ -1,8 +1,8 @@
 package rs.node.core.discovery.tcp
 
 import akka.io.{IO, Tcp}
-import rs.core.actors.{StatefulActor, StatelessActor}
-import rs.core.evt.EvtSource
+import au.com.intelix.rs.core.actors.{StatefulActor, StatelessActor}
+import au.com.intelix.evt.EvtSource
 import RegionLookupActor._
 import akka.actor.{ActorRef, AddressFromURIString, Props, Terminated}
 import com.typesafe.scalalogging.StrictLogging

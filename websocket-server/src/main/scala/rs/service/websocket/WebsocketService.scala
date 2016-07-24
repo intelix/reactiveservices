@@ -27,13 +27,14 @@ import akka.http.scaladsl.settings.ServerSettings
 import akka.stream.scaladsl.BidiFlow
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings, Supervision}
 import akka.util.ByteString
-import rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound}
-import rs.core.codec.binary._
-import rs.core.config.ConfigOps.wrap
-import rs.core.evt.{CommonEvt, ErrorE, EvtSource, InfoE}
-import rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
-import rs.core.services.StatelessServiceActor
-import rs.core.services.endpoint.akkastreams._
+import au.com.intelix.rs.core.codec.binary.BinaryProtocolMessages.{BinaryDialectInbound, BinaryDialectOutbound}
+import au.com.intelix.rs.core.codec.binary._
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.evt.{CommonEvt, ErrorE, EvtSource, InfoE}
+import au.com.intelix.rs.core.codec.binary.{BinaryCodec, BinaryDialectStageBuilder}
+import au.com.intelix.rs.core.services.Messages.{ServiceInbound, ServiceOutbound}
+import au.com.intelix.rs.core.services.StatelessServiceActor
+import au.com.intelix.rs.core.services.endpoint.akkastreams._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -122,7 +123,7 @@ class WebsocketService extends StatelessServiceActor {
       .withInputBuffer(initialSize = 64, maxSize = 64)
       .withSupervisionStrategy(decider))
 
-  import rs.core.codec.binary.BinaryCodec.DefaultBinaryCodecImplicits._
+  import au.com.intelix.rs.core.codec.binary.BinaryCodec.DefaultBinaryCodecImplicits._
 
   var connectionCounter = new AtomicInteger(0)
 

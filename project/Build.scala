@@ -114,10 +114,13 @@ object Build {
   }
 
 
-  def settings(module: String, publishToSonatype: Boolean = true) = defaultSettings ++ Seq(
-    name := module,
-    libraryDependencies ++= Dependencies.core
+  def essentials(module: String, publishToSonatype: Boolean = true) = defaultSettings ++ Seq(
+    name := module
   ) ++ (if (publishToSonatype) sonatypeSettings else Seq())
+
+  def settings(module: String, publishToSonatype: Boolean = true) = essentials(module, publishToSonatype) ++ Seq(
+    libraryDependencies ++= Dependencies.core
+  )
 
   def web = Seq(
     includeFilter in(Assets, LessKeys.less) := "*.less",

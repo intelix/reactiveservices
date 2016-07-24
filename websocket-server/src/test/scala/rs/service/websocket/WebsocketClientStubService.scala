@@ -18,13 +18,13 @@ package rs.service.websocket
 import akka.actor.{ActorRef, FSM, Props, Stash}
 import akka.io.IO
 import akka.util.{ByteIterator, ByteString}
-import rs.core.Subject
-import rs.core.actors.{ActorState, StatefulActor}
-import rs.core.codec.binary.BinaryProtocolMessages._
-import rs.core.evt.{CommonEvt, EvtSource, InfoE}
-import rs.core.services.StatelessServiceActor
-import rs.core.services.endpoint.StreamConsumer
-import rs.core.stream._
+import au.com.intelix.rs.core.actors.{ActorState, StatefulActor}
+import au.com.intelix.rs.core.codec.binary.BinaryProtocolMessages._
+import au.com.intelix.evt.{CommonEvt, EvtSource, InfoE}
+import au.com.intelix.rs.core.Subject
+import au.com.intelix.rs.core.services.StatelessServiceActor
+import au.com.intelix.rs.core.services.endpoint.StreamConsumer
+import au.com.intelix.rs.core.stream._
 import rs.service.websocket.WebSocketClient.WebsocketConnection
 import rs.service.websocket.WebsocketClientStubService._
 import spray.can.Http.Connect
@@ -249,7 +249,7 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
   })
 
 
-  import rs.core.codec.binary.BinaryCodec.DefaultBinaryCodecImplicits
+  import au.com.intelix.rs.core.codec.binary.BinaryCodec.DefaultBinaryCodecImplicits
 
   def decode(bs: ByteString): List[BinaryDialectOutbound] = {
     @tailrec def dec(l: List[BinaryDialectOutbound], i: ByteIterator): List[BinaryDialectOutbound] = {

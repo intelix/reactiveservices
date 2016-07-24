@@ -17,11 +17,11 @@ package rs.node.core
 
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
-import rs.core.actors.StatelessActor
-import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
-import rs.core.config.ConfigOps.wrap
-import rs.core.config.NodeConfig
-import rs.core.evt.{CommonEvt, EvtSource, InfoE}
+import au.com.intelix.rs.core.actors.StatelessActor
+import au.com.intelix.rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.config.RootConfig
+import au.com.intelix.evt.{CommonEvt, EvtSource, InfoE}
 import rs.node.core.ServiceClusterGuardianActor.{EvtLaunched, RestartRequestException}
 
 import scala.concurrent.duration._
@@ -34,15 +34,15 @@ object ServiceClusterGuardianActor {
 
   class RestartRequestException extends Exception
 
-  def props(config: NodeConfig) = Props(new ServiceClusterGuardianActor(config))
+  def props(config: RootConfig) = Props(new ServiceClusterGuardianActor(config))
 
-  def start(config: NodeConfig)(implicit f: ActorRefFactory) = f.actorOf(props(config))
+  def start(config: RootConfig)(implicit f: ActorRefFactory) = f.actorOf(props(config))
 }
 
-class ServiceClusterGuardianActor(cfg: NodeConfig) extends StatelessActor {
+class ServiceClusterGuardianActor(cfg: RootConfig) extends StatelessActor {
   import ServiceClusterGuardianActor._
 
-  override implicit lazy val nodeCfg: NodeConfig = cfg
+  override implicit lazy val nodeCfg: RootConfig = cfg
 
   private val maxRetries = nodeCfg.asInt("node.cluster.max-retries", -1)
   private val maxRetriesTimewindow = nodeCfg.asOptFiniteDuration("node.cluster.max-retries-window") match {

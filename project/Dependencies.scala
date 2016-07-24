@@ -12,6 +12,7 @@ object Dependencies {
     val guavaVersion = "19.0"
     val googleProtobufVersion = "2.6.1"
     val akkaVersion = "2.4.8"
+    val typesafeConfigVersion = "1.3.0"
 //    val akkaStreamVersion = "2.0.3"
     val akkaHTTPVersion = "2.4.8"
     val scalaLoggingVersion = "3.4.0"
@@ -27,6 +28,8 @@ object Dependencies {
     val metricsScalaVersion = "3.1.2"
     val uuidVersion = "3.2"
     val commonsCodecVersion = "1.10"
+
+    val jsr305Version = "2.0.3"
 
     val sprayWebsocketVersion = "0.1.4"
 
@@ -52,6 +55,7 @@ object Dependencies {
 
     val scalaReflect      = "org.scala-lang"              %  "scala-reflect"                 % scalaVersion
 
+    val typesafeConfig    = "com.typesafe"                % "config"                          % typesafeConfigVersion
 
     val playJson          = "com.typesafe.play"           %%  "play-json"                     % playJsonVersion
     val playJsonZipper    = "com.mandubian"               %%  "play-json-zipper"              % playJsonZipperVersion
@@ -67,6 +71,8 @@ object Dependencies {
     val akkaHttpCore      = "com.typesafe.akka"           %% "akka-http-core"                 % akkaVersion
     val akkaHttp          = "com.typesafe.akka"           %% "akka-http-experimental"         % akkaVersion
     val akkaContrib       = "com.typesafe.akka"           %% "akka-contrib"                   % akkaVersion
+
+    val jsr305            = "com.google.code.findbugs"    % "jsr305"                          % jsr305Version
 
     val googleProtobuf    = "com.google.protobuf"         %  "protobuf-java"                  % googleProtobufVersion
     val loggingScala      = "com.typesafe.scala-logging"  %% "scala-logging"                  % scalaLoggingVersion
@@ -111,6 +117,7 @@ object Dependencies {
   import Compile._
 
   lazy val core = Seq(
+    typesafeConfig,
     scalaReflect,
     ficus,
     scalaz,
@@ -143,7 +150,7 @@ object Dependencies {
     commonsCodec,
     metricsScala,
     sprayWebsocket,
-    "com.google.code.findbugs" % "jsr305" % "2.0.3"  // !>>> DO PROPERLY!
+    jsr305
   )
 
   lazy val web = core ++ Seq(

@@ -1,7 +1,7 @@
 package rs.samples
 
-import rs.core.actors.StatelessActor
-import rs.core.evt.{EvtSource, InfoE}
+import au.com.intelix.rs.core.actors.StatelessActor
+import au.com.intelix.evt.{EvtSource, InfoE}
 import rs.samples.SimpleService.Evt
 
 object SimpleService {

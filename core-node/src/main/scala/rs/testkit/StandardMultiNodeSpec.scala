@@ -16,6 +16,7 @@
 package rs.testkit
 
 import org.scalatest.FlatSpec
+import au.com.intelix.rs.core.testkit.IsolatedActorSystems
 
 trait StandardMultiNodeSpec extends FlatSpec with ManagedNodeTestContext with IsolatedActorSystems
 

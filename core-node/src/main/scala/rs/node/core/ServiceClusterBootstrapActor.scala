@@ -18,11 +18,11 @@ package rs.node.core
 
 import akka.actor.SupervisorStrategy.{Escalate, Restart}
 import akka.actor._
-import rs.core.actors.StatelessActor
-import rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
-import rs.core.config.ConfigOps.wrap
-import rs.core.config.NodeConfig
-import rs.core.evt.{CommonEvt, EvtSource, InfoE, WarningE}
+import au.com.intelix.rs.core.actors.StatelessActor
+import au.com.intelix.rs.core.bootstrap.ServicesBootstrapActor.ForwardToService
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.config.RootConfig
+import au.com.intelix.evt.{CommonEvt, EvtSource, InfoE, WarningE}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
@@ -39,7 +39,7 @@ object ServiceClusterBootstrapActor {
 
 }
 
-class ServiceClusterBootstrapActor(cfg: NodeConfig) extends StatelessActor {
+class ServiceClusterBootstrapActor(cfg: RootConfig) extends StatelessActor {
 
   import ServiceClusterBootstrapActor._
 

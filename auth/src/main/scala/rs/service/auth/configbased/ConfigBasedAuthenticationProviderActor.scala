@@ -15,9 +15,9 @@
  */
 package rs.service.auth.configbased
 
-import rs.core.actors.StatelessActor
-import rs.core.config.ConfigOps.wrap
-import rs.core.evt.{EvtSource, InfoE}
+import au.com.intelix.rs.core.actors.StatelessActor
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.evt.{EvtSource, InfoE}
 import rs.service.auth.api.AuthenticationMessages.{Authenticate, AuthenticationResponse}
 
 object ConfigBasedAuthenticationProviderActor {

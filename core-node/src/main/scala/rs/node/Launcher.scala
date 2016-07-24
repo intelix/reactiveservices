@@ -16,8 +16,8 @@
 package rs.node
 
 import akka.actor.ActorSystem
+import au.com.intelix.config.RootConfig
 import com.typesafe.config.ConfigFactory
-import rs.core.config.NodeConfig
 import rs.node.core.ServiceClusterGuardianActor
 
 object Launcher extends App {
@@ -28,7 +28,7 @@ object Launcher extends App {
       case s => s
     }
   private val config = if (configName == null) ConfigFactory.empty() else ConfigFactory.load(configName)
-  implicit val nodeCfg: NodeConfig = NodeConfig(config)
+  implicit val nodeCfg: RootConfig = RootConfig(config)
 
   private val localSystemConfigName: String = java.lang.System.getProperty("local-config", "node-local.conf")
   private val localSystemName: String = java.lang.System.getProperty("local-system", "local")

@@ -9,9 +9,9 @@ import akka.io.Tcp.{Bind, CommandFailed, ConnectionClosed}
 import akka.io.{IO, Tcp}
 import akka.util.ByteString
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.actors.{ClusterAwareness, StatelessActor}
-import rs.core.config.ConfigOps.wrap
-import rs.core.evt.EvtSource
+import au.com.intelix.rs.core.actors.{ClusterAwareness, StatelessActor}
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.evt.EvtSource
 
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps

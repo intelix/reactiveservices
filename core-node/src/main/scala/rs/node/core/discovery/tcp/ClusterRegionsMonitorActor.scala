@@ -4,9 +4,9 @@ import java.net.InetSocketAddress
 
 import akka.actor.{ActorRef, Props}
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.actors.{ActorState, ClusterAwareness, StatefulActor}
-import rs.core.config.ConfigOps.wrap
-import rs.core.evt.EvtSource
+import au.com.intelix.rs.core.actors.{ActorState, ClusterAwareness, StatefulActor}
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.evt.EvtSource
 import rs.node.core.discovery.DiscoveryMessages.ReachableClusters
 import rs.node.core.discovery.ReachableCluster
 import rs.node.core.discovery.tcp.ClusterRegionsMonitorActor._

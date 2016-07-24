@@ -1,13 +1,14 @@
 package rs.node.core.discovery.tcp
 
 import akka.actor.Status
-import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCodes}
+import akka.http.scaladsl.{ConnectionContext, Http, HttpConnectionContext, HttpsConnectionContext}
 import akka.stream.{ActorMaterializer, ActorMaterializerSettings}
 import akka.util.ByteString
+import au.com.intelix.sslconfig._
 import com.typesafe.scalalogging.StrictLogging
-import rs.core.actors.{ActorState, StatefulActor}
-import rs.core.evt.EvtSource
+import au.com.intelix.rs.core.actors.{ActorState, StatefulActor}
+import au.com.intelix.evt.EvtSource
 import rs.node.core.discovery.tcp.RegionEndpointConnectorActor.{States, _}
 
 import scala.concurrent.duration.DurationInt
@@ -58,7 +59,10 @@ object RegionEndpointConnectorActor {
 
 }
 
-class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends StatefulActor[MyData] with StrictLogging {
+class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends StatefulActor[MyData]
+  with StrictLogging
+  with SSLConfig {
+
   override val evtSource: EvtSource = "RegionEndpointConnectorActor"
 
   import akka.pattern.pipe
@@ -66,9 +70,26 @@ class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends
 
   case class Data(b: Option[ByteString])
 
+  implicit val sys = context.system
+
   final implicit val materializer: ActorMaterializer = ActorMaterializer(ActorMaterializerSettings(context.system))
 
-  val http = Http(context.system)
+
+  override def sslConfigPath: String = "node.cluster.discovery.ssl"
+
+  override def sslContextDefaults: SSLContextDefaults = SSLContextDefaults.Client
+
+  val http = Http()
+  lazy val connectionCtx: ConnectionContext = configuredSSLContext match {
+    case FailedSSLContext(error) => throw new Error(error)
+    case DisabledSSLContext => ConnectionContext.noEncryption()
+    case InitialisedSSLContext(sslContext, protos, algos) =>
+      ConnectionContext.https(
+        sslContext = sslContext,
+        enabledProtocols = Some(protos),
+        enabledCipherSuites = algos
+      )
+  }
 
   startWith(States.Querying, MyData())
 
@@ -115,9 +136,18 @@ class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends
 
   onTransition {
     case _ -> States.Querying =>
-      val uri = s"http://${endpoint.host}:${endpoint.port}/check"
-      logger.info(s"!>>> GET: $uri")
-      http.singleRequest(HttpRequest(uri = uri)).pipeTo(self)
+      val future = connectionCtx match {
+        case ctx: HttpsConnectionContext =>
+          val uri = s"https://${endpoint.host}:${endpoint.port}/check"
+          logger.info(s"!>>> GET: $uri")
+          http.singleRequest(request = HttpRequest(uri = uri), connectionContext = ctx)
+        case ctx: HttpConnectionContext =>
+          val uri = s"http://${endpoint.host}:${endpoint.port}/check"
+          logger.info(s"!>>> GET: $uri")
+          http.singleRequest(request = HttpRequest(uri = uri))
+      }
+      future.pipeTo(self)
+
   }
 }
 

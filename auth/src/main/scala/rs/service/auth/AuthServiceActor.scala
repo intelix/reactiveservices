@@ -16,16 +16,16 @@
 package rs.service.auth
 
 import akka.pattern.Patterns.ask
+import au.com.intelix.essentials.json.JsonTools
 import play.api.libs.json.Json
-import rs.core.SubjectTags.{UserId, UserToken}
-import rs.core.config.ConfigOps._
-import rs.core.evt.{EvtSource, InfoE, TraceE}
-import rs.core.services.{CompoundStreamIdTemplate, StatelessServiceActor}
-import rs.core.stream.DictionaryMapStreamState.Dictionary
-import rs.core.stream.SetStreamState.SetSpecs
-import rs.core.utils.JsonTools
-import rs.core.utils.JsonTools.jsToExtractorOps
-import rs.core.{Subject, TopicKey}
+import au.com.intelix.rs.core.SubjectTags.{UserId, UserToken}
+import au.com.intelix.config.ConfigOps._
+import au.com.intelix.evt.{EvtSource, InfoE, TraceE}
+import au.com.intelix.rs.core.services.{CompoundStreamIdTemplate, StatelessServiceActor}
+import au.com.intelix.rs.core.stream.DictionaryMapStreamState.Dictionary
+import au.com.intelix.rs.core.stream.SetStreamState.SetSpecs
+import au.com.intelix.essentials.json.JsonTools.jsToExtractorOps
+import au.com.intelix.rs.core.{Subject, TopicKey}
 import rs.service.auth.AuthServiceActor.InfoUserId
 import rs.service.auth.api.AuthenticationMessages.{Authenticate, AuthenticationResponse, Invalidate}
 import rs.service.auth.api.AuthorisationMessages.{DomainPermissions, PermissionsRequest, PermissionsRequestCancel, SubjectPermissions}

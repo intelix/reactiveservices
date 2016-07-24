@@ -18,10 +18,12 @@ package rs.testkit
 import akka.actor.ActorRef
 import akka.remote.MgmtService
 import akka.remote.MgmtService.{Block, Unblock}
+import au.com.intelix.essentials.uuid.UUIDTools
+import au.com.intelix.config.RootConfig
 import org.scalatest.Suite
-import rs.core.actors.CommonActorEvt
-import rs.core.config.NodeConfig
-import rs.core.utils.UUIDTools
+import au.com.intelix.rs.core.actors.CommonActorEvt
+import au.com.intelix.evt.testkit.EvtAssertions
+import au.com.intelix.rs.core.testkit._
 import rs.node.core.discovery.ClusterWatcherActor
 import rs.node.core.discovery.tcp.TrafficBlocking.{BlockCommunicationWith, UnblockCommunicationWith}
 import rs.node.core.{ClusterNodeActor, ServiceClusterGuardianActor}
@@ -84,7 +86,7 @@ trait ManagedNodeTestContext extends MultiActorSystemTestContext with EvtAsserti
   override protected def startWithConfig(idx: Int, configs: ConfigReference*): ActorRef =
     withSystem(instanceId(idx)) { implicit sys =>
       val config = buildConfig(configs: _*)
-      sys.start(ServiceClusterGuardianActor.props(NodeConfig(config)), UUIDTools.generateShortUUID)
+      sys.start(ServiceClusterGuardianActor.props(RootConfig(config)), UUIDTools.generateShortUUID)
     }
 
 

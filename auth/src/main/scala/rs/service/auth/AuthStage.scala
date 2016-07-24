@@ -18,15 +18,17 @@ package rs.service.auth
 import akka.stream._
 import akka.stream.scaladsl._
 import akka.stream.stage.{GraphStage, GraphStageLogic, InHandler, OutHandler}
-import rs.core.SubjectTags.{StringSubjectTag, UserId, UserToken}
-import rs.core.config.ConfigOps.wrap
-import rs.core.config.{NodeConfig, ServiceConfig}
-import rs.core.evt.{EvtContext, InfoE, WarningE}
-import rs.core.services.Messages._
-import rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
-import rs.core.stream.{DictionaryMapStreamState, SetStreamState}
-import rs.core.utils.UUIDTools
-import rs.core.{ServiceKey, Subject, TopicKey}
+import au.com.intelix.essentials.uuid.UUIDTools
+import au.com.intelix.rs.core.SubjectTags.{StringSubjectTag, UserId, UserToken}
+import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.config.RootConfig
+import au.com.intelix.evt.{EvtContext, InfoE, WarningE}
+import au.com.intelix.rs.core.{ServiceKey, Subject, TopicKey}
+import au.com.intelix.rs.core.config.ServiceConfig
+import au.com.intelix.rs.core.services.Messages._
+import au.com.intelix.rs.core.services.endpoint.akkastreams.ServiceDialectStageBuilder
+import au.com.intelix.rs.core.stream.{DictionaryMapStreamState, SetStreamState}
+import au.com.intelix.rs.core.{Subject, TopicKey}
 
 import scala.collection.mutable
 
@@ -55,7 +57,7 @@ class AuthStage extends ServiceDialectStageBuilder {
 
   import AuthStage._
 
-  private class AuthGraph(serviceCfg: ServiceConfig, nodeCfg: NodeConfig, sessionId: String) extends GraphStage[BidiShape[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound]] {
+  private class AuthGraph(serviceCfg: ServiceConfig, nodeCfg: RootConfig, sessionId: String) extends GraphStage[BidiShape[ServiceInbound, ServiceInbound, ServiceOutbound, ServiceOutbound]] {
     val in1: Inlet[ServiceInbound] = Inlet("ServiceBoundIn")
     val out1: Outlet[ServiceInbound] = Outlet("ServiceBoundOut")
     val in2: Inlet[ServiceOutbound] = Inlet("ClientBoundIn")
@@ -219,7 +221,7 @@ class AuthStage extends ServiceDialectStageBuilder {
   }
 
 
-  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: NodeConfig) =
+  override def buildStage(sessionId: String, componentId: String)(implicit serviceCfg: ServiceConfig, nodeCfg: RootConfig) =
     if (serviceCfg.asBoolean("auth.enabled", defaultValue = true)) Some(BidiFlow.fromGraph(new AuthGraph(serviceCfg, nodeCfg, sessionId))) else None
 
 

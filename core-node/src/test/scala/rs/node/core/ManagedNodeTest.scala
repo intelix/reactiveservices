@@ -15,12 +15,12 @@
  */
 package rs.node.core
 
-import rs.core.actors.CommonActorEvt
-import rs.core.registry.ServiceRegistryActor
-import rs.core.services.ServiceEvt
-import rs.testkit
+import au.com.intelix.rs.core.actors.CommonActorEvt
+import au.com.intelix.rs.core.registry.ServiceRegistryActor
+import au.com.intelix.rs.core.services.ServiceEvt
+import au.com.intelix.rs.core.testkit.components._
+import au.com.intelix.rs.core.testkit.{ConfigFromContents, ConfigReference}
 import rs.testkit._
-import rs.testkit.components._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -63,12 +63,14 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
   trait FaultyOnInitialisationWithoutRecovery {
     ServiceWithInitialisationFailureActor.recoveryEnabled = false
   }
+
   trait FaultyOnInitialisationWithRecovery {
     ServiceWithInitialisationFailureActor.recoveryEnabled = true
     ServiceWithInitialisationFailureActor.failureCounter = 0
   }
+
   trait FaultyOnRuntimeWithoutRecovery {
-    testkit.components.ServiceWithRuntimeFailureActor.recoveryEnabled = false
+    ServiceWithRuntimeFailureActor.recoveryEnabled = false
   }
 
   it should "terminate (after configured number of attempts) in case of fatal error during service bootstrap (eg failure in preStart)" in new FaultyOnInitialisationWithoutRecovery with With2Nodes {
@@ -100,7 +102,7 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
           |node.cluster.discovery.timeout=0 seconds
           |        """.stripMargin)
 
-    override def node1Services = super.node1Services ++ Map("test" -> classOf[testkit.components.ServiceWithRuntimeFailureActor])
+    override def node1Services = super.node1Services ++ Map("test" -> classOf[au.com.intelix.rs.core.testkit.components.ServiceWithRuntimeFailureActor])
   }
 
   it should "not terminate if service recover after several failures, if max not exceeded" in new FaultyOnInitialisationWithRecovery with With2Nodes {
@@ -201,10 +203,10 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
   }
 
   it should "discover other nodes" in new With4NodesAndTestOn1 {
-    on node1 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId +('to -> "Joined", 'from -> "Joining")
-    on node2 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId +('to -> "Joined", 'from -> "Joining")
-    on node3 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId +('to -> "Joined", 'from -> "Joining")
-    on node4 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId +('to -> "Joined", 'from -> "Joining")
+    on node1 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined", 'from -> "Joining")
+    on node2 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined", 'from -> "Joining")
+    on node3 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined", 'from -> "Joining")
+    on node4 expectOne of CommonActorEvt.EvtStateChange + ClusterNodeActor.EvtSourceId + ('to -> "Joined", 'from -> "Joining")
     on node2 expectOne of ClusterNodeActor.EvtJoiningCluster + ('seeds -> node1Address.r)
     on node3 expectOne of ClusterNodeActor.EvtJoiningCluster + ('seeds -> node1Address.r)
     on node4 expectOne of ClusterNodeActor.EvtJoiningCluster + ('seeds -> node1Address.r)
@@ -288,228 +290,228 @@ class ManagedNodeTest extends StandardMultiNodeSpec {
     override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
 
   }
-/*
-  it should "detect quarantine after network split (1,2/3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
+  /*
+    it should "detect quarantine after network split (1,2/3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
 
-    expectFullyBuilt()
-    clearEvents()
+      expectFullyBuilt()
+      clearEvents()
 
-    onNode1BlockNode(3, 4)
-    onNode2BlockNode(3, 4)
+      onNode1BlockNode(3, 4)
+      onNode2BlockNode(3, 4)
 
-    onNode3BlockNode(1, 2)
-    onNode4BlockNode(1, 2)
+      onNode3BlockNode(1, 2)
+      onNode4BlockNode(1, 2)
 
-    on node1 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
-    on node2 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
-    on node3 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
-    on node4 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
+      on node1 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
+      on node2 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
+      on node3 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
+      on node4 expect(2) of UdpClusterManagerActor.EvtNodeRemoved
 
-    onNode1UnblockNode(3, 4)
-    onNode2UnblockNode(3, 4)
-    onNode3UnblockNode(1, 2)
-    onNode4UnblockNode(1, 2)
+      onNode1UnblockNode(3, 4)
+      onNode2UnblockNode(3, 4)
+      onNode3UnblockNode(1, 2)
+      onNode4UnblockNode(1, 2)
 
-    on node3 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
-    on node4 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
+      on node3 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
+      on node4 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
 
-    on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-
-
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
-
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
-  }
-
-  it should "detect quarantine after network split (1/2,3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
-
-    expectFullyBuilt()
-    clearEvents()
-
-    onNode1BlockNode(2, 3, 4)
-    onNode2BlockNode(1)
-    onNode3BlockNode(1)
-    onNode4BlockNode(1)
-
-    on node1 expect(3) of UdpClusterManagerActor.EvtNodeRemoved
-    on node2 expect(1) of UdpClusterManagerActor.EvtNodeRemoved
-
-
-    onNode1UnblockNode(2, 3, 4)
-    onNode2UnblockNode(1)
-    onNode3UnblockNode(1)
-    onNode4UnblockNode(1)
-
-    on node2 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
-    on node3 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
-    on node4 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
-
-    on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-
-
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
-
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
-  }
-
-  it should "detect quarantine after network split (1,2,3/4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
-
-    expectFullyBuilt()
-    clearEvents()
-
-    onNode1BlockNode(4)
-    onNode2BlockNode(4)
-    onNode3BlockNode(4)
-    onNode4BlockNode(1, 2, 3)
-
-    on node1 expect(1) of UdpClusterManagerActor.EvtNodeRemoved
-    on node2 expect(1) of UdpClusterManagerActor.EvtNodeRemoved
-
-
-    onNode1UnblockNode(4)
-    onNode2UnblockNode(4)
-    onNode3UnblockNode(4)
-    onNode4UnblockNode(1, 2, 3)
-
-    on node4 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
-
-
-    within(5 seconds) {
       on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node2 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node3 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+
+
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+
+      override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
     }
 
+    it should "detect quarantine after network split (1/2,3,4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
+
+      expectFullyBuilt()
+      clearEvents()
+
+      onNode1BlockNode(2, 3, 4)
+      onNode2BlockNode(1)
+      onNode3BlockNode(1)
+      onNode4BlockNode(1)
+
+      on node1 expect(3) of UdpClusterManagerActor.EvtNodeRemoved
+      on node2 expect(1) of UdpClusterManagerActor.EvtNodeRemoved
 
 
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-    on node3 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+      onNode1UnblockNode(2, 3, 4)
+      onNode2UnblockNode(1)
+      onNode3UnblockNode(1)
+      onNode4UnblockNode(1)
 
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
-  }
+      on node2 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
+      on node3 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
+      on node4 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
 
-
-  it should "not cause quarantine after network split (1,2/3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with WithGremlinOn4Nodes {
-
-    expectFullyBuilt()
-    clearEvents()
-
-    onNode1BlockNode(3, 4)
-    onNode2BlockNode(3, 4)
-
-    onNode3BlockNode(1, 2)
-    onNode4BlockNode(1, 2)
-
-    within(10 seconds) {
-      on node1 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node2 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node3 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node4 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-    }
-
-    onNode1UnblockNode(3, 4)
-    onNode2UnblockNode(3, 4)
-    onNode3UnblockNode(1, 2)
-    onNode4UnblockNode(1, 2)
-
-    within(10 seconds) {
       on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node2 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node3 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node4 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+
+
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node2Address)
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node3Address)
+      on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+
+      override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
+    }
+
+    it should "detect quarantine after network split (1,2,3/4) when running with auto-down enabled, and recover from it" in new WithGremlin with WithGremlinOn4Nodes {
+
+      expectFullyBuilt()
+      clearEvents()
+
+      onNode1BlockNode(4)
+      onNode2BlockNode(4)
+      onNode3BlockNode(4)
+      onNode4BlockNode(1, 2, 3)
+
+      on node1 expect(1) of UdpClusterManagerActor.EvtNodeRemoved
+      on node2 expect(1) of UdpClusterManagerActor.EvtNodeRemoved
+
+
+      onNode1UnblockNode(4)
+      onNode2UnblockNode(4)
+      onNode3UnblockNode(4)
+      onNode4UnblockNode(1, 2, 3)
+
+      on node4 expectSome of ClusterNodeActor.EvtClusterMergeTrigger
+
+
+      within(5 seconds) {
+        on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node2 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node3 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+      }
+
+
+
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node3 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node4Address)
+      on node4 expectSome of UdpClusterManagerActor.EvtNodeUp + ('addr -> node1Address)
+
+      override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOn
     }
 
 
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node2Address)
-    on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node1Address)
+    it should "not cause quarantine after network split (1,2/3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with WithGremlinOn4Nodes {
 
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
-  }
+      expectFullyBuilt()
+      clearEvents()
+
+      onNode1BlockNode(3, 4)
+      onNode2BlockNode(3, 4)
+
+      onNode3BlockNode(1, 2)
+      onNode4BlockNode(1, 2)
+
+      within(10 seconds) {
+        on node1 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+        on node2 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+        on node3 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+        on node4 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+      }
+
+      onNode1UnblockNode(3, 4)
+      onNode2UnblockNode(3, 4)
+      onNode3UnblockNode(1, 2)
+      onNode4UnblockNode(1, 2)
+
+      within(10 seconds) {
+        on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node2 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node3 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node4 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+      }
 
 
-  it should "not cause quarantine after network split (1/2,3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with WithGremlinOn4Nodes {
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
+      on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node2Address)
+      on node4 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node1Address)
 
-    expectFullyBuilt()
-    clearEvents()
-
-    onNode1BlockNode(2, 3, 4)
-    onNode2BlockNode(1)
-
-    onNode3BlockNode(1)
-    onNode4BlockNode(1)
-
-    within(10 seconds) {
-      on node1 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node2 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node3 expectNone of UdpClusterManagerActor.EvtNodeRemoved
-      on node4 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+      override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
     }
 
-    onNode1UnblockNode(2, 3, 4)
-    onNode2UnblockNode(1)
-    onNode3UnblockNode(1)
-    onNode4UnblockNode(1)
+
+    it should "not cause quarantine after network split (1/2,3,4) and should recover cleanly if running with auto-down off" in new WithGremlin with WithGremlinOn4Nodes {
+
+      expectFullyBuilt()
+      clearEvents()
+
+      onNode1BlockNode(2, 3, 4)
+      onNode2BlockNode(1)
+
+      onNode3BlockNode(1)
+      onNode4BlockNode(1)
+
+      within(10 seconds) {
+        on node1 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+        on node2 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+        on node3 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+        on node4 expectNone of UdpClusterManagerActor.EvtNodeRemoved
+      }
+
+      onNode1UnblockNode(2, 3, 4)
+      onNode2UnblockNode(1)
+      onNode3UnblockNode(1)
+      onNode4UnblockNode(1)
 
 
-    within(10 seconds) {
-      on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node2 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node3 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
-      on node4 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+      within(10 seconds) {
+        on node1 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node2 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node3 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+        on node4 expectNone of ClusterNodeActor.EvtClusterMergeTrigger
+      }
+
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
+      on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node2Address)
+      on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node1Address)
+
+      override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
     }
 
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node3Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node4Address)
-    on node1 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node2Address)
-    on node2 expectSome of UdpClusterManagerActor.EvtNodeReachable + ('addr -> node1Address)
 
-    override def allNodesConfigs: Seq[ConfigReference] = super.allNodesConfigs ++ sensitiveConfigWithAutoDownOff
-  }
+    it should "start services before cluster formation if requested" in new WithNode3 {
+      on node3 expectOne of ClusterNodeActor.EvtStartingService + ('service -> "test")
 
+      override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=on")
 
-  it should "start services before cluster formation if requested" in new WithNode3 {
-    on node3 expectOne of ClusterNodeActor.EvtStartingService + ('service -> "test")
-
-    override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=on")
-
-    override def node3Services: Map[String, Class[_]] = super.node3Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
-  }
-
-  it should "not start services before cluster formation if requested" in new WithNode3 {
-    within(10 seconds) {
-      on node3 expectNone of ClusterNodeActor.EvtStartingService + ('service -> "test")
+      override def node3Services: Map[String, Class[_]] = super.node3Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
     }
 
-    override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
+    it should "not start services before cluster formation if requested" in new WithNode3 {
+      within(10 seconds) {
+        on node3 expectNone of ClusterNodeActor.EvtStartingService + ('service -> "test")
+      }
 
-    override def node3Services: Map[String, Class[_]] = super.node3Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
-  }
+      override def node3Configs: Seq[ConfigReference] = super.node3Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
 
-  it should "start services after cluster formation if requested" in new WithNode2 {
-    on node2 expectSome of ClusterNodeActor.EvtStartingService + ('service -> "test")
+      override def node3Services: Map[String, Class[_]] = super.node3Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
+    }
 
-    override def node2Configs: Seq[ConfigReference] = super.node2Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
+    it should "start services after cluster formation if requested" in new WithNode2 {
+      on node2 expectSome of ClusterNodeActor.EvtStartingService + ('service -> "test")
 
-    override def node2Services: Map[String, Class[_]] = super.node2Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
-  }
-  */
+      override def node2Configs: Seq[ConfigReference] = super.node2Configs :+ ConfigFromContents("node.start-services-before-cluster=off")
+
+      override def node2Services: Map[String, Class[_]] = super.node2Services ++ Map("test" -> classOf[ServiceWithInitialisationFailureActor])
+    }
+    */
 
 
 }

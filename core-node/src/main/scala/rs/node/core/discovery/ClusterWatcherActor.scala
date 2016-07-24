@@ -1,7 +1,7 @@
 package rs.node.core.discovery
 
-import rs.core.actors.{ClusterAwareness, StatelessActor}
-import rs.core.evt.{EvtSource, InfoE}
+import au.com.intelix.rs.core.actors.{ClusterAwareness, StatelessActor}
+import au.com.intelix.evt.{EvtSource, InfoE}
 import rs.node.core.discovery.ClusterWatcherActor._
 
 object ClusterWatcherActor {

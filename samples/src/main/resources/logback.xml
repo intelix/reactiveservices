@@ -55,7 +55,7 @@
 
     <logger name="akka.stream.impl.io" level="INFO" />
 
-    <root level="DEBUG">
+    <root level="INFO">
         <!--<appender-ref ref="FILE" />-->
         <appender-ref ref="StdOut" />
     </root>

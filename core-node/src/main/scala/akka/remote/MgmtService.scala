@@ -18,8 +18,8 @@ package akka.remote
 import akka.actor.Address
 import akka.remote.MgmtService._
 import akka.remote.transport.FailureInjectorTransportAdapter.{Drop, One, PassThru}
-import rs.core.actors.StatelessActor
-import rs.core.evt.{EvtSource, InfoE}
+import au.com.intelix.rs.core.actors.StatelessActor
+import au.com.intelix.evt.{EvtSource, InfoE}
 
 object MgmtService {
 

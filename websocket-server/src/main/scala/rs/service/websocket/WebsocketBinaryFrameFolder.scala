@@ -20,8 +20,8 @@ import akka.http.scaladsl.model.ws.{BinaryMessage, Message}
 import akka.stream.{BidiShape, OverflowStrategy}
 import akka.stream.scaladsl.{BidiFlow, Flow, GraphDSL, Sink}
 import akka.util.ByteString
-import rs.core.config.ConfigOps.wrap
-import rs.core.config.ServiceConfig
+import au.com.intelix.rs.core.config.ServiceConfig
+import au.com.intelix.config.ConfigOps.wrap
 
 import scala.concurrent.Future
 
