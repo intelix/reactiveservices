@@ -20,3 +20,9 @@
 /tcp-server/target
 /websocket-server/target
 .idea
+/platform/codec-binary/target/
+/platform/core/target/
+/tools/config/target/
+/tools/essentials/target/
+/tools/evt/target/
+/tools/ssl-config/target/
