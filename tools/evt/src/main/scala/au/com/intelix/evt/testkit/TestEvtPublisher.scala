@@ -15,7 +15,7 @@
  */
 package au.com.intelix.evt.testkit
 
-import au.com.intelix.evt.{Evt, EvtFieldValue, EvtPublisher, EvtSource}
+import au.com.intelix.evt._
 
 
 object TestEvtPublisher {
@@ -47,11 +47,11 @@ object TestEvtPublisher {
 class TestEvtPublisher extends EvtPublisher {
 
 
-  override def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue]): Unit =
-    TestEvtPublisher + RaisedEvent(System.currentTimeMillis(), s, e, fields)
+  override def evt(s: EvtSource, e: String, lvl: EvtLevel, fields: Seq[EvtFieldValue]): Unit =
+    TestEvtPublisher + RaisedEvent(System.currentTimeMillis(), s, e, lvl, fields)
 
 
-  override def canPublish(s: EvtSource, e: Evt): Boolean = true
+  override def canPublish(s: EvtSource, e: String, lvl: EvtLevel): Boolean = true
 }
 
 

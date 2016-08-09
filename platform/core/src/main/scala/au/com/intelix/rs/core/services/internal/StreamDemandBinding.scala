@@ -22,7 +22,9 @@ import au.com.intelix.rs.core.services.internal.InternalMessages.DownstreamDeman
 import au.com.intelix.rs.core.services.internal.acks.Acknowledgeable
 
 object StreamDemandBinding {
-  case object EvtDuplicateDemandRequest extends TraceE
+  object Evt {
+    case object DuplicateDemandRequest extends TraceE
+  }
 }
 
 trait StreamDemandBinding extends BaseActor with DuplicateMessageTracker with MessageAcknowledging {
@@ -32,7 +34,7 @@ trait StreamDemandBinding extends BaseActor with DuplicateMessageTracker with Me
     if (isNotDuplicate(sender(), "DownstreamDemandRequest", m.messageId)) {
       onConsumerDemand(sender(), m.count)
     } else {
-      raise(StreamDemandBinding.EvtDuplicateDemandRequest, 'sender -> sender(), 'payload -> m)
+      raise(StreamDemandBinding.Evt.DuplicateDemandRequest, 'sender -> sender(), 'payload -> m)
     }
 
 

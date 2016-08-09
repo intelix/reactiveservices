@@ -31,27 +31,22 @@ import au.com.intelix.rs.core.services.internal.{SignalPort, StreamAggregatorAct
 
 object ServicePort {
 
-  val EvtSourceId = "ServicePort"
-
-  case object EvtFlowStarting extends InfoE
-
-  case object EvtFlowStopping extends InfoE
-
-  case object EvtSignalRequest extends InfoE
-
-  case object EvtSignalResponse extends InfoE
-
-  case object EvtSignalExpired extends InfoE
-
-  case object EvtSignalFailure extends WarningE
-
+  object Evt {
+    case object FlowStarting extends InfoE
+    case object FlowStopping extends InfoE
+    case object SignalRequest extends InfoE
+    case object SignalResponse extends InfoE
+    case object SignalExpired extends InfoE
+    case object SignalFailure extends WarningE
+  }
+  
   def buildFlow(tokenId: String)(implicit context: ActorRefFactory, nodeCfg: RootConfig) = Flow.fromGraph(GraphDSL.create() { implicit b =>
 
     import GraphDSL.Implicits._
 
     implicit val ec = context.dispatcher
 
-    val evtCtx = EvtContext(EvtSourceId, nodeCfg.config)
+    val evtCtx = EvtContext("ServicePort", nodeCfg.config)
 
     val signalParallelism = nodeCfg.asInt("signal-parallelism", 100)
 
@@ -68,10 +63,9 @@ object ServicePort {
         val pendingSubscriptions = scala.collection.mutable.Queue[ServiceInbound]()
 
         override def preStart(): Unit = {
-          evtCtx.raise(EvtFlowStarting, 'token -> tokenId)
+          evtCtx.raise(Evt.FlowStarting, 'token -> tokenId)
           pull(shape.in)
         }
-
 
 
         setHandler(shape.in, new InHandler {
@@ -99,7 +93,7 @@ object ServicePort {
         })
 
         override def postStop(): Unit = {
-          evtCtx.raise(EvtFlowStopping, 'token -> tokenId)
+          evtCtx.raise(Evt.FlowStopping, 'token -> tokenId)
           context.stop(aggregator)
           context.stop(signalPort)
           super.postStop()
@@ -136,33 +130,33 @@ object ServicePort {
       case m: Signal =>
         val start = System.nanoTime()
         val expiredIn = m.expireAt - System.currentTimeMillis()
-        evtCtx.raise(EvtSignalRequest, 'correlation -> m.correlationId, 'expiry -> m.expireAt, 'expiredin -> expiredIn, 'subj -> m.subj, 'group -> m.orderingGroup)
+        evtCtx.raise(Evt.SignalRequest, 'correlation -> m.correlationId, 'expiry -> m.expireAt, 'expiredin -> expiredIn, 'subj -> m.subj, 'group -> m.orderingGroup)
         expiredIn match {
           case expireInMillis if expireInMillis > 0 =>
             Patterns.ask(signalPort, m, expireInMillis).recover {
               case t =>
-                evtCtx.raise(EvtSignalExpired, 'correlation -> m.correlationId, 'subj -> m.subj)
+                evtCtx.raise(Evt.SignalExpired, 'correlation -> m.correlationId, 'subj -> m.subj)
                 SignalAckFailed(m.correlationId, m.subj, None)
             }.map {
               case t: SignalAckOk =>
                 val diff = System.nanoTime() - start
-                evtCtx.raise(EvtSignalResponse, 'success -> true, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
+                evtCtx.raise(Evt.SignalResponse, 'success -> true, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
                 t
               case t: SignalAckFailed =>
                 val diff = System.nanoTime() - start
-                evtCtx.raise(EvtSignalResponse, 'success -> false, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
+                evtCtx.raise(Evt.SignalResponse, 'success -> false, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t), 'ms -> ((diff / 1000).toDouble / 1000))
                 t
               case t =>
-                evtCtx.raise(EvtSignalFailure, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t))
+                evtCtx.raise(Evt.SignalFailure, 'correlation -> m.correlationId, 'subj -> m.subj, 'response -> String.valueOf(t))
                 SignalAckFailed(m.correlationId, m.subj, None)
             }
           case _ => Futures.successful(SignalAckFailed(m.correlationId, m.subj, None))
         }
       case m: CloseSubscription =>
-        evtCtx.raise(CommonEvt.EvtInvalid, 'type -> m.getClass, 'reason -> "Signal expected")
+        evtCtx.raise(CommonEvt.Evt.Invalid, 'type -> m.getClass, 'reason -> "Signal expected")
         Futures.successful(SignalAckFailed(None, m.subj, None))
       case m: OpenSubscription =>
-        evtCtx.raise(CommonEvt.EvtInvalid, 'type -> m.getClass, 'reason -> "Signal expected")
+        evtCtx.raise(CommonEvt.Evt.Invalid, 'type -> m.getClass, 'reason -> "Signal expected")
         Futures.successful(SignalAckFailed(None, m.subj, None))
     })
 

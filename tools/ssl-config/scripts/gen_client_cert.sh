@@ -52,15 +52,6 @@ keytool -import -v \
 
 
 
-# Import the client CA's public certificate into a JKS store for Play Server to read.  We don't use
-# the PKCS12 because it's got the CA private key and we don't want that.
-keytool -import -v \
-  -alias clientca \
-  -file gen/client-ca.crt \
-  -keystore gen/client-ca-trust.jks \
-  -storepass:env PW << EOF
-yes
-EOF
 
 
 

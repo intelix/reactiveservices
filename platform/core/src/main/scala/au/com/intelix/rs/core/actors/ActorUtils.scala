@@ -25,9 +25,9 @@ import scala.concurrent.duration.FiniteDuration
 
 trait ActorUtils extends Actor with WithActorSystemConfig with NowProvider with WithNodeConfig {
 
-  lazy val uuid = randomUUID
+  lazy val uuid = generateUUID
 
-  def randomUUID: String = UUIDTools.generateShortUUID
+  def generateUUID: String = UUIDTools.generateUUID
 
   def scheduleOnce(in: FiniteDuration, msg: Any, to: ActorRef = self, from: ActorRef = self) = context.system.scheduler.scheduleOnce(in, to, msg)(context.dispatcher, from)
 

@@ -52,7 +52,7 @@ trait StatefulActor[T] extends FSM[ActorState, T] with BaseActor {
   }
 
   def transitionTo(state: ActorState) = {
-    if (stateName != state) raise(EvtStateChange, 'to -> state, 'from -> stateName)
+    if (stateName != state) raise(Evt.StateTransition, 'to -> state, 'from -> stateName)
     goto(state)
   }
 
@@ -62,60 +62,3 @@ trait StatefulActor[T] extends FSM[ActorState, T] with BaseActor {
 
 }
 
-trait JBaseActor extends BaseActor {
-
-  private var chainedFunc: Receive = {
-    case Terminated(ref) => terminatedFuncChain.foreach(_ (ref))
-  }
-
-  override final val receive: Actor.Receive = {
-    case x if chainedFunc.isDefinedAt(x) => chainedFunc(x)
-    case x => unhandled(x)
-  }
-
-  override final def onMessage(f: Receive): Unit = chainedFunc = f orElse chainedFunc
-}
-
-
-trait BaseActor extends WithActorSystemConfig with ActorUtils with EvtContext {
-
-  import CommonActorEvt._
-
-  private val pathAsString = self.path.toStringWithoutAddress
-  protected[actors] var terminatedFuncChain: Seq[ActorRef => Unit] = Seq.empty
-
-  override implicit lazy val nodeCfg: RootConfig = RootConfig(config)
-
-  def onActorTerminated(f: ActorRef => Unit) = terminatedFuncChain = terminatedFuncChain :+ f
-
-  addEvtFields('path -> pathAsString, 'nodeid -> nodeId)
-
-  @throws[Exception](classOf[Exception])
-  override def preRestart(reason: Throwable, message: Option[Any]): Unit = {
-    raise(EvtPreRestart, 'reason -> reason.getMessage, 'msg -> message, 'path -> pathAsString)
-    super.preRestart(reason, message)
-  }
-
-  @throws[Exception](classOf[Exception])
-  override def postRestart(reason: Throwable): Unit = {
-    super.postRestart(reason)
-    raise(EvtPostRestart, 'reason -> reason.getMessage, 'path -> pathAsString)
-  }
-
-  @throws[Exception](classOf[Exception])
-  override def preStart(): Unit = {
-    raise(EvtPreStart, 'path -> pathAsString)
-    super.preStart()
-  }
-
-  @throws[Exception](classOf[Exception])
-  override def postStop(): Unit = {
-    super.postStop()
-    raise(EvtPostStop, 'path -> pathAsString)
-  }
-
-
-  def onMessage(f: Receive)
-
-
-}

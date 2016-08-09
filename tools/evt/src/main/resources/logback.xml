@@ -14,7 +14,7 @@
   ~ limitations under the License.
   -->
 
-<configuration>
+<configuration scan="true" scanPeriod="30 seconds">
 
     <appender name="StdOut" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
@@ -22,27 +22,23 @@
         </layout>
     </appender>
 
-    <appender name="Events" class="ch.qos.logback.core.ConsoleAppender">
-        <layout class="ch.qos.logback.classic.PatternLayout">
-            <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</Pattern>
-        </layout>
-    </appender>
-
-    <appender name="Exceptions" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="EventsStdOut" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</Pattern>
         </layout>
     </appender>
 
     <logger name="events" level="INFO" additivity="false">
-        <appender-ref ref="Events" />
+        <appender-ref ref="EventsStdOut" />
     </logger>
+
     <logger name="exceptions" level="INFO" additivity="false">
-        <appender-ref ref="Exceptions" />
+        <appender-ref ref="StdOut" />
     </logger>
 
     <root level="INFO">
         <appender-ref ref="StdOut" />
     </root>
+
 
 </configuration>

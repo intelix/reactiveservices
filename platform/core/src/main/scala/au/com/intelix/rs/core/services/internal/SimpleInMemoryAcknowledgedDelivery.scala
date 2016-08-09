@@ -46,15 +46,13 @@ trait SimpleInMemoryAckedDeliveryWithDynamicRouting extends SimpleInMemoryAcknow
 
 object SimpleInMemoryAcknowledgedDelivery {
 
-  case object EvtUnorderedDeliveryScheduled extends TraceE
-
-  case object EvtOrderedDeliveryScheduled extends TraceE
-
-  case object EvtDeliveryCancelled extends TraceE
-
-  case object EvtDeliveryAcknowledged extends TraceE
-
-  case object EvtDeliveryAttempt extends TraceE
+  object Evt {
+    case object UnorderedDeliveryScheduled extends TraceE
+    case object OrderedDeliveryScheduled extends TraceE
+    case object DeliveryCancelled extends TraceE
+    case object DeliveryAcknowledged extends TraceE
+    case object DeliveryAttempt extends TraceE
+  }
 
 }
 
@@ -111,7 +109,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     val ackMsg = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
     val di = DeliveryInfo(ackMsg, sender, 0, route, None, 0)
     pendingUnorderedDeliveries += ackMsg.messageId -> process(di)
-    raise(EvtUnorderedDeliveryScheduled, 'id -> ackMsg.messageId, 'target -> route)
+    raise(Evt.UnorderedDeliveryScheduled, 'id -> ackMsg.messageId, 'target -> route)
   }
 
   def acknowledgedDelivery(orderedGroupId: Any, msg: Any, route: DestinationRoute, cancelWithSelection: Option[MessageSelection] = None)(implicit sender: ActorRef): Unit = {
@@ -122,12 +120,12 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
     val ackTo = if (sender == self) None else Some(self)
     val acknowledgeable: AcknowledgeableWithSpecificId = Acknowledgeable(messageIdGenerator.next(), msg, ackTo)
     group.deliver(acknowledgeable, sender)
-    raise(EvtOrderedDeliveryScheduled, 'group -> id, 'id -> acknowledgeable.messageId)
+    raise(Evt.OrderedDeliveryScheduled, 'group -> id, 'id -> acknowledgeable.messageId)
   }
 
   def cancelDelivery(id: MessageId) = {
     markAsDelivered(id)
-    raise(EvtDeliveryCancelled, 'id -> id)
+    raise(Evt.DeliveryCancelled, 'id -> id)
   }
 
   onTick {
@@ -190,7 +188,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
         case location@Some(ref) =>
           ref.tell(info.msg, info.sender)
           val attempts = info.attempts + 1
-          raise(EvtDeliveryAttempt, 'id -> info.msg.messageId, 'attempts -> attempts, 'route -> info.route, 'ref -> ref, 'payload -> info.msg.payload)
+          raise(Evt.DeliveryAttempt, 'id -> info.msg.messageId, 'attempts -> attempts, 'route -> info.route, 'ref -> ref, 'payload -> info.msg.payload)
           info.copy(sent = now, attempts = attempts, sentTo = location)
       }
     } else info
@@ -198,7 +196,7 @@ trait SimpleInMemoryAcknowledgedDelivery extends ActorWithTicks {
 
   onMessage {
     case Acknowledgement(id) if pendingOrderedDeliveries.contains(id) || pendingUnorderedDeliveries.contains(id) =>
-      raise(EvtDeliveryAcknowledged, 'id -> id)
+      raise(Evt.DeliveryAcknowledged, 'id -> id)
       markAsDelivered(id)
 
   }

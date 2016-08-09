@@ -57,18 +57,18 @@ trait ServicePortSubscriptionRequestSink extends StatelessActor with RegistryRef
 
 
 object ServicePortSubscriptionRequestSinkSubscriber {
-  val EvtSourceId = "ServicePort.StreamSubscriptionSink"
 
-  case object EvtCompletedSuccessfully extends InfoE
-
-  case object EvtCompletedWithError extends WarningE
-
-  case object EvtTerminatedOnRequest extends WarningE
+  object Evt {
+    case object CompletedSuccessfully extends InfoE
+    case object CompletedWithError extends WarningE
+    case object TerminatedOnRequest extends WarningE
+  }
 
   def props(streamAggregator: ActorRef, token: String) = Props(classOf[ServicePortSubscriptionRequestSinkSubscriber], streamAggregator, token)
 }
 
 class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRef, token: String) extends ServicePortSubscriptionRequestSink with ActorSubscriber {
+
   import ServicePortSubscriptionRequestSinkSubscriber._
 
   val HighWatermark = nodeCfg.asInt("service-port.backpressure.high-watermark", 500)
@@ -90,18 +90,18 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
     case OnNext(m: OpenSubscription) => addSubscription(m)
     case OnNext(m: CloseSubscription) => removeSubscription(m)
     case OnComplete =>
-      raise(EvtCompletedSuccessfully)
+      raise(Evt.CompletedSuccessfully)
       terminateInstance()
     case OnError(x) =>
-      raise(EvtCompletedWithError, 'error -> x)
+      raise(Evt.CompletedWithError, 'error -> x)
       terminateInstance()
   }
 
-  addEvtFields('token -> token)
+  commonEvtFields('token -> token)
 
   onActorTerminated { ref =>
     if (ref == streamAggregator) {
-      raise(EvtTerminatedOnRequest)
+      raise(Evt.TerminatedOnRequest)
       terminateInstance()
     }
   }
@@ -120,5 +120,4 @@ class ServicePortSubscriptionRequestSinkSubscriber(val streamAggregator: ActorRe
 
   override protected def requestStrategy: RequestStrategy = new WatermarkRequestStrategy(HighWatermark, LowWatermark)
 
-  override val evtSource: EvtSource = EvtSourceId
 }

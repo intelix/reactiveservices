@@ -12,7 +12,7 @@ trait ActorSystemTestContext extends EvtAssertions {
 
   def buildSystem: ActorSystem
 
-  def start(props: Props, id: String = UUIDTools.generateShortUUID) = system.map(_.actorOf(props, id))
+  def start(props: Props, id: String = UUIDTools.generateUUID) = system.map(_.actorOf(props, id))
 
   def stop(actor: Option[ActorRef], terminationEvent: EvtSelection) = system.flatMap { s =>
     actor.foreach { a =>

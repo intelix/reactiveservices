@@ -17,24 +17,24 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
 
   private val logger = LoggerFactory.getLogger("test")
 
-  private val logFormat = "%35s - %-30s : %s"
-  private val fieldPrefix = "#"
+  private val logFormat = "%-40s - %-40s : %s"
+  private val fieldPrefix = "'"
   private val fieldPostfix = "="
   private val fieldsSeparator = "  "
 
-  private def buildEventLogMessage(source: EvtSource, e: Evt, values: Seq[EvtFieldValue]): String = {
+  private def buildEventLogMessage(source: EvtSource, e: String, lvl: EvtLevel, values: Seq[EvtFieldValue]): String = {
     val fields = values.foldLeft(new StringBuilder) {
       (aggr, next) => aggr.append(fieldPrefix).append(next._1.name).append(fieldPostfix).append(next._2).append(fieldsSeparator)
     }
-    logFormat.format(source.evtSourceId, e.name, fields.toString())
+    logFormat.format(source.evtSourceId, e, fields.toString())
   }
 
-  private def buildEventLogMessage(timestamp: Long, source: EvtSource, e: Evt, values: Seq[EvtFieldValue]): String = {
+  private def buildEventLogMessage(timestamp: Long, source: EvtSource, e: String, lvl: EvtLevel, values: Seq[EvtFieldValue]): String = {
 
     val date = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
     val d = date.format(new Date(timestamp))
 
-    d + ": " + buildEventLogMessage(source, e, values)
+    d + ": " + buildEventLogMessage(source, e, lvl, values)
   }
 
   def publisher = TestEvtPublisher
@@ -79,7 +79,7 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
     logger.info("*" * 60 + " RAISED EVENTS: " + "*" * 60)
     publisher.withOrderedEvents { events =>
       events.foreach { next =>
-        logger.info(buildEventLogMessage(next.timestamp, next.source, next.event, next.values))
+        logger.info(buildEventLogMessage(next.timestamp, next.source, next.event, next.lvl, next.values))
       }
     }
     logger.info("*" * 120 + "\n" * 4)
@@ -125,13 +125,15 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
   def locateFirstEventFieldValue[T](event: EvtSelection, field: String): T =
     locateFirstEvent(event).values.find(_._1.name == field).get._2.asInstanceOf[T]
 
-  def locateFirstEventFieldValue[T](event: Evt, field: String): T = locateFirstEventFieldValue[T](EvtSelection(event, None), field)
+  def locateFirstEventFieldValue[T](event: Evt, field: String): T = locateFirstEventFieldValue[T](EvtSelection(event.name, None), field)
+  def locateFirstEventFieldValue[T](event: String, field: String): T = locateFirstEventFieldValue[T](EvtSelection(event, None), field)
 
 
   def locateLastEventFieldValue[T](event: EvtSelection, field: String): T =
     locateLastEvent(event).values.find(_._1.name == field).get._2.asInstanceOf[T]
 
-  def locateLastEventFieldValue[T](event: Evt, field: String): T = locateLastEventFieldValue(EvtSelection(event, None), field)
+  def locateLastEventFieldValue[T](event: Evt, field: String): T = locateLastEventFieldValue(EvtSelection(event.name, None), field)
+  def locateLastEventFieldValue[T](event: String, field: String): T = locateLastEventFieldValue(EvtSelection(event, None), field)
 
 
   def within(duration: FiniteDuration)(f: => Unit): Unit = within(duration.toMillis)(f)
@@ -176,18 +178,23 @@ trait EvtAssertions extends Matchers with TestEvtContext with EvtMatchers with B
 
   def expectNone: BaseExpectation = BaseExpectation(eventsNotExpected)
 
+  implicit def convertToEventSelection(e: Evt): EvtSelection = EvtSelection(e.name)
   implicit def convertToEventSpec(e: EvtSelection): EventSpec = EventSpec(e)
 
-  implicit def convertToEventSpec(e: Evt): EventSpec = EventSpec(EvtSelection(e, None))
+  implicit def convertToEventSpec(e: Evt): EventSpec = EventSpec(EvtSelection(e.name, None))
+
+  implicit def convertToEventSpec(e: String): EventSpec = EventSpec(EvtSelection(e, None))
 
   case class EventSpec(e: EvtSelection, fields: Seq[EvtFieldValue] = Seq()) {
     def withFields(x: EvtFieldValue*) = copy(fields = fields ++ x)
 
     def +(x: EvtFieldValue*) = withFields(x: _*)
 
-    def +(x: String): EventSpec = this.+(StringEvtSource(x))
+//    def +(x: String): EventSpec = this.+(StringEvtSource(x))
+    def +(x: Class[_]): EventSpec = this.+(StringEvtSource(x.getSimpleName))
 
     def +(x: EvtSource): EventSpec = copy(e = e.copy(s = Some(x)))
+
   }
 
   case class EventAssertionKey()

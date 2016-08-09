@@ -30,9 +30,10 @@ import scala.language.postfixOps
 
 object PingInjectorStage {
 
-  case object ServerClientPing extends TraceE
+  object Evt {
+    case object ServerClientPing extends TraceE
+  }
 
-  val EvtSourceId = "Endpoint.PingInjector"
 }
 
 
@@ -55,7 +56,7 @@ class PingInjectorStage extends BinaryDialectStageBuilder {
 
       import PingInjectorStage._
 
-      implicit val publisher = EvtContext(EvtSourceId, nodeCfg.config, 'token -> sessionId)
+      implicit val publisher = EvtContext(classOf[PingInjectorStage], nodeCfg.config, 'token -> sessionId)
 
 
       private val clientBound = mutable.Queue[BinaryDialectOutbound]()
@@ -75,7 +76,7 @@ class PingInjectorStage extends BinaryDialectStageBuilder {
             case BinaryDialectPong(ts) =>
               val now = System.currentTimeMillis() % Int.MaxValue
               val diff = now - ts
-              publisher.raise(ServerClientPing, 'ms -> diff)
+              publisher.raise(Evt.ServerClientPing, 'ms -> diff)
             case x: BinaryDialectInbound => pushToServer(x)
           }
           if (canPullFromClientNow) pull(in1)

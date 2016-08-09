@@ -12,7 +12,8 @@ import com.typesafe.config.Config
 trait DetachedEvent {
   def source: EvtSource
 
-  def evt: Evt
+  def evt: String
+  def lvl: EvtLevel
 
   def fields: Seq[EvtFieldValue]
 
@@ -24,7 +25,8 @@ class DisruptorPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport
 
   class Event extends DetachedEvent {
     var source: EvtSource = null
-    var evt: Evt = null
+    var evt: String = null
+    var lvl: EvtLevel = null
     var fields: Seq[EvtFieldValue] = null
   }
 
@@ -34,6 +36,7 @@ class DisruptorPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport
         h.onEvent(t, l, b)
       } finally {
         t.evt = null
+        t.lvl = null
         t.fields = null
         t.source = null
       }
@@ -41,7 +44,7 @@ class DisruptorPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport
   }
 
   private class PublisherWrapper(p: EvtPublisher) extends EventHandler[DetachedEvent] {
-    override def onEvent(event: DetachedEvent, sequence: Long, endOfBatch: Boolean): Unit = p.raise(event.source, event.evt, event.fields)
+    override def onEvent(event: DetachedEvent, sequence: Long, endOfBatch: Boolean): Unit = p.evt(event.source, event.evt, event.lvl, event.fields)
   }
 
   val ringSize = cfg.asInt("evt.disruptor.ring-size", 1024 * 16)
@@ -66,12 +69,13 @@ class DisruptorPublisher(cfg: Config) extends EvtPublisher with EvtMutingSupport
     disruptor.shutdown(10, TimeUnit.SECONDS)
   }
 
-  override def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue]): Unit = {
+  override def evt(s: EvtSource, e: String, lvl: EvtLevel, fields: Seq[EvtFieldValue]): Unit = {
     val id = rb.next()
     try {
       val entry = rb.get(id)
       entry.source = s
       entry.evt = e
+      entry.lvl = lvl
       entry.fields = fields
     } finally {
       rb.publish(id)

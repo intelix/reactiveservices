@@ -23,7 +23,7 @@ import org.apache.commons.codec.binary.Base64
 
 object UUIDTools {
 
-   def generateShortUUID: String = {
+   def generateUUID: String = {
      val uuid = new UUID()
      val bb = ByteBuffer allocate 16
      bb putLong uuid.getClockSeqAndNode

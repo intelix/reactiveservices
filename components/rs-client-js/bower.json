@@ -1,0 +1,28 @@
+{
+  "name": "rs-client-js",
+  "version": "1.0.0",
+  "homepage": "",
+  "authors": [
+    "Max <max@intelix.com.au>"
+  ],
+  "description": "Websocket client for Reactive Services",
+  "main": "dist/rs-client.js",
+  "keywords": [
+    "reactiveservices",
+    "reactive-services",
+    "rs"
+  ],
+  "license": "Apache",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests",
+    "build",
+    "src",
+    "build.xml",
+    "package.json",
+    "updateDocs.sh"
+  ]
+}

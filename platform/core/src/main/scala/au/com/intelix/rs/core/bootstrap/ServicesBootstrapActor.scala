@@ -23,9 +23,9 @@ import scala.collection.JavaConversions
 
 object ServicesBootstrapActor {
 
-  val EvtSourceId = "ServiceBootstrap"
-
-  case object EvtStartingService extends InfoE
+  object Evt {
+    case object StartingService extends InfoE
+  }
 
   case class ForwardToService(id: String, m: Any)
 
@@ -37,15 +37,14 @@ class ServicesBootstrapActor extends StatelessActor {
 
   case class ServiceMeta(id: String, cl: String)
 
-  lazy val services: List[ServiceMeta] = JavaConversions.asScalaSet(config.getConfig("node.services").entrySet()).map {
-    case e => ServiceMeta(e.getKey, e.getValue.unwrapped().toString)
-  }.toList
+  lazy val services: List[ServiceMeta] = JavaConversions
+    .asScalaSet(config.getConfig("node.services").entrySet()).map(e => ServiceMeta(e.getKey, e.getValue.unwrapped().toString)).toList
 
   var servicesCounter = 0
 
   private def startProvider(sm: ServiceMeta) = {
     val actor = context.actorOf(Props(Class.forName(sm.cl), sm.id), sm.id)
-    raise(EvtStartingService, 'service -> sm.id, 'class -> sm.cl, 'ref -> actor)
+    raise(Evt.StartingService, 'service -> sm.id, 'class -> sm.cl, 'ref -> actor)
   }
 
   @throws[Exception](classOf[Exception]) override
@@ -57,5 +56,5 @@ class ServicesBootstrapActor extends StatelessActor {
   onMessage {
     case ForwardToService(id, m) => context.actorSelection(id).forward(m)
   }
-  override val evtSource: EvtSource = EvtSourceId
+
 }

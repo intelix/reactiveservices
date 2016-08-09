@@ -2,7 +2,7 @@ import Dependencies.Compile._
 import Dependencies.Test._
 
 lazy val root = project.in(file(".")).
-  aggregate(essentials, ssl_config, evt, platform_core, node, websocket_server, auth, platform_codec_binary, js).
+  aggregate(essentials, config, ssl_config, evt, platform_core, platform_node, comp_websocket_ep, comp_auth, platform_codec_binary).
   settings(Build.settings("reactiveservices", publishToSonatype = false))
 
 
@@ -84,10 +84,29 @@ lazy val platform_core = Project(id = "core", base = file("platform/core")).
   ).dependsOn(essentials, config, evt)
 
 
+lazy val platform_node = Project(id = "node", base = file("platform/node")).
+  settings(Build.essentials("node")).
+  dependsOn(platform_core, ssl_config)
+
+
 lazy val platform_codec_binary = Project(id = "codec-binary", base = file("platform/codec-binary")).
   settings(Build.essentials("codec-binary")).
   dependsOn(platform_core)
 
+
+
+lazy val comp_auth = Project(id = "auth", base = file("components/auth")).
+  settings(Build.essentials("auth")).
+  dependsOn(platform_core, platform_node)
+
+
+lazy val comp_websocket_ep = Project(id = "websocket-endpoint", base = file("components/websocket-endpoint")).
+  settings(Build.essentials("websocket-endpoint")).
+  settings(
+    libraryDependencies ++= Seq(
+      sprayWebsocket % "test"
+    )
+  ).dependsOn(platform_core, platform_node, platform_codec_binary, comp_auth)
 
 
 
@@ -122,15 +141,15 @@ lazy val platform_codec_binary = Project(id = "codec-binary", base = file("platf
 //)
 
 
-lazy val node = Project(
-  id = "core-node",
-  base = file("core-node"),
-  dependencies = Seq(
-    evt,
-    platform_core,
-    ssl_config
-  )
-)
+//lazy val node = Project(
+//  id = "core-node",
+//  base = file("core-node"),
+//  dependencies = Seq(
+//    evt,
+//    platform_core,
+//    ssl_config
+//  )
+//)
 
 //lazy val codec_binary = Project(
 //  id = "core-codec-binary",
@@ -139,43 +158,43 @@ lazy val node = Project(
 //    platform_core
 //  )
 //)
-lazy val websocket_server = Project(
-  id = "websocket-server",
-  base = file("websocket-server"),
-  dependencies = Seq(
-    platform_core,
-    node,
-    auth,
-    platform_codec_binary
-  )
-)
+//lazy val websocket_server = Project(
+//  id = "websocket-server",
+//  base = file("websocket-server"),
+//  dependencies = Seq(
+//    platform_core,
+//    platform_node,
+//    comp_auth,
+//    platform_codec_binary
+//  )
+//)
+//
+//
+//
+//lazy val auth = Project(
+//  id = "auth",
+//  base = file("auth"),
+//  dependencies = Seq(
+//    evt,
+//    platform_core,
+//    platform_node
+//  )
+//)
 
 
 
-lazy val auth = Project(
-  id = "auth",
-  base = file("auth"),
-  dependencies = Seq(
-    evt,
-    platform_core,
-    node
-  )
-)
+//lazy val js = Project(
+//  id = "core-js",
+//  base = file("core-js"),
+//  dependencies = Seq(
+//    platform_core,
+//    platform_node
+//  )
+//).enablePlugins(SbtWeb)
 
 
 
-lazy val js = Project(
-  id = "core-js",
-  base = file("core-js"),
-  dependencies = Seq(
-    platform_core,
-    node
-  )
-).enablePlugins(SbtWeb)
-
-
-
-lazy val samples = Project(id = "samples", base = file("samples")).dependsOn(websocket_server, auth, platform_core, node).enablePlugins(DockerPlugin, JavaAppPackaging)
+lazy val samples = Project(id = "samples", base = file("samples")).dependsOn(comp_websocket_ep, comp_auth, platform_core, platform_node).enablePlugins(DockerPlugin, JavaAppPackaging)
 
 
 //lazy val reactiveFxWeb = Project(id = "reactivefx-web", base = file("tmp/reactivefx/web"), dependencies = Seq(core, js)).enablePlugins(PlayScala, SbtWeb)

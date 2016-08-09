@@ -27,6 +27,9 @@ trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription
   var leader: Option[Address] = None
 
   def isClusterLeader = leader.contains(cluster.selfAddress)
+  lazy val selfRoles = cluster.selfRoles
+
+  def isClusterFormed = leader.nonEmpty
 
   def isAddressReachable(address: Address) = reachableMembers contains address
 
@@ -118,14 +121,18 @@ trait ClusterAwareness extends BaseActor with ClusterMembershipEventSubscription
   }
 
   private def remove(member: Member) =
-    if (allMembers contains member.address) doWithRolesTracking {
-      allMembers = allMembers - member.address
+    if (allMembers contains member.address) {
+      doWithRolesTracking {
+        allMembers = allMembers - member.address
+      }
       notifyClusterMemberSetChange()
     }
 
   private def add(member: Member) =
-    if (!(allMembers contains member.address)) doWithRolesTracking {
-      allMembers = allMembers + (member.address -> member)
+    if (!(allMembers contains member.address)) {
+      doWithRolesTracking {
+        allMembers = allMembers + (member.address -> member)
+      }
       notifyClusterMemberSetChange()
     }
 

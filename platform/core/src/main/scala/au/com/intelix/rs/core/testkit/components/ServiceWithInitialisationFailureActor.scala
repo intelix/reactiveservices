@@ -8,7 +8,6 @@ object ServiceWithInitialisationFailureActor {
   var recoveryEnabled = false
   var failureCounter = 0
 
-  val EvtSourceId = "Test.FaultyService"
 }
 
 class ServiceWithInitialisationFailureActor extends StatelessServiceActor {
@@ -19,13 +18,10 @@ class ServiceWithInitialisationFailureActor extends StatelessServiceActor {
   def preStart(): Unit = {
     super.preStart()
     if (ServiceWithInitialisationFailureActor.recoveryEnabled) ServiceWithInitialisationFailureActor.failureCounter += 1
-    println(s"!>>> ServiceWithInitialisationFailureActor.recoveryEnabled = ${ServiceWithInitialisationFailureActor.recoveryEnabled}")
-    println(s"!>>> ServiceWithInitialisationFailureActor.failureCounter = ${ServiceWithInitialisationFailureActor.failureCounter}")
     if (!ServiceWithInitialisationFailureActor.recoveryEnabled || ServiceWithInitialisationFailureActor.failureCounter < 5)
       throw new RuntimeException("simulated failure on preStart")
 
   }
 
-  override val evtSource: EvtSource = EvtSourceId
 }
 

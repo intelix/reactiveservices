@@ -1,19 +1,15 @@
 package au.com.intelix.rs.core.actors
 
-import au.com.intelix.evt.InfoE
+import au.com.intelix.evt.{InfoE, WarningE}
 
 object CommonActorEvt {
 
-  case object EvtPostStop extends InfoE
-
-  case object EvtPreStart extends InfoE
-
-  case object EvtPreRestart extends InfoE
-
-  case object EvtPostRestart extends InfoE
-
-  case object EvtStateTransition extends InfoE
-
-  case object EvtStateChange extends InfoE
+  object Evt {
+    case object PostStop extends InfoE
+    case object PreStart extends InfoE
+    case object PreRestart extends WarningE
+    case object PostRestart extends WarningE
+    case object StateTransition extends InfoE
+  }
 
 }

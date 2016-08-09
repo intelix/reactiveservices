@@ -14,19 +14,15 @@ import scala.concurrent.Await
 import scala.concurrent.duration.DurationInt
 
 object MultiActorSystemTestContext {
-  val EvtSourceId = "Test.ActorSystem"
 
-  case object EvtActorSystemCreated extends TraceE
-
-  case object EvtActorSystemTerminated extends TraceE
-
-  case object EvtTerminatingActorSystem extends TraceE
-
-  case object EvtDestroyingAllSystems extends TraceE
-
-  case object EvtDestroyingActor extends TraceE
-
-  case object EvtAllActorsTerminated extends TraceE
+  object Evt {
+    case object ActorSystemCreated extends TraceE
+    case object ActorSystemTerminated extends TraceE
+    case object TerminatingActorSystem extends TraceE
+    case object DestroyingAllSystems extends TraceE
+    case object DestroyingActor extends TraceE
+    case object AllActorsTerminated extends TraceE
+  }
 
 }
 
@@ -50,15 +46,13 @@ private case class StopAll()
 
 
 private object WatcherActor {
-  val EvtSourceId = "Test.Watcher"
 
-  case object EvtWatching extends TraceE
-
-  case object EvtWatchedActorGone extends TraceE
-
-  case object EvtAllWatchedActorsGone extends TraceE
-
-  case object EvtTerminatingActor extends TraceE
+  object Evt {
+    case object Watching extends TraceE
+    case object WatchedActorGone extends TraceE
+    case object AllWatchedActorsGone extends TraceE
+    case object TerminatingActor extends TraceE
+  }
 
   def props(componentId: String) = Props(new WatcherActor(componentId))
 }
@@ -67,34 +61,33 @@ private class WatcherActor(id: String) extends StatelessActor {
 
   import WatcherActor._
 
-  addEvtFields('InstanceId -> id)
+  commonEvtFields('InstanceId -> id)
 
   var watched = Set[ActorRef]()
 
   onMessage {
     case StopAll() =>
       if (watched.isEmpty) {
-        raise(EvtAllWatchedActorsGone)
+        raise(Evt.AllWatchedActorsGone)
       }
       watched.foreach { a =>
-        raise(EvtTerminatingActor, 'Actor -> a)
+        raise(Evt.TerminatingActor, 'Actor -> a)
         context.stop(a)
       }
     case Watch(ref) =>
-      raise(EvtWatching, 'Ref -> ref)
+      raise(Evt.Watching, 'Ref -> ref)
       watched = watched + ref
       context.watch(ref)
     case Terminated(ref) =>
       watched = watched match {
         case w if w contains ref =>
-          raise(EvtWatchedActorGone, 'Ref -> ref, 'Path -> ref.path.toSerializationFormat)
-          if (w.size == 1) raise(EvtAllWatchedActorsGone)
+          raise(Evt.WatchedActorGone, 'Ref -> ref, 'Path -> ref.path.toSerializationFormat)
+          if (w.size == 1) raise(Evt.AllWatchedActorsGone)
           w - ref
         case w => w
       }
 
   }
-  override val evtSource: EvtSource = EvtSourceId
 }
 
 trait ConfigReference {
@@ -115,12 +108,10 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with TestEvtContext
 
   import MultiActorSystemTestContext._
 
-  override val evtSource: EvtSource = EvtSourceId
-
   object OnlyThisTest extends Tag("OnlyThisTest")
 
   case class Wrapper(config: Config, underlyingSystem: ActorSystem, id: String, configName: String) extends ActorSystemWrapper {
-    private val watcherComponentId = UUIDTools.generateShortUUID
+    private val watcherComponentId = UUIDTools.generateUUID
     private val watcher = underlyingSystem.actorOf(WatcherActor.props(watcherComponentId))
 
     override def start(props: Props, id: String): ActorRef = {
@@ -132,20 +123,20 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with TestEvtContext
     override def stopActor(id: String) = {
       val futureActor = rootUserActorSelection(id).resolveOne(5.seconds)
       val actor = Await.result(futureActor, 15.seconds)
-      raise(EvtDestroyingActor, 'Actor -> actor)
+      raise(Evt.DestroyingActor, 'Actor -> actor)
       underlyingSystem.stop(actor)
-      on anyNode expectSome of WatcherActor.EvtWatchedActorGone +('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
+      on anyNode expectSome of WatcherActor.Evt.WatchedActorGone +('Path -> actor.path.toSerializationFormat, 'InstanceId -> watcherComponentId)
       clearComponentEvents(watcherComponentId)
     }
 
     def stop() = {
-      raise(EvtTerminatingActorSystem, 'Name -> configName)
+      raise(Evt.TerminatingActorSystem, 'Name -> configName)
       val startCheckpoint = System.nanoTime()
       try {
         Await.result(underlyingSystem.terminate(), 120.seconds)
-        raise(EvtActorSystemTerminated, 'Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
+        raise(Evt.ActorSystemTerminated, 'Name -> configName, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000)
       } catch {
-        case _: Throwable => raise(CommonEvt.EvtError, 'Name -> configName, 'Message -> "Unable to terminate actor system. Attempting to continue...")
+        case _: Throwable => raise(CommonEvt.Evt.Error, 'Name -> configName, 'Message -> "Unable to terminate actor system. Attempting to continue...")
       }
     }
 
@@ -153,9 +144,9 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with TestEvtContext
       val startCheckpoint = System.nanoTime()
       clearComponentEvents(watcherComponentId)
       watcher ! StopAll()
-      on anyNode expectSome of WatcherActor.EvtAllWatchedActorsGone + ('InstanceId -> watcherComponentId)
+      on anyNode expectSome of WatcherActor.Evt.AllWatchedActorsGone + ('InstanceId -> watcherComponentId)
       clearComponentEvents(watcherComponentId)
-      raise(EvtAllActorsTerminated, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000, 'System -> configName)
+      raise(Evt.AllActorsTerminated, 'TerminatedInMs -> (System.nanoTime() - startCheckpoint) / 1000000, 'System -> configName)
     }
   }
 
@@ -168,7 +159,7 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with TestEvtContext
     case None =>
       val config: Config = buildConfig(configs: _*)
       val sys = Wrapper(config, ActorSystem(akkaSystemId, config), akkaSystemId, instanceId)
-      raise(EvtActorSystemCreated, 'instanceId -> instanceId, 'system -> akkaSystemId)
+      raise(Evt.ActorSystemCreated, 'instanceId -> instanceId, 'system -> akkaSystemId)
       systems = systems + (instanceId -> sys)
       sys
     case Some(x) => x
@@ -183,7 +174,7 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with TestEvtContext
     ConfigFactory.parseString(config).resolve()
   }
 
-  def locateExistingSystem(instanceId: String) = systems.get(instanceId).get
+  def locateExistingSystem(instanceId: String) = systems(instanceId)
 
   def withSystem[T](instanceId: String, configs: ConfigReference*)(f: ActorSystemWrapper => T): T = f(getSystem(instanceId, configs: _*))
 
@@ -194,7 +185,7 @@ trait MultiActorSystemTestContext extends BeforeAndAfterEach with TestEvtContext
   }
 
   def destroyAllSystems() = {
-    raise(EvtDestroyingAllSystems)
+    raise(Evt.DestroyingAllSystems)
     systems.values.foreach(_.stop())
     systems = Map()
   }

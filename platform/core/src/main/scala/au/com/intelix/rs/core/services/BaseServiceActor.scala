@@ -15,12 +15,12 @@
  */
 package au.com.intelix.rs.core.services
 
-import akka.actor.{Actor, ActorRef, Address, Deploy}
+import akka.actor.{ActorRef, Address, Deploy}
 import akka.remote.RemoteScope
-import au.com.intelix.essentials.time.NanoTimer
-import au.com.intelix.rs.core.actors._
 import au.com.intelix.config.ConfigOps.wrap
+import au.com.intelix.essentials.time.NanoTimer
 import au.com.intelix.evt.{InfoE, WarningE}
+import au.com.intelix.rs.core.actors._
 import au.com.intelix.rs.core.config.ServiceConfig
 import au.com.intelix.rs.core.services.Messages.{SignalAckFailed, SignalAckOk}
 import au.com.intelix.rs.core.services.internal.InternalMessages.SignalPayload
@@ -55,32 +55,20 @@ object BaseServiceActor {
 
 object ServiceEvt {
 
-  case object EvtServiceRunning extends InfoE
-
-  case object EvtNodeAvailable extends InfoE
-
-  case object EvtStartingRemoteAgent extends InfoE
-
-  case object EvtRemoveAgentTerminated extends InfoE
-
-  case object EvtSignalProcessed extends InfoE
-
-  case object EvtSignalPayload extends InfoE
-  case object EvtSignalResponsePayload extends InfoE
-
-  case object EvtRemoteEndpointRegistered extends InfoE
-
-  case object EvtStreamInterestAdded extends InfoE
-
-  case object EvtStreamInterestRemoved extends InfoE
-
-  case object EvtStreamResync extends InfoE
-
-  case object EvtIdleStream extends InfoE
-
-  case object EvtSubjectMapped extends InfoE
-
-  case object EvtSubjectMappingError extends WarningE
+  case object ServiceRunning extends InfoE
+  case object NodeAvailable extends InfoE
+  case object StartingRemoteAgent extends InfoE
+  case object RemoveAgentTerminated extends InfoE
+  case object SignalProcessed extends InfoE
+  case object SignalPayload extends InfoE
+  case object SignalResponsePayload extends InfoE
+  case object RemoteEndpointRegistered extends InfoE
+  case object StreamInterestAdded extends InfoE
+  case object StreamInterestRemoved extends InfoE
+  case object StreamResync extends InfoE
+  case object IdleStream extends InfoE
+  case object SubjectMapped extends InfoE
+  case object SubjectMappingError extends WarningE
 
 }
 
@@ -88,12 +76,12 @@ abstract class StatelessServiceActor extends StatelessActor with BaseServiceActo
 
 trait BaseServiceActor
   extends BaseActor
-  with ClusterAwareness
-  with SimpleInMemoryAcknowledgedDelivery
-  with StreamDemandBinding
-  with RemoteStreamsBroadcaster
-  with MessageAcknowledging
-  with StreamPublishers {
+    with ClusterAwareness
+    with SimpleInMemoryAcknowledgedDelivery
+    with StreamDemandBinding
+    with RemoteStreamsBroadcaster
+    with MessageAcknowledging
+    with StreamPublishers {
 
   import BaseServiceActor._
 
@@ -108,6 +96,9 @@ trait BaseServiceActor
   implicit lazy val serviceCfg = ServiceConfig(config.asConfig(serviceId))
 
   implicit lazy val serviceKey: ServiceKey = serviceId
+
+  private lazy val exposeOnRoles = serviceCfg.asStringList("expose-on.roles").toSet
+  private lazy val exposeOnHosts = serviceCfg.asStringList("expose-on.hosts").toSet
 
   implicit val execCtx = context.dispatcher
 
@@ -137,6 +128,7 @@ trait BaseServiceActor
   final override def onConsumerDemand(consumer: ActorRef, demand: Long): Unit = newConsumerDemand(consumer, demand)
 
   final def onSubjectMapping(f: SubjectToStreamIdMapper): Unit = subjectToStreamKeyMapperFunc = f orElse subjectToStreamKeyMapperFunc
+
   final def onSubjectMappingAsync(f: SubjectToFutureStreamIdMapper): Unit = subjectToFutureStreamKeyMapperFunc = f orElse subjectToFutureStreamKeyMapperFunc
 
   final def onStreamActive(f: StreamEventCallback): Unit = streamActiveFunc = f orElse streamActiveFunc
@@ -164,18 +156,18 @@ trait BaseServiceActor
 
   implicit def tupleToOptionStreamIdWrapper[T](x: (String, T)): Option[StreamId] = Some(x)
 
-  addEvtFields('service -> serviceKey)
+  commonEvtFields('service -> serviceKey)
 
   @throws[Exception](classOf[Exception])
   override def preStart(): Unit = {
     super.preStart()
-    raise(ServiceEvt.EvtServiceRunning)
+    raise(ServiceEvt.ServiceRunning)
   }
 
   onClusterMemberUp {
     case (address, roles) if nodeRoles.isEmpty || roles.exists(nodeRoles.contains) =>
-      raise(ServiceEvt.EvtNodeAvailable, 'address -> address, 'host -> address.host, 'roles -> roles)
-      ensureAgentIsRunningAt(address)
+      raise(ServiceEvt.NodeAvailable, 'address -> address, 'host -> address.host, 'roles -> roles)
+      if (shouldExposeOn(address, roles)) ensureAgentIsRunningAt(address)
       reinitialiseStreams(address)
   }
 
@@ -183,61 +175,61 @@ trait BaseServiceActor
     case m: SignalPayload =>
       val dsr = defaultSignalResponseFunc
       val timer = NanoTimer()
-      raise(ServiceEvt.EvtSignalPayload, 'correlation -> m.correlationId, 'payload -> m.payload)
+      raise(ServiceEvt.SignalPayload, 'subj -> m.subj, 'correlation -> m.correlationId, 'payload -> m.payload)
       if (m.expireAt > now) {
         val origin = sender()
         signalHandlerFunc((m.subj, m.payload)) match {
           case Some(SignalOk(p)) =>
             origin ! SignalAckOk(m.correlationId, m.subj, p)
-            raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
-            raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+            raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
+            raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
           case Some(SignalFailed(p)) =>
             origin ! SignalAckFailed(m.correlationId, m.subj, p)
-            raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
-            raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+            raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+            raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
           case Some(f: Future[_]) =>
             f.onComplete {
               case Success(SignalOk(p)) =>
                 origin ! SignalAckOk(m.correlationId, m.subj, p)
-                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
-                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'ms -> timer.toMillis)
+                raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
               case Success(SignalFailed(p)) =>
                 origin ! SignalAckFailed(m.correlationId, m.subj, p)
-                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
-                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'ms -> timer.toMillis)
+                raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
               case Success(_) =>
                 dsr((m.subj, m.payload)) match {
                   case Some(SignalOk(p)) =>
                     origin ! SignalAckOk(m.correlationId, m.subj, p)
-                    raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'default -> true, 'ms -> timer.toMillis)
-                    raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                    raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'default -> true, 'ms -> timer.toMillis)
+                    raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
                   case Some(SignalFailed(p)) =>
                     origin ! SignalAckFailed(m.correlationId, m.subj, p)
-                    raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'default -> true, 'ms -> timer.toMillis)
-                    raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                    raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'default -> true, 'ms -> timer.toMillis)
+                    raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
                   case _ =>
-                    raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+                    raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
                 }
               case Failure(t) =>
                 origin ! SignalAckFailed(m.correlationId, m.subj, None)
-                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'reason -> t, 'ms -> timer.toMillis)
+                raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'reason -> t, 'ms -> timer.toMillis)
             }
           case None =>
             dsr((m.subj, m.payload)) match {
               case Some(SignalOk(p)) =>
                 origin ! SignalAckOk(m.correlationId, m.subj, p)
-                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'default -> true, 'ms -> timer.toMillis)
-                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "success", 'default -> true, 'ms -> timer.toMillis)
+                raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
               case Some(SignalFailed(p)) =>
                 origin ! SignalAckFailed(m.correlationId, m.subj, p)
-                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'default -> true, 'ms -> timer.toMillis)
-                raise(ServiceEvt.EvtSignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
+                raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "failure", 'default -> true, 'ms -> timer.toMillis)
+                raise(ServiceEvt.SignalResponsePayload, 'correlation -> m.correlationId, 'payload -> p)
               case _ =>
-                raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
+                raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'result -> "ignored", 'ms -> timer.toMillis)
             }
           case _ =>
         }
-      } else raise(ServiceEvt.EvtSignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
+      } else raise(ServiceEvt.SignalProcessed, 'correlation -> m.correlationId, 'subj -> m.subj, 'expired -> "true", 'ms -> timer.toMillis)
 
     case ServiceEndpoint(ref, id) => addEndpointAddress(id, ref)
     case OpenAgentAt(address) => if (isAddressReachable(address)) ensureAgentIsRunningAt(address)
@@ -246,28 +238,28 @@ trait BaseServiceActor
       subjectToFutureStreamKeyMapperFunc(subj).onComplete {
         case Failure(x) =>
           //          sender() ! StreamMapping(subj, None)
-          raise(ServiceEvt.EvtSubjectMappingError, 'subj -> subj, 'cause -> x)
+          raise(ServiceEvt.SubjectMappingError, 'subj -> subj, 'cause -> x)
         case Success(None) =>
           ref ! StreamMapping(subj, None)
-          raise(ServiceEvt.EvtSubjectMappingError, 'subj -> subj)
+          raise(ServiceEvt.SubjectMappingError, 'subj -> subj)
         case Success(x@Some(streamKey)) =>
           ref ! StreamMapping(subj, x)
-          raise(ServiceEvt.EvtSubjectMapped, 'stream -> streamKey, 'subj -> subj)
+          raise(ServiceEvt.SubjectMapped, 'stream -> streamKey, 'subj -> subj)
       }
     case GetMappingFor(subj) if subjectToStreamKeyMapperFunc.isDefinedAt(subj) =>
       subjectToStreamKeyMapperFunc(subj) match {
         case None =>
           sender() ! StreamMapping(subj, None)
-          raise(ServiceEvt.EvtSubjectMappingError, 'subj -> subj)
+          raise(ServiceEvt.SubjectMappingError, 'subj -> subj)
         case x@Some(streamKey) =>
           sender() ! StreamMapping(subj, x)
-          raise(ServiceEvt.EvtSubjectMapped, 'stream -> streamKey, 'subj -> subj)
+          raise(ServiceEvt.SubjectMapped, 'stream -> streamKey, 'subj -> subj)
       }
     case OpenStreamFor(streamKey) =>
       registerStreamInterest(streamKey, sender())
     case CloseStreamFor(streamKey) => closeStreamAt(sender(), streamKey)
     case StreamResyncRequest(key) =>
-      raise(ServiceEvt.EvtStreamResync, 'stream -> key, 'ref -> sender())
+      raise(ServiceEvt.StreamResync, 'stream -> key, 'ref -> sender())
       reopenStream(sender(), key)
     case StopRequest => context.parent ! StopRequest
   }
@@ -275,7 +267,7 @@ trait BaseServiceActor
   onActorTerminated { ref =>
     activeAgents get ref.path.address.toString foreach { loc =>
       if (loc.agent == ref) {
-        raise(ServiceEvt.EvtRemoveAgentTerminated, 'location -> ref.path.address, 'ref -> ref)
+        raise(ServiceEvt.RemoveAgentTerminated, 'location -> ref.path.address, 'ref -> ref)
         cancelMessages(SpecificDestination(ref))
         activeAgents -= ref.path.address.toString
         loc.endpoint foreach { epRef =>
@@ -288,10 +280,14 @@ trait BaseServiceActor
 
   protected def terminate(reason: String) = throw new RuntimeException(reason)
 
+  private def shouldExposeOn(address: Address, roles: Set[String]) =
+    (exposeOnRoles.isEmpty && exposeOnHosts.isEmpty) ||
+    roles.exists(exposeOnRoles.contains) || address.host.exists(exposeOnHosts.contains)
+
   private def ensureAgentIsRunningAt(address: Address) = {
     if (!activeAgents.contains(address.toString)) {
 
-      val id = randomUUID
+      val id = generateUUID
 
       val name = s"agt-$serviceKey-$id"
 
@@ -301,7 +297,7 @@ trait BaseServiceActor
           .withDeploy(Deploy(scope = RemoteScope(address))), name)
       )
 
-      raise(ServiceEvt.EvtStartingRemoteAgent, 'address -> address, 'host -> address.host, 'name -> name, 'remotePath -> newAgent.path)
+      raise(ServiceEvt.StartingRemoteAgent, 'address -> address, 'host -> address.host, 'name -> name, 'remotePath -> newAgent.path)
       val newActiveLocation = new AgentView(newAgent)
       activeAgents += address.toString -> newActiveLocation
     }
@@ -323,10 +319,10 @@ trait BaseServiceActor
       loc.endpoint foreach { ref => closeStreamFor(ref, streamKey) }
       loc remove streamKey
       val total = loc.currentStreams.size
-      raise(ServiceEvt.EvtStreamInterestRemoved, 'stream -> streamKey, 'location -> endpoint.path.address, 'streamsAtLocation -> total)
+      raise(ServiceEvt.StreamInterestRemoved, 'stream -> streamKey, 'location -> endpoint.path.address, 'streamsAtLocation -> total)
     }
     if (!hasAgentWithInterestIn(streamKey)) {
-      raise(ServiceEvt.EvtIdleStream, 'stream -> streamKey)
+      raise(ServiceEvt.IdleStream, 'stream -> streamKey)
       activeStreams -= streamKey
       streamPassiveFunc(streamKey)
     }
@@ -345,7 +341,7 @@ trait BaseServiceActor
       if (!existingStream) streamActiveFunc(streamKey)
 
       val total = agentView.currentStreams.size
-      raise(ServiceEvt.EvtStreamInterestAdded, 'stream -> streamKey, 'location -> requestor.path.address, 'existing -> existingStream, 'streamsAtLocation -> total)
+      raise(ServiceEvt.StreamInterestAdded, 'stream -> streamKey, 'location -> requestor.path.address, 'existing -> existingStream, 'streamsAtLocation -> total)
     }
 
   final def isStreamActive(streamKey: StreamId) = activeStreams.contains(streamKey)
@@ -355,7 +351,7 @@ trait BaseServiceActor
       agentView.addEndpoint(endpoint)
       initiateTarget(endpoint)
     }
-    raise(ServiceEvt.EvtRemoteEndpointRegistered, 'location -> id, 'ref -> endpoint)
+    raise(ServiceEvt.RemoteEndpointRegistered, 'location -> id, 'ref -> endpoint)
   }
 
   sealed trait SignalResponse

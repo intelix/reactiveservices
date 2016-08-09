@@ -1,7 +1,7 @@
 Build.settings("samples")
 
 
-mainClass in Compile := Some("rs.node.Launcher")
+mainClass in Compile := Some("au.com.intelix.rs.node.Launcher")
 
 maintainer in Docker := "Max Glukhovtsev <max@intelix.com.au>"
 packageSummary in Docker := "Sample - TODO update"

@@ -14,28 +14,7 @@
   ~ limitations under the License.
   -->
 
-<configuration>
-
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_HOME}/gilante.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <!-- daily rollover. Make sure the path matches the one in the file element or else
-             the rollover logs are placed in the working directory. -->
-            <fileNamePattern>${LOG_HOME}/gilante_%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
-
-            <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-                <maxFileSize>20MB</maxFileSize>
-            </timeBasedFileNamingAndTriggeringPolicy>
-            <!-- keep 30 days' worth of history -->
-            <maxHistory>30</maxHistory>
-
-        </rollingPolicy>
-
-        <encoder>
-            <charset>UTF-8</charset>
-            <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%-40thread] %-45logger{28} - %msg%n</Pattern>
-        </encoder>
-    </appender>
+<configuration scan="true" scanPeriod="30 seconds">
 
     <appender name="StdOut" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
@@ -43,20 +22,25 @@
         </layout>
     </appender>
 
-    <appender name="Sysevents" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="EventsStdOut" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</Pattern>
         </layout>
     </appender>
 
-    <logger name="sysevents" level="DEBUG" additivity="false">
-        <appender-ref ref="Sysevents" />
+    <logger name="events" level="INFO" additivity="false">
+        <appender-ref ref="EventsStdOut" />
     </logger>
 
-    <logger name="akka.stream.impl.io" level="INFO" />
+    <logger name="exceptions" level="INFO" additivity="false">
+        <appender-ref ref="StdOut" />
+    </logger>
 
     <root level="INFO">
-        <!--<appender-ref ref="FILE" />-->
+        <appender-ref ref="StdOut" />
+    </root>
+
+    <root level="INFO">
         <appender-ref ref="StdOut" />
     </root>
 

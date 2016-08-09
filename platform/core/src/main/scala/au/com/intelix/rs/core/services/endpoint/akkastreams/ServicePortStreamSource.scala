@@ -18,23 +18,24 @@ package au.com.intelix.rs.core.services.endpoint.akkastreams
 import akka.actor.{ActorRef, PoisonPill, Props}
 import akka.stream.actor.ActorPublisher
 import akka.stream.actor.ActorPublisherMessage.{Cancel, Request}
+import au.com.intelix.evt.{InfoE, TraceE}
 import au.com.intelix.rs.core.actors.StatelessActor
-import au.com.intelix.evt.{EvtSource, InfoE, TraceE}
 import au.com.intelix.rs.core.services.Messages.ServiceOutbound
 import au.com.intelix.rs.core.services.SequentialMessageIdGenerator
 import au.com.intelix.rs.core.services.internal.InternalMessages.DownstreamDemandRequest
 
 
 object ServicePortStreamSource {
-  val EvtSourceId = "ServicePort.StreamDataSource"
 
-  case object EvtCancelled extends InfoE
+  object Evt {
+    case object Cancelled extends InfoE
 
-  case object EvtTerminatingOnRequest extends InfoE
+    case object TerminatingOnRequest extends InfoE
 
-  case object EvtDemandProduced extends TraceE
+    case object DemandProduced extends TraceE
 
-  case object EvtOnNext extends TraceE
+    case object OnNext extends TraceE
+  }
 
   def props(streamAggregator: ActorRef, token: String) = Props(classOf[ServicePortStreamSource], streamAggregator, token)
 }
@@ -47,20 +48,20 @@ class ServicePortStreamSource(streamAggregator: ActorRef, token: String) extends
 
   onMessage {
     case Request(n) =>
-      raise(EvtDemandProduced, 'new -> n, 'total -> totalDemand)
+      raise(Evt.DemandProduced, 'new -> n, 'total -> totalDemand)
       streamAggregator ! DownstreamDemandRequest(messageIdGenerator.next(), n)
     case Cancel =>
-      raise(EvtCancelled)
+      raise(Evt.Cancelled)
       streamAggregator ! PoisonPill
       context.stop(self)
     case m: ServiceOutbound =>
-      raise(EvtOnNext, 'demand -> totalDemand)
+      raise(Evt.OnNext, 'demand -> totalDemand)
       onNext(m)
   }
 
   onActorTerminated { ref =>
     if (ref == streamAggregator) {
-      raise(EvtTerminatingOnRequest)
+      raise(Evt.TerminatingOnRequest)
       onCompleteThenStop()
     }
   }
@@ -71,6 +72,6 @@ class ServicePortStreamSource(streamAggregator: ActorRef, token: String) extends
     context.watch(streamAggregator)
   }
 
-  addEvtFields('token -> token)
-  override val evtSource: EvtSource = EvtSourceId
+  commonEvtFields('token -> token)
+
 }

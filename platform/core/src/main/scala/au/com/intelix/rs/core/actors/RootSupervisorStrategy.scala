@@ -12,16 +12,16 @@ class RootSupervisorStrategy extends SupervisorStrategyConfigurator {
 
   final val decider: Decider = {
     case x: ActorInitializationException =>
-      evtCtx.raise(CommonEvt.EvtSupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.Evt.SupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Stop
     case x: ActorKilledException =>
-      evtCtx.raise(CommonEvt.EvtSupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.Evt.SupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Stop
     case x: DeathPactException =>
-      evtCtx.raise(CommonEvt.EvtSupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.Evt.SupervisorStopTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Stop
     case x: Exception =>
-      evtCtx.raise(CommonEvt.EvtSupervisorRestartTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
+      evtCtx.raise(CommonEvt.Evt.SupervisorRestartTrigger, 'Message -> x.getMessage, 'Trace -> x.getCause)
       Restart
   }
 

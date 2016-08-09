@@ -10,7 +10,7 @@ object EvtSettings {
 private object ConfigRef extends LazyLogging {
 
   private lazy val configName: String = {
-    val cfg = java.lang.System.getProperty("evt-config", "evt")
+    val cfg = java.lang.System.getProperty("evt-config", "evt.conf")
     logger.info(s"Loading evt config from $cfg")
     cfg
   }

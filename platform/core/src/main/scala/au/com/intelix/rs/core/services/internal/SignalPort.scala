@@ -23,7 +23,6 @@ import au.com.intelix.rs.core.services.Messages.Signal
 import au.com.intelix.rs.core.services.internal.InternalMessages.SignalPayload
 
 object SignalPort {
-  val EvtSourceId = "SignalPort"
   def props = Props[SignalPort]
 }
 
@@ -55,5 +54,4 @@ class SignalPort
       val signal = SignalPayload(subj, payload, expAt, correlationId)
       acknowledgedDelivery(x, signal, LogicalDestination(subj.service.id))(sender())
   }
-  override val evtSource: EvtSource = SignalPort.EvtSourceId
 }

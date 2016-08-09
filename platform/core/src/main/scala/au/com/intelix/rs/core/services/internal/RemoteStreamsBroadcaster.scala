@@ -30,13 +30,12 @@ import scala.collection.mutable
 
 object RemoteStreamsBroadcaster {
 
-  case object EvtStreamStateTransition extends TraceE
-
-  case object EvtInitiatingStreamForDestination extends TraceE
-
-  case object EvtClosingStreamForDestination extends TraceE
-
-  case object EvtStreamUpdateSent extends TraceE
+  object Evt {
+    case object StreamStateTransition extends TraceE
+    case object InitiatingStreamForDestination extends TraceE
+    case object ClosingStreamForDestination extends TraceE
+    case object StreamUpdateSent extends TraceE
+  }
 
 }
 
@@ -56,11 +55,11 @@ trait RemoteStreamsBroadcaster extends BaseActor {
   final def stateTransitionFor(key: StreamId, transition: => StreamStateTransition): Boolean = {
     streams get key match {
       case None =>
-        raise(EvtStreamStateTransition, 'stream -> key, 'active -> false)
+        raise(Evt.StreamStateTransition, 'stream -> key, 'active -> false)
         true
       case Some(s) =>
         val result = s.run(transition)
-        raise(EvtStreamStateTransition, 'stream -> key, 'active -> true, 'successful -> result, 'tx -> transition)
+        raise(Evt.StreamStateTransition, 'stream -> key, 'active -> true, 'successful -> result, 'tx -> transition)
         result
     }
   }
@@ -83,7 +82,7 @@ trait RemoteStreamsBroadcaster extends BaseActor {
       case Some(s) => s
     }
     sink.resetDownstreamView()
-    raise(EvtInitiatingStreamForDestination, 'stream -> key, 'ref -> ref)
+    raise(Evt.InitiatingStreamForDestination, 'stream -> key, 'ref -> ref)
   }
 
 
@@ -108,7 +107,7 @@ trait RemoteStreamsBroadcaster extends BaseActor {
         }
       }
     }
-    raise(EvtClosingStreamForDestination, 'stream -> key, 'ref -> ref)
+    raise(Evt.ClosingStreamForDestination, 'stream -> key, 'ref -> ref)
   }
 
   onActorTerminated { ref => targets -= ref }
@@ -138,7 +137,7 @@ trait RemoteStreamsBroadcaster extends BaseActor {
 
     private def updateForTarget(key: StreamId)(tran: StreamStateTransition) = fulfillDownstreamDemandWith {
       ref.tell(StreamUpdate(key, tran), self)
-      raise(EvtStreamUpdateSent, 'stream -> key, 'target -> ref, 'payload -> tran)
+      raise(Evt.StreamUpdateSent, 'stream -> key, 'target -> ref, 'payload -> tran)
     }
 
     def addDemand(demand: Long): Unit = {

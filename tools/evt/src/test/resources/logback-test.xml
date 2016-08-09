@@ -16,25 +16,29 @@
 
 <configuration>
 
-    <appender name="Events" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="StdOut" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
-            <Pattern>%msg%n</Pattern>
+            <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%-40thread] %-45logger{28} - %msg%n</Pattern>
         </layout>
     </appender>
 
-    <appender name="Standard" class="ch.qos.logback.core.ConsoleAppender">
+    <appender name="EventsStdOut" class="ch.qos.logback.core.ConsoleAppender">
         <layout class="ch.qos.logback.classic.PatternLayout">
             <Pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %msg%n</Pattern>
         </layout>
     </appender>
 
-    <logger name="events" level="ERROR" additivity="false">
-        <appender-ref ref="Events" />
+    <logger name="events" level="INFO" additivity="false">
+        <appender-ref ref="EventsStdOut" />
     </logger>
+
+    <logger name="exceptions" level="INFO" additivity="false">
+        <appender-ref ref="StdOut" />
+    </logger>
+
     <logger name="test" level="INFO" additivity="false">
         <appender-ref ref="Events" />
     </logger>
-
 
     <logger name="scala.slick" level="OFF" />
 
@@ -43,7 +47,7 @@
     <logger name="akka" level="OFF" />
 
     <root level="WARN">
-        <appender-ref ref="Standard" />
+        <appender-ref ref="StdOut" />
     </root>
 
 </configuration>

@@ -34,7 +34,7 @@ trait MessageId extends Ser{
 
 class SequentialMessageIdGenerator {
 
-  val seed = UUIDTools.generateShortUUID
+  val seed = UUIDTools.generateUUID
   var counter = 0L
 
   def next() = {
@@ -50,7 +50,7 @@ case class LongMessageId(id: Long) extends MessageId {
   override def toString: String = id.toString
 }
 
-case class RandomStringMessageId(id: String = UUIDTools.generateShortUUID) extends MessageId {
+case class RandomStringMessageId(id: String = UUIDTools.generateUUID) extends MessageId {
   override def compareWith(m: MessageId): MessageIdOrder = if (m == this) Same else Unknown
 
   override def toString: String = id

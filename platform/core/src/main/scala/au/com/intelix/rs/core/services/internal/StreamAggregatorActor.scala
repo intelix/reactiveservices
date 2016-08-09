@@ -33,15 +33,12 @@ import scala.language.postfixOps
 
 
 object StreamAggregatorActor {
-  val EvtSourceId = "StreamAggregator"
-
-  case object EvtSubjectUpdateReceived extends TraceE
-
-  case object EvtDownstreamConsumer extends TraceE
-
-  case object EvtSentDownstream extends TraceE
-
-  case object EvtServiceLocationUpdated extends TraceE
+  object Evt {
+    case object SubjectUpdateReceived extends TraceE
+    case object DownstreamConsumer extends TraceE
+    case object SentDownstream extends TraceE
+    case object ServiceLocationUpdated extends TraceE
+  }
 
   def props(consumerId: String) = Props(classOf[StreamAggregatorActor], consumerId)
 
@@ -52,8 +49,6 @@ object StreamAggregatorActor {
 
 final class StreamAggregatorActor(consumerId: String)
   extends StatelessActor with DemandProducerContract with StreamDemandBinding with ConsumerDemandTracker {
-
-  override val evtSource: EvtSource = EvtSourceId
 
   import StreamAggregatorActor._
 
@@ -67,7 +62,7 @@ final class StreamAggregatorActor(consumerId: String)
   private var pendingPublisherIdx = 0
   private var serviceLocations: Map[ServiceKey, Option[ActorRef]] = Map.empty
 
-  addEvtFields('consumer -> consumerId)
+  commonEvtFields('consumer -> consumerId)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
@@ -137,7 +132,7 @@ final class StreamAggregatorActor(consumerId: String)
 
   override def onConsumerDemand(sender: ActorRef, demand: Long): Unit = {
     if (!lastDemandRequestor.contains(sender)) {
-      raise(EvtDownstreamConsumer, 'ref -> sender)
+      raise(Evt.DownstreamConsumer, 'ref -> sender)
       lastDemandRequestor = Some(sender)
     }
     addConsumerDemand(demand)
@@ -153,7 +148,7 @@ final class StreamAggregatorActor(consumerId: String)
   }
 
   private def onUpdate(key: Subject, tran: StreamState): Unit = {
-    raise(EvtSubjectUpdateReceived, 'subj -> key, 'payload -> tran)
+    raise(Evt.SubjectUpdateReceived, 'subj -> key, 'payload -> tran)
     upstreamDemandFulfilled(sender(), 1)
     streamToBucket get key foreach { b =>
       b.onNewState(canUpdate, tran, send)
@@ -165,7 +160,7 @@ final class StreamAggregatorActor(consumerId: String)
       lastDemandRequestor foreach {
         ref =>
           ref ! msg
-          raise(EvtSentDownstream, 'ref -> ref, 'payload -> msg)
+          raise(Evt.SentDownstream, 'ref -> ref, 'payload -> msg)
       }
     }
   }
@@ -196,7 +191,7 @@ final class StreamAggregatorActor(consumerId: String)
     closeLocation(service)
     serviceLocations += service -> location
     openLocation(service)
-    raise(EvtServiceLocationUpdated, 'service -> service, 'ref -> location)
+    raise(Evt.ServiceLocationUpdated, 'service -> service, 'ref -> location)
   }
 
   private def closeLocation(service: ServiceKey) =

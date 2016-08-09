@@ -40,32 +40,23 @@ import scala.language.postfixOps
 
 
 object NodeLocalServiceStreamEndpoint {
-  val EvtSourceId = "ServiceProxy"
 
-  case object EvtEndpointStarted extends InfoE
-
-  case object EvtEndpointStopped extends InfoE
-
-  case object EvtRejectedLocalStream extends TraceE
-
-  case object EvtOpenedLocalStream extends TraceE
-
-  case object EvtReusedLocalStream extends TraceE
-
-  case object EvtClosedLocalStream extends TraceE
-
-  case object EvtSubjectMappingRequested extends TraceE
-
-  case object EvtSubjectMappingReceived extends TraceE
-
-  case object EvtStreamUpdateReceived extends TraceE
-
-  case object EvtStreamResyncRequested extends InfoE
-
-  case object EvtAcknowledgeableForwarded extends TraceE
+  object Evt {
+    case object EndpointStarted extends InfoE
+    case object EndpointStopped extends InfoE
+    case object RejectedLocalStream extends TraceE
+    case object OpenedLocalStream extends TraceE
+    case object ReusedLocalStream extends TraceE
+    case object ClosedLocalStream extends TraceE
+    case object SubjectMappingRequested extends TraceE
+    case object SubjectMappingReceived extends TraceE
+    case object StreamUpdateReceived extends TraceE
+    case object StreamResyncRequested extends InfoE
+    case object AcknowledgeableForwarded extends TraceE
+  }
 
 
-  def remoteStreamAgentProps(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String) = Props(classOf[AgentActor], serviceKey, serviceRef, instanceId)
+  def remoteStreamAgentProps(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String) = Props(classOf[ServiceAgentActor], serviceKey, serviceRef, instanceId)
 
   case class OpenLocalStreamFor(subject: Subject)
 
@@ -85,7 +76,6 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   with LocalStreamsBroadcaster
   with ActorWithTicks
   with RegistryRef {
-  override val evtSource: EvtSource = NodeLocalServiceStreamEndpoint.EvtSourceId
 
   import NodeLocalServiceStreamEndpoint._
 
@@ -100,14 +90,14 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     super.preStart()
     startDemandProducerFor(serviceRef, withAcknowledgedDelivery = true)
     registerService(serviceKey)
-    raise(EvtEndpointStarted, 'service -> serviceKey, 'ref -> serviceRef)
+    raise(Evt.EndpointStarted, 'service -> serviceKey, 'ref -> serviceRef)
   }
 
   @throws[Exception](classOf[Exception]) override
   def postStop(): Unit = {
     unregisterService(serviceKey)
     super.postStop()
-    raise(EvtEndpointStopped, 'service -> serviceKey, 'ref -> serviceRef)
+    raise(Evt.EndpointStopped, 'service -> serviceKey, 'ref -> serviceRef)
   }
 
   override def onIdleStream(key: StreamId): Unit = {
@@ -136,7 +126,7 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   onMessage {
     case m: Acknowledgeable =>
       serviceRef forward m
-      raise(EvtAcknowledgeableForwarded, 'id -> m.messageId)
+      raise(Evt.AcknowledgeableForwarded, 'id -> m.messageId)
     case OpenLocalStreamFor(subj) => openLocalStream(sender(), subj)
     case OpenLocalStreamsForAll(list) => list foreach { subj => openLocalStream(sender(), subj) }
     case CloseLocalStreamFor(subj) => closeLocalStream(sender(), subj)
@@ -155,14 +145,14 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
     mappings get subj match {
       case Some(Some(key)) =>
         initiateStreamFor(subscriber, key, subj)
-        raise(EvtOpenedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
+        raise(Evt.OpenedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
       case Some(None) =>
         publishNotAvailable(subscriber, subj)
-        raise(EvtRejectedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
+        raise(Evt.RejectedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
       case None =>
         initiateConsumer(subscriber)
         requestMapping(subj)
-        raise(EvtReusedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
+        raise(Evt.ReusedLocalStream, 'subj -> subj, 'subscriber -> subscriber)
     }
   }
 
@@ -177,11 +167,11 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   private def requestMapping(subj: Subject): Unit = {
     serviceRef ! GetMappingFor(subj)
     pendingMappings += subj -> now
-    raise(EvtSubjectMappingRequested, 'subj -> subj, 'pending -> pendingMappings.size)
+    raise(Evt.SubjectMappingRequested, 'subj -> subj, 'pending -> pendingMappings.size)
   }
 
   private def onReceivedStreamMapping(subj: Subject, maybeKey: Option[StreamId]): Unit = {
-    raise(EvtSubjectMappingReceived, 'subj -> subj, 'stream -> maybeKey)
+    raise(Evt.SubjectMappingReceived, 'subj -> subj, 'stream -> maybeKey)
     pendingMappings -= subj
     mappings get subj match {
       case Some(x) if x == maybeKey =>
@@ -216,11 +206,11 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
   private def publishNotAvailable(subscriber: ActorRef, subj: Subject): Unit = subscriber ! InvalidRequest(subj)
 
   private def updateLocalStream(key: StreamId, tran: StreamStateTransition): Unit = {
-    raise(EvtStreamUpdateReceived, 'stream -> key, 'payload -> tran)
+    raise(Evt.StreamUpdateReceived, 'stream -> key, 'payload -> tran)
     upstreamDemandFulfilled(serviceRef, 1)
     if (!onStateTransition(key, tran)) {
       serviceRef ! StreamResyncRequest(key)
-      raise(EvtStreamResyncRequested, 'stream -> key)
+      raise(Evt.StreamResyncRequested, 'stream -> key)
     }
   }
 
@@ -241,7 +231,7 @@ class NodeLocalServiceStreamEndpoint(override val serviceKey: ServiceKey, servic
         interests += subscriber -> remainingInterests
         val remaining = remainingInterests.size
       }
-      raise(EvtClosedLocalStream, 'subj -> subj, 'subscriber -> subscriber, 'subscribers -> remainingInterests.size)
+      raise(Evt.ClosedLocalStream, 'subj -> subj, 'subscriber -> subscriber, 'subscribers -> remainingInterests.size)
     }
   }
 
@@ -450,45 +440,43 @@ trait LocalStreamsBroadcaster extends StatelessActor with ActorWithTicks {
 }
 
 
-object AgentActor {
-  val EvtSourceId = "ServiceAgent"
-
-  case object EvtAgentStarted extends InfoE
-
-  case object EvtAgentStopped extends WarningE
+object ServiceAgentActor {
+  object Evt {
+    case object AgentStarted extends InfoE
+    case object AgentStopped extends WarningE
+  }
 
   private def localStreamLinkProps(serviceKey: ServiceKey, serviceRef: ActorRef) = Props(classOf[NodeLocalServiceStreamEndpoint], serviceKey, serviceRef)
 }
 
-class AgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String)
+class ServiceAgentActor(serviceKey: ServiceKey, serviceRef: ActorRef, instanceId: String)
   extends StatelessActor
   with MessageAcknowledging
   with SimpleInMemoryAcknowledgedDelivery {
 
-  import AgentActor._
+  import ServiceAgentActor._
 
   var actor: Option[ActorRef] = None
 
 
-  addEvtFields('service -> serviceKey, 'ref -> serviceRef)
+  commonEvtFields('service -> serviceKey, 'ref -> serviceRef)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()
-    actor = Some(context.system.actorOf(AgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId"))
+    actor = Some(context.system.actorOf(ServiceAgentActor.localStreamLinkProps(serviceKey, serviceRef), s"$serviceKey-$instanceId"))
     val cluster = Cluster.get(context.system)
     acknowledgedDelivery(serviceRef, ServiceEndpoint(actor.get, cluster.selfAddress.toString), SpecificDestination(serviceRef))
-    raise(EvtAgentStarted, 'proxy -> actor)
+    raise(Evt.AgentStarted, 'proxy -> actor)
   }
 
   @throws[Exception](classOf[Exception]) override
   def postStop(): Unit = {
     super.postStop()
-    raise(EvtAgentStopped)
+    raise(Evt.AgentStopped)
     actor.foreach(context.system.stop)
   }
 
-  override val evtSource: EvtSource = EvtSourceId
 }
 
 

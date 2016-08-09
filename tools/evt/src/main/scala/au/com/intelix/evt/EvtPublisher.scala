@@ -7,9 +7,11 @@ import scala.language.experimental.macros
 import scala.reflect.macros.blackbox
 
 trait EvtPublisher {
-  def canPublish(s: EvtSource, e: Evt): Boolean = true
+  final def canPublish(s: EvtSource, e: Evt): Boolean = canPublish(s, e.name, e.level)
+  def canPublish(s: EvtSource, e: String, lvl: EvtLevel): Boolean = true
 
-  def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue])
+  def evt(s: EvtSource, e: String, lvl: EvtLevel, fields: Seq[EvtFieldValue])
+  final def raise(s: EvtSource, e: Evt, fields: Seq[EvtFieldValue]) = evt(s, e.name, e.level, fields)
 }
 
 trait EvtFieldBuilder {
@@ -59,12 +61,12 @@ trait EvtMutingSupport extends EvtPublisher {
   lazy val disabledEvents = eventsConfig.asStringList("disabled-events").toSet
   lazy val eventLevel = EvtLevel(eventsConfig.asString("event-level", "trace"))
 
-  private def isEnabled(s: EvtSource, e: Evt) =
-    e.level >= eventLevel && (
+  private def isEnabled(s: EvtSource, e: String, lvl: EvtLevel) =
+    lvl >= eventLevel && (
       disabledEvents.isEmpty ||
-        (!disabledEvents.contains(s.evtSourceId) && !disabledEvents.contains(e.name) && !disabledEvents.contains(s.evtSourceId + "." + e.name))
+        (!disabledEvents.contains(s.evtSourceId) && !disabledEvents.contains(e) && !disabledEvents.contains(s.evtSourceId + "." + e))
       )
 
-  override def canPublish(s: EvtSource, e: Evt): Boolean = isEnabled(s, e) && super.canPublish(s, e)
+  override def canPublish(s: EvtSource, e: String, lvl: EvtLevel): Boolean = isEnabled(s, e, lvl) && super.canPublish(s, e, lvl)
 }
 

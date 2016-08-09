@@ -39,9 +39,10 @@ import scala.annotation.tailrec
 
 object BinaryCodec {
 
-  val EvtSourceId = "Endpoint.BinaryCodec"
-  case object MessageEncoded extends TraceE
-  case object MessageDecoded extends TraceE
+  object Evt {
+    case object MessageEncoded extends TraceE
+    case object MessageDecoded extends TraceE
+  }
 
   object DefaultBinaryCodecImplicits {
     implicit val byteOrder = ByteOrder.BIG_ENDIAN
@@ -158,20 +159,20 @@ object BinaryCodec {
       BidiFlow.fromGraph(GraphDSL.create() { b =>
         implicit val byteOrder = ByteOrder.BIG_ENDIAN
 
-        val publisher = EvtContext(EvtSourceId, nodeCfg.config)
+        val publisher = EvtContext("BinaryCodec", nodeCfg.config)
 
         val top = b add Flow[ByteString].mapConcat[BinaryDialectInbound] { x =>
           @tailrec def dec(l: List[BinaryDialectInbound], i: ByteIterator): List[BinaryDialectInbound] = if (!i.hasNext) l else dec(l :+ codec.decode(i), i)
           val i = x.iterator
           val decoded = dec(List.empty, i)
-          publisher.raise(MessageDecoded, 'original -> x, 'decoded -> decoded)
+          publisher.raise(Evt.MessageDecoded, 'original -> x, 'decoded -> decoded)
           decoded
         }
         val bottom = b add Flow[BinaryDialectOutbound].map[ByteString] { x =>
           val b = ByteString.newBuilder // TODO - Can we reuse it
           codec.encode(x, b)
           val encoded = b.result()
-          publisher.raise(MessageEncoded, 'original -> x, 'encoded -> encoded)
+          publisher.raise(Evt.MessageEncoded, 'original -> x, 'encoded -> encoded)
           encoded
         }
         BidiShape.fromFlows(top, bottom)

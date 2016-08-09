@@ -13,17 +13,14 @@ import au.com.intelix.rs.core.{Subject, TopicKey}
 
 object TestServiceActor {
 
-  val EvtSourceId = "Test.Service"
 
-  case object EvtIntConfigValue extends InfoE
-
-  case object EvtOtherServiceLocationChanged extends InfoE
-
-  case object EvtStreamActive extends InfoE
-
-  case object EvtStreamPassive extends InfoE
-
-  case object EvtSignalReceived extends InfoE
+  object Evt {
+    case object IntConfigValue extends InfoE
+    case object OtherServiceLocationChanged extends InfoE
+    case object StreamActive extends InfoE
+    case object StreamPassive extends InfoE
+    case object SignalReceived extends InfoE
+  }
 
 
   val AutoStringReply = "hello"
@@ -67,7 +64,7 @@ class TestServiceActor extends StatelessServiceActor with ClusterAwareness with 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
     super.preStart()
-    raise(EvtIntConfigValue, 'value -> serviceCfg.asInt("int-config-value", 0))
+    raise(Evt.IntConfigValue, 'value -> serviceCfg.asInt("int-config-value", 0))
   }
 
   implicit val setSpecs = SetSpecs(allowPartialUpdates = true)
@@ -79,42 +76,42 @@ class TestServiceActor extends StatelessServiceActor with ClusterAwareness with 
 
   onStreamActive {
     case s@CompoundStreamId("string", x) =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       CompoundStreamId("string", x) !~ TestServiceActor.AutoStringReply
     case s@SimpleStreamId("string") =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       SimpleStreamId("string") !~ TestServiceActor.AutoStringReply
     case s@SimpleStreamId("stringX") =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       SimpleStreamId("stringX") !~ TestServiceActor.AutoStringReply + "X"
     case s@SimpleStreamId("set") =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       SimpleStreamId("set") !% TestServiceActor.AutoSetReply
     case s@SimpleStreamId("map") =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       SimpleStreamId("map") !# TestServiceActor.AutoMapReply
     case s@SimpleStreamId("list1") =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       implicit val specs = listSpecsRejectAdd
       SimpleStreamId("list1") !:! TestServiceActor.AutoListReply
     case s@SimpleStreamId("list2") =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       implicit val specs = listSpecsFromHead
       SimpleStreamId("list2") !:! TestServiceActor.AutoListReply
     case s@SimpleStreamId("list3") =>
-      raise(EvtStreamActive, 'stream -> s)
+      raise(Evt.StreamActive, 'stream -> s)
       implicit val specs = listSpecsFromTail
       SimpleStreamId("list3") !:! TestServiceActor.AutoListReply
   }
 
   onStreamPassive {
-    case s@CompoundStreamId("string", x) => raise(EvtStreamPassive, 'stream -> s)
-    case s@SimpleStreamId("string") => raise(EvtStreamPassive, 'stream -> s)
-    case s@SimpleStreamId("set") => raise(EvtStreamPassive, 'stream -> s)
-    case s@SimpleStreamId("map") => raise(EvtStreamPassive, 'stream -> s)
-    case s@SimpleStreamId("list1") => raise(EvtStreamPassive, 'stream -> s)
-    case s@SimpleStreamId("list2") => raise(EvtStreamPassive, 'stream -> s)
-    case s@SimpleStreamId("list3") => raise(EvtStreamPassive, 'stream -> s)
+    case s@CompoundStreamId("string", x) => raise(Evt.StreamPassive, 'stream -> s)
+    case s@SimpleStreamId("string") => raise(Evt.StreamPassive, 'stream -> s)
+    case s@SimpleStreamId("set") => raise(Evt.StreamPassive, 'stream -> s)
+    case s@SimpleStreamId("map") => raise(Evt.StreamPassive, 'stream -> s)
+    case s@SimpleStreamId("list1") => raise(Evt.StreamPassive, 'stream -> s)
+    case s@SimpleStreamId("list2") => raise(Evt.StreamPassive, 'stream -> s)
+    case s@SimpleStreamId("list3") => raise(Evt.StreamPassive, 'stream -> s)
   }
 
   onSubjectMapping {
@@ -151,21 +148,20 @@ class TestServiceActor extends StatelessServiceActor with ClusterAwareness with 
   onSignal {
     case (subj@Subject(_, TopicKey("signal"), _), s) =>
       signalCounter += 1
-      raise(EvtSignalReceived, 'subj -> subj, 'payload -> s)
+      raise(Evt.SignalReceived, 'subj -> subj, 'payload -> s)
       Some(SignalOk(Some(s.toString + signalCounter)))
     case (subj@Subject(_, TopicKey("signal_no_response"), _), _) =>
-      raise(EvtSignalReceived, 'subj -> subj)
+      raise(Evt.SignalReceived, 'subj -> subj)
       None
     case (subj@Subject(_, TopicKey("signal_failure"), _), _) =>
-      raise(EvtSignalReceived, 'subj -> subj)
+      raise(Evt.SignalReceived, 'subj -> subj)
       Some(SignalFailed(Some("failure")))
   }
 
   registerServiceLocationInterest("test1")
 
   onServiceLocationChanged {
-    case (s, l) => raise(EvtOtherServiceLocationChanged, 'addr -> l, 'service -> s.id)
+    case (s, l) => raise(Evt.OtherServiceLocationChanged, 'addr -> l, 'service -> s.id)
   }
-  override val evtSource: EvtSource = EvtSourceId
 }
 

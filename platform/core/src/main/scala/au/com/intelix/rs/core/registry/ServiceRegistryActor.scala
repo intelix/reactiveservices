@@ -23,13 +23,11 @@ import au.com.intelix.rs.core.registry.Messages._
 
 object ServiceRegistryActor {
 
-  val EvtSourceId = "ServiceRegistry"
-
-  case object EvtServiceRegistered extends InfoE
-
-  case object EvtServiceUnregistered extends InfoE
-
-  case object EvtPublishingNewServiceLocation extends InfoE
+  object Evt {
+    case object ServiceRegistered extends InfoE
+    case object ServiceUnregistered extends InfoE
+    case object PublishingNewServiceLocation extends InfoE
+  }
 
   case class RegistryLocation(ref: ActorRef)
 
@@ -47,7 +45,7 @@ class ServiceRegistryActor
 
   context.system.eventStream.subscribe(self, classOf[RegistryLocationRequest])
 
-  addEvtFields('service -> self.path.name)
+  commonEvtFields('service -> self.path.name)
 
   @throws[Exception](classOf[Exception]) override
   def preStart(): Unit = {
@@ -61,18 +59,18 @@ class ServiceRegistryActor
   private def updateStream(serviceKey: ServiceKey, location: Option[ActorRef]): Unit = {
     val update = LocationUpdate(serviceKey, location)
     interests get serviceKey foreach (_.foreach(_ ! update))
-    raise(EvtPublishingNewServiceLocation, 'key -> serviceKey, 'location -> location)
+    raise(Evt.PublishingNewServiceLocation, 'key -> serviceKey, 'location -> location)
   }
 
   private def addService(serviceKey: ServiceKey, location: ActorRef): Unit =
     services get serviceKey match {
       case Some(list) if list contains location =>
-        raise(EvtServiceRegistered, 'key -> serviceKey, 'ref -> location, 'new -> false)
+        raise(Evt.ServiceRegistered, 'key -> serviceKey, 'ref -> location, 'new -> false)
       case Some(list) =>
-        raise(EvtServiceRegistered, 'key -> serviceKey, 'ref -> location, 'new -> true, 'locations -> (list.size + 1))
+        raise(Evt.ServiceRegistered, 'key -> serviceKey, 'ref -> location, 'new -> true, 'locations -> (list.size + 1))
         services += serviceKey -> (list :+ context.watch(location))
       case _ =>
-        raise(EvtServiceRegistered, 'key -> serviceKey, 'ref -> location, 'new -> true, 'locations -> 1)
+        raise(Evt.ServiceRegistered, 'key -> serviceKey, 'ref -> location, 'new -> true, 'locations -> 1)
         services += serviceKey -> List(context.watch(location))
         updateStream(serviceKey, Some(location))
     }
@@ -116,7 +114,7 @@ class ServiceRegistryActor
           services += (serviceKey -> newList)
         else
           services -= serviceKey
-        raise(EvtServiceUnregistered, 'key -> serviceKey, 'ref -> ref, 'reason -> "request", 'remainingLocations -> newList.size)
+        raise(Evt.ServiceUnregistered, 'key -> serviceKey, 'ref -> ref, 'reason -> "request", 'remainingLocations -> newList.size)
       case _ =>
     }
 
@@ -131,7 +129,7 @@ class ServiceRegistryActor
             services += (k -> newList)
           else
             services -= k
-          raise(EvtServiceUnregistered, 'key -> k, 'ref -> ref, 'reason -> "termination", 'remainingLocations -> newList.size)
+          raise(Evt.ServiceUnregistered, 'key -> k, 'ref -> ref, 'reason -> "termination", 'remainingLocations -> newList.size)
         }
     }
 
@@ -139,7 +137,6 @@ class ServiceRegistryActor
     removeService(ref)
     removeAllInterests(ref)
   }
-  override val evtSource: EvtSource = EvtSourceId
 }
 
 

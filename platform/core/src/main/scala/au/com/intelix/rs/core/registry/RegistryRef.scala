@@ -26,11 +26,11 @@ import scala.language.postfixOps
 
 object RegistryRef {
 
-  case object EvtServiceRegistrationPending extends TraceE
-
-  case object EvtServiceUnregistrationPending extends TraceE
-
-  case object EvtServiceLocationUpdate extends TraceE
+  object Evt {
+    case object ServiceRegistrationPending extends TraceE
+    case object ServiceUnregistrationPending extends TraceE
+    case object ServiceLocationUpdate extends TraceE
+  }
 
 }
 
@@ -69,14 +69,14 @@ trait RegistryRef extends BaseActor {
 
   final def unregisterServiceAt(s: ServiceKey, loc: ActorRef) = {
     sendToRegistry(Unregister(s, loc))
-    raise(EvtServiceUnregistrationPending, 'service -> s, 'ref -> loc, 'registry -> registryRef)
+    raise(Evt.ServiceUnregistrationPending, 'service -> s, 'ref -> loc, 'registry -> registryRef)
   }
 
   final def registerService(s: ServiceKey) = registerServiceAt(s, self)
 
   final def registerServiceAt(s: ServiceKey, loc: ActorRef) = {
     sendToRegistry(Register(s, loc))
-    raise(EvtServiceRegistrationPending, 'service -> s, 'ref -> loc, 'registry -> registryRef)
+    raise(Evt.ServiceRegistrationPending, 'service -> s, 'ref -> loc, 'registry -> registryRef)
   }
 
   final def registerServiceLocationInterest(s: ServiceKey) =
@@ -118,7 +118,7 @@ trait RegistryRef extends BaseActor {
         localLocation += name -> maybeLocation
         localLocationHandlerFunc((name, maybeLocation))
       }
-      raise(EvtServiceLocationUpdate, 'service -> name, 'location -> maybeLocation, 'new -> (was != maybeLocation))
+      raise(Evt.ServiceLocationUpdate, 'service -> name, 'location -> maybeLocation, 'new -> (was != maybeLocation))
   }
 
 }

@@ -7,7 +7,6 @@ object ServiceWithRuntimeFailureActor {
   var recoveryEnabled = false
   var failureCounter = 0
 
-  val EvtSourceId = "Test.ServiceWithRuntimeFailure"
 }
 
 class ServiceWithRuntimeFailureActor extends StatelessServiceActor {
@@ -28,6 +27,5 @@ class ServiceWithRuntimeFailureActor extends StatelessServiceActor {
         throw new RuntimeException("simulated failure on first tick")
 
   }
-  override val evtSource: EvtSource = EvtSourceId
 }
 

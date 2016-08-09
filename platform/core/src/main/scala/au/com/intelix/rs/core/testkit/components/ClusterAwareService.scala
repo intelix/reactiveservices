@@ -6,19 +6,15 @@ import au.com.intelix.rs.core.services.StatelessServiceActor
 
 
 object ClusterAwareService {
-  val EvtSourceId = "Test.ClusterAwareService"
 
-  case object EvtLeaderChanged extends InfoE
-
-  case object EvtLeaderHandover extends InfoE
-
-  case object EvtLeaderTakeover extends InfoE
-
-  case object EvtMemberRemoved extends InfoE
-
-  case object EvtMemberUnreachable extends InfoE
-
-  case object EvtMemberUp extends InfoE
+  object Evt {
+    case object LeaderChanged extends InfoE
+    case object LeaderHandover extends InfoE
+    case object LeaderTakeover extends InfoE
+    case object MemberRemoved extends InfoE
+    case object MemberUnreachable extends InfoE
+    case object MemberUp extends InfoE
+  }
 
 }
 
@@ -28,29 +24,28 @@ class ClusterAwareService extends StatelessServiceActor with ClusterAwareness {
   import ClusterAwareService._
 
   onLeaderChanged {
-    case a => raise(EvtLeaderChanged, 'addr -> a)
+    case a => raise(Evt.LeaderChanged, 'addr -> a)
   }
 
   onLeaderHandover {
-    raise(EvtLeaderHandover)
+    raise(Evt.LeaderHandover)
   }
 
   onLeaderTakeover {
-    raise(EvtLeaderTakeover)
+    raise(Evt.LeaderTakeover)
   }
 
   onClusterMemberRemoved {
-    case (a, r) => raise(EvtMemberRemoved, 'addr -> a, 'roles -> r)
+    case (a, r) => raise(Evt.MemberRemoved, 'addr -> a, 'roles -> r)
   }
 
   onClusterMemberUnreachable {
-    case (a, r) => raise(EvtMemberUnreachable, 'addr -> a, 'roles -> r)
+    case (a, r) => raise(Evt.MemberUnreachable, 'addr -> a, 'roles -> r)
   }
 
   onClusterMemberUp {
-    case (a, r) => raise(EvtMemberUp, 'addr -> a, 'roles -> r)
+    case (a, r) => raise(Evt.MemberUp, 'addr -> a, 'roles -> r)
   }
 
-  override val evtSource: EvtSource = EvtSourceId
 }
 

@@ -18,11 +18,12 @@ package au.com.intelix.evt
 
 object CommonEvt {
 
-  case object EvtInvalid extends WarningE
-  case object EvtWarning extends WarningE
-  case object EvtError extends ErrorE
-  case object EvtSupervisorRestartTrigger extends WarningE
-  case object EvtSupervisorStopTrigger extends WarningE
-
+  object Evt {
+    case object Invalid extends WarningE
+    case object Warning extends WarningE
+    case object Error extends ErrorE
+    case object SupervisorRestartTrigger extends WarningE
+    case object SupervisorStopTrigger extends WarningE
+  }
 
 }

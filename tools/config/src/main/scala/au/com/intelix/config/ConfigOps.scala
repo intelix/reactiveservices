@@ -61,7 +61,11 @@ class ConfigOps(cfg: Config) {
 
   def asString(key: String, defaultValue: String) = asOptString(key) | defaultValue
 
+  def asString(key: String) = asOptString(key).get
+
   def asInt(key: String, defaultValue: Int) = asOptInt(key) | defaultValue
+
+  def asInt(key: String) = asOptInt(key).get
 
   def asLong(key: String, defaultValue: Long) = asOptLong(key) | defaultValue
 

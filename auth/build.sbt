@@ -1,1 +1,0 @@
-Build.settings("rs-auth")
