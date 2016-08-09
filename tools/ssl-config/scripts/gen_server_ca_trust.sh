@@ -5,7 +5,7 @@
 keytool -import -v \
   -alias serverca \
   -file gen/server-ca.crt \
-  -storepass trust_changeme \
+  -storepass:env PW \
   -keystore gen/server-ca-trust.jks << EOF
 yes
 EOF
@@ -13,6 +13,6 @@ EOF
 # List out the details of the store password.
 keytool -list -v \
   -keystore gen/server-ca-trust.jks \
-  -storepass trust_changeme
+  -storepass:env PW
 
 # #context
