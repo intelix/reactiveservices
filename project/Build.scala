@@ -15,7 +15,7 @@ private object Settings {
   lazy val baseSettings = Defaults.coreDefaultSettings
 
   lazy val artifactSettings = Seq(
-    version := "0.1.3_16-SNAPSHOT",
+    version := "0.1.3_24-SNAPSHOT",
     organization := "au.com.intelix",
     licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
     homepage := Some(url("http://reactiveservices.org/"))
@@ -30,7 +30,7 @@ private object Settings {
   )
 
   lazy val compilerSettings = Seq(
-    scalaVersion := "2.11.7",
+    scalaVersion := "2.11.8",
     scalacOptions in Compile ++= Seq(
       "-encoding", "UTF-8",
       "-target:jvm-1.8",

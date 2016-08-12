@@ -89,9 +89,13 @@ class RegionLookupActor(regionId: String, contacts: List[Endpoint]) extends Stat
   }
 
   private def republish(): Unit = {
-    val set = connectors.values.flatMap(_.lastView).toList.map {
-      r => ReachableCluster(r.members.map(AddressFromURIString(_)), r.roles, None)
-    }.toSet
+    val list = connectors.values.flatMap(_.lastView).toList
+    val set = list match {
+      case l if l.isEmpty => Set[ReachableCluster]()
+      case l => l.map {
+        r => ReachableCluster(r.members.map(AddressFromURIString(_)), r.roles, None)
+      }.toSet
+    }
     val msg = Out.ClustersAvailableInRegion(regionId, set)
     if (!lastUpdate.contains(msg)) {
       lastUpdate = Some(msg)
