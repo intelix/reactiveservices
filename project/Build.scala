@@ -15,15 +15,14 @@ private object Settings {
   lazy val baseSettings = Defaults.coreDefaultSettings
 
   lazy val artifactSettings = Seq(
-    version := "0.1.3_24-SNAPSHOT",
+    version := "0.1.3_31-SNAPSHOT",
     organization := "au.com.intelix",
     licenses := Seq(("Apache License, Version 2.0", url("http://www.apache.org/licenses/LICENSE-2.0"))),
     homepage := Some(url("http://reactiveservices.org/"))
   )
 
   lazy val resolverSettings = Seq(
-    resolvers += "Sonatype Releases" at "https://oss.sonatype.org/content/repositories/releases/",
-    resolvers += "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
+    resolvers += Resolver.sonatypeRepo("public"),
     resolvers += "mandubian maven bintray" at "http://dl.bintray.com/mandubian/maven",
     resolvers += "Spray" at "http://repo.spray.io",
     resolvers += "patriknw at bintray" at "http://dl.bintray.com/patriknw/maven"

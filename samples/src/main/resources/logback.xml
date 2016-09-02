@@ -40,8 +40,5 @@
         <appender-ref ref="StdOut" />
     </root>
 
-    <root level="INFO">
-        <appender-ref ref="StdOut" />
-    </root>
 
 </configuration>

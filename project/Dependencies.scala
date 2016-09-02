@@ -1,3 +1,4 @@
+import sbt.Keys._
 import sbt._
 
 object Dependencies {
@@ -28,6 +29,7 @@ object Dependencies {
     val metricsScalaVersion = "3.1.2"
     val uuidVersion = "3.2"
     val commonsCodecVersion = "1.10"
+    val twitterLibsVersion = "0.8.0"
 
     val jsr305Version = "2.0.3"
 
@@ -90,7 +92,9 @@ object Dependencies {
     val trove             = "net.sf.trove4j"              %   "trove4j"                       % troveVersion
     val guava             = "com.google.guava"            %   "guava"                         % guavaVersion force()
     val disruptor         = "com.lmax"                    %   "disruptor"                     % disruptorVersion
-    val sprayWebsocket    = "com.wandoulabs.akka"         %%   "spray-websocket"              % sprayWebsocketVersion
+    val sprayWebsocket    = "com.wandoulabs.akka"         %%  "spray-websocket"               % sprayWebsocketVersion
+    val twitterChill      = "com.twitter"                 %%  "chill"                         % twitterLibsVersion
+    val twitterChillBij   = "com.twitter"                 %%  "chill-bijection"               % twitterLibsVersion
     val webjarsPlay       = "org.webjars"                 %% "webjars-play"                   % webjarsPlayVersion
     val webjarsJquery     = "org.webjars"                 %  "jquery"                         % webjarsJqueryVersion
     val webjarsBootstrap  = "org.webjars"                 %  "bootstrap"                      % webjarsBootstrapVersion
@@ -124,6 +128,8 @@ object Dependencies {
     uuid,
     loggingScala,
     loggingLogback,
+    twitterChill,
+    twitterChillBij,
     jodaTime,
     jodaConvert,
     prettyTime,
