@@ -8,7 +8,7 @@ import au.com.intelix.rs.core.services.Messages.Signal
 import au.com.intelix.rs.core.services.internal.SignalPort
 
 import scala.concurrent.duration.{DurationInt, FiniteDuration}
-import scala.language.postfixOps
+import scala.language.{implicitConversions, postfixOps}
 
 
 trait SignalProducer {

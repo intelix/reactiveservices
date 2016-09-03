@@ -1,5 +1,6 @@
 package au.com.intelix.rs.core.testkit.components
 
+import akka.util.ByteString
 import au.com.intelix.evt.{EvtSource, InfoE}
 import au.com.intelix.rs.core.Subject
 import au.com.intelix.rs.core.services.BaseServiceActor.StopRequest
@@ -27,7 +28,7 @@ object TestServiceConsumer {
 
   case class Close(svc: String, topic: String, keys: String = "")
 
-  case class SendSignal(svc: String, topic: String, keys: String = "", payload: Any = None, expiry: FiniteDuration = 1 minute, orderingGroup: Option[Any] = None, correlationId: Option[Any] = None)
+  case class SendSignal(svc: String, topic: String, keys: String = "", payload: String = "", expiry: FiniteDuration = 1 minute, orderingGroup: Option[Any] = None, correlationId: Option[Any] = None)
 
 }
 

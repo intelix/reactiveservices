@@ -66,6 +66,8 @@ lazy val platform_core = Project(id = "core", base = file("platform/core")).
   settings(
     libraryDependencies ++= Seq(
       netty,
+      twitterChill,
+      twitterChillBij,
       akkaActor,
       akkaAgent,
       akkaKernel,

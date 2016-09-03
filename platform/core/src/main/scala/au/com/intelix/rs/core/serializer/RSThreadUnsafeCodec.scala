@@ -16,9 +16,10 @@ import au.com.intelix.rs.core.stream.DictionaryMapStreamState.Dictionary
 import au.com.intelix.rs.core.stream._
 import au.com.intelix.rs.core.{Subject, TopicKey}
 import com.esotericsoftware.kryo.Kryo
-import com.esotericsoftware.kryo.Kryo.DefaultInstantiatorStrategy
-import com.esotericsoftware.kryo.io.{Input, Output}
-import org.objenesis.strategy.StdInstantiatorStrategy
+import com.twitter.chill.KryoInjection
+import play.api.libs.json.{JsObject, JsValue, Json}
+
+import scala.util.Success
 
 
 private[serializer] object RSThreadUnsafeCodec {
@@ -30,15 +31,15 @@ private[serializer] object RSThreadUnsafeCodec {
   implicit val byteOrder: ByteOrder = ByteOrder.BIG_ENDIAN
 
   trait Sx[T] {
-    def put(v: T)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit
+    def put(v: T)(implicit b: ByteStringBuilder): Unit
 
-    def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): T
+    def get()(implicit b: ByteIterator, ec: ExternalCodecs): T
   }
 
   trait S[T] extends Sx[T] {
     val id: Int
 
-    def putWithType(v: T)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    def putWithType(v: T)(implicit b: ByteStringBuilder): Unit = {
       EntityType.put(id)
       put(v)
     }
@@ -47,9 +48,9 @@ private[serializer] object RSThreadUnsafeCodec {
   object ByteC extends S[Byte] {
     override val id: Int = 0
 
-    override def put(v: Byte)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = b.putByte(v)
+    override def put(v: Byte)(implicit b: ByteStringBuilder): Unit = b.putByte(v)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Byte = b.getByte
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Byte = b.getByte
 
   }
 
@@ -63,7 +64,7 @@ private[serializer] object RSThreadUnsafeCodec {
     val B3i = 2 << (8 - ControlBits)
     override val id: Int = 2
 
-    override def put(v: Short)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit =
+    override def put(v: Short)(implicit b: ByteStringBuilder): Unit =
       v match {
         case _ if (v & B1) == v => b.putByte(v.toByte)
         case _ if (v & B2) == v =>
@@ -75,7 +76,7 @@ private[serializer] object RSThreadUnsafeCodec {
           b.putByte((v & RemainderMask).toByte)
       }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Short = b.getByte match {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Short = b.getByte match {
       case v if (v & ControlBitsMask) == 0 => (v & 0xFF).toShort
       case v if (v & ControlBitsMask) == B2i => (((v & B1) << 8) | (b.getByte & 0xFF)).toShort
       case v => (((v & B1) << (8 + ControlBits)) | ((b.getByte & 0xFF) << ControlBits) | (b.getByte & RemainderMask)).toShort
@@ -98,7 +99,7 @@ private[serializer] object RSThreadUnsafeCodec {
 
     override val id: Int = 3
 
-    override def put(v: Int)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit =
+    override def put(v: Int)(implicit b: ByteStringBuilder): Unit =
       v match {
         case _ if (v & B1) == v => b.putByte(v.toByte)
         case _ if (v & B2) == v =>
@@ -121,7 +122,7 @@ private[serializer] object RSThreadUnsafeCodec {
           b.putByte((v & RemainderMask).toByte)
       }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Int = b.getByte match {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Int = b.getByte match {
       case v if (v & ControlBitsMask) == 0 => v & 0xFF
       case v if (v & ControlBitsMask) == B2i => ((v & B1) << 8) | (b.getByte & 0xFF)
       case v if (v & ControlBitsMask) == B3i => ((v & B1) << 16) | ((b.getByte & 0xFF) << 8) | (b.getByte & 0xFF)
@@ -158,7 +159,7 @@ private[serializer] object RSThreadUnsafeCodec {
 
     override val id: Int = 4
 
-    override def put(v: Long)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit =
+    override def put(v: Long)(implicit b: ByteStringBuilder): Unit =
       v match {
         case _ if (v & B1) == v => b.putByte(v.toByte)
         case _ if (v & B2) == v =>
@@ -215,7 +216,7 @@ private[serializer] object RSThreadUnsafeCodec {
           b.putByte((v & RemainderMask).toByte)
       }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Long = b.getByte match {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Long = b.getByte match {
       case v if (v & ControlBitsMask) == 0 => (v & 0xFF).toLong
       case v if (v & ControlBitsMask) == B2i => ((v & B1).toLong << 8) | (b.getByte & 0xFF)
       case v if (v & ControlBitsMask) == B3i => ((v & B1).toLong << 16) | ((b.getByte & 0xFF) << 8) | (b.getByte & 0xFF)
@@ -268,43 +269,43 @@ private[serializer] object RSThreadUnsafeCodec {
 
     override val id: Int = 5
 
-    override def put(v: Float)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = b.putFloat(v)
+    override def put(v: Float)(implicit b: ByteStringBuilder): Unit = b.putFloat(v)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Float = b.getFloat
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Float = b.getFloat
 
   }
 
   object DoubleC extends S[Double] {
     override val id: Int = 6
 
-    override def put(v: Double)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = b.putDouble(v)
+    override def put(v: Double)(implicit b: ByteStringBuilder): Unit = b.putDouble(v)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Double = b.getDouble
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Double = b.getDouble
 
   }
 
   object CharC extends S[Char] {
     override val id: Int = 7
 
-    override def put(v: Char)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = b.putByte(v.toByte)
+    override def put(v: Char)(implicit b: ByteStringBuilder): Unit = b.putByte(v.toByte)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Char = b.getByte.toChar
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Char = b.getByte.toChar
 
   }
 
   object BooleanC extends S[Boolean] {
     override val id: Int = 8
 
-    override def put(v: Boolean)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = b.putByte(if (v) 1 else 0)
+    override def put(v: Boolean)(implicit b: ByteStringBuilder): Unit = b.putByte(if (v) 1 else 0)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Boolean = if (b.getByte == 0) false else true
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Boolean = if (b.getByte == 0) false else true
 
   }
 
   object ArrayOfAnyC extends S[Array[_]] {
     override val id: Int = 9
 
-    override def put(v: Array[_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: Array[_])(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.length)
       var idx = 0
       while (idx < v.length) {
@@ -313,7 +314,7 @@ private[serializer] object RSThreadUnsafeCodec {
       }
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Array[Any] = {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Array[Any] = {
       val len = IntC.get()
       val arr = Array.ofDim[Any](len)
       var idx = 0
@@ -328,7 +329,7 @@ private[serializer] object RSThreadUnsafeCodec {
 
   object ArrayOfStringC extends Sx[Array[String]] {
 
-    override def put(v: Array[String])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: Array[String])(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.length)
       var idx = 0
       while (idx < v.length) {
@@ -337,7 +338,7 @@ private[serializer] object RSThreadUnsafeCodec {
       }
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Array[String] = {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Array[String] = {
       val len = IntC.get()
       val arr = Array.ofDim[String](len)
       var idx = 0
@@ -354,12 +355,12 @@ private[serializer] object RSThreadUnsafeCodec {
   object OptionOfAnyC extends S[Option[_]] {
     override val id: Int = 10
 
-    override def put(v: Option[_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = v match {
+    override def put(v: Option[_])(implicit b: ByteStringBuilder): Unit = v match {
       case None => b.putByte(0)
       case Some(x) => b.putByte(1); Codec.put(x)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Option[_] = b.getByte match {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Option[_] = b.getByte match {
       case 0 => None
       case 1 => Some(Codec.get())
     }
@@ -368,12 +369,12 @@ private[serializer] object RSThreadUnsafeCodec {
 
   object OptionOfStringC extends Sx[Option[String]] {
 
-    override def put(v: Option[String])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = v match {
+    override def put(v: Option[String])(implicit b: ByteStringBuilder): Unit = v match {
       case None => b.putByte(0)
       case Some(x) => b.putByte(1); StringC.put(x)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Option[String] = b.getByte match {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Option[String] = b.getByte match {
       case 0 => None
       case 1 => Some(StringC.get())
     }
@@ -382,12 +383,12 @@ private[serializer] object RSThreadUnsafeCodec {
 
   object OptionOfIntC extends Sx[Option[Int]] {
 
-    override def put(v: Option[Int])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = v match {
+    override def put(v: Option[Int])(implicit b: ByteStringBuilder): Unit = v match {
       case None => b.putByte(0)
       case Some(x) => b.putByte(1); IntC.put(x)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Option[Int] = b.getByte match {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Option[Int] = b.getByte match {
       case 0 => None
       case 1 => Some(IntC.get())
     }
@@ -398,12 +399,12 @@ private[serializer] object RSThreadUnsafeCodec {
   object ListOfAnyC extends S[List[_]] {
     override val id: Int = 11
 
-    override def put(v: List[_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: List[_])(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.size)
       v foreach Codec.put
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): List[Any] = {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): List[Any] = {
       val len = IntC.get()
       var arr = List[Any]()
       for (_ <- 1 to len) arr = Codec.get +: arr
@@ -414,12 +415,12 @@ private[serializer] object RSThreadUnsafeCodec {
 
   object SeqOfAnyC extends Sx[Seq[_]] {
 
-    override def put(v: Seq[_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: Seq[_])(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.size)
       v foreach Codec.put
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Seq[Any] = {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Seq[Any] = {
       val len = IntC.get()
       var arr = Seq[Any]()
       for (_ <- 1 to len) arr = Codec.get +: arr
@@ -430,12 +431,12 @@ private[serializer] object RSThreadUnsafeCodec {
 
   object SetOfAnyC extends Sx[Set[_]] {
 
-    override def put(v: Set[_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: Set[_])(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.size)
       v foreach Codec.put
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Set[Any] = {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Set[Any] = {
       val len = IntC.get()
       var arr = Set[Any]()
       for (_ <- 1 to len) arr = arr + Codec.get
@@ -448,13 +449,13 @@ private[serializer] object RSThreadUnsafeCodec {
   object StringC extends S[String] {
     override val id: Int = 12
 
-    override def put(v: String)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: String)(implicit b: ByteStringBuilder): Unit = {
       val bytes = v.getBytes("UTF-8")
       IntC.put(bytes.length)
       b.putBytes(bytes)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): String = {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): String = {
       val len = IntC.get()
       new String(b.getBytes(len), "UTF-8")
     }
@@ -465,11 +466,11 @@ private[serializer] object RSThreadUnsafeCodec {
   object ActorRefC extends S[ActorRef] {
     override val id: Int = 13
 
-    override def put(v: ActorRef)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: ActorRef)(implicit b: ByteStringBuilder): Unit = {
       StringC.put(Serialization.serializedActorPath(v))
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ActorRef =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ActorRef =
       ec.resolveActorRef(StringC.get())
 
   }
@@ -477,13 +478,13 @@ private[serializer] object RSThreadUnsafeCodec {
   object AcknowledgeableWithSpecificIdC extends S[AcknowledgeableWithSpecificId] {
     override val id: Int = 14
 
-    override def put(v: AcknowledgeableWithSpecificId)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: AcknowledgeableWithSpecificId)(implicit b: ByteStringBuilder): Unit = {
       Codec.put(v.payload)
       OptionOfAnyC.put(v.acknowledgeTo)
       Codec.put(v.messageId)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): AcknowledgeableWithSpecificId = {
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): AcknowledgeableWithSpecificId = {
       AcknowledgeableWithSpecificId(Codec.get(), OptionOfAnyC.get().asInstanceOf[Option[ActorRef]], Codec.get().asInstanceOf[MessageId])
     }
   }
@@ -491,64 +492,64 @@ private[serializer] object RSThreadUnsafeCodec {
   object AcknowledgementC extends S[Acknowledgement] {
     override val id: Int = 15
 
-    override def put(v: Acknowledgement)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = Codec.put(v.messageId)
+    override def put(v: Acknowledgement)(implicit b: ByteStringBuilder): Unit = Codec.put(v.messageId)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Acknowledgement = Acknowledgement(Codec.get().asInstanceOf[MessageId])
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Acknowledgement = Acknowledgement(Codec.get().asInstanceOf[MessageId])
   }
 
 
   object GetMappingForC extends S[GetMappingFor] {
     override val id: Int = 16
 
-    override def put(v: GetMappingFor)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = SubjectC.put(v.subj)
+    override def put(v: GetMappingFor)(implicit b: ByteStringBuilder): Unit = SubjectC.put(v.subj)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): GetMappingFor = GetMappingFor(SubjectC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): GetMappingFor = GetMappingFor(SubjectC.get())
   }
 
   object ServiceEndpointC extends S[ServiceEndpoint] {
     override val id: Int = 17
 
-    override def put(v: ServiceEndpoint)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: ServiceEndpoint)(implicit b: ByteStringBuilder): Unit = {
       ActorRefC.put(v.ref)
       StringC.put(v.id)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ServiceEndpoint = ServiceEndpoint(ActorRefC.get(), StringC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ServiceEndpoint = ServiceEndpoint(ActorRefC.get(), StringC.get())
   }
 
   object CloseStreamForC extends S[CloseStreamFor] {
     override val id: Int = 18
 
-    override def put(v: CloseStreamFor)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = Codec.put(v.streamKey)
+    override def put(v: CloseStreamFor)(implicit b: ByteStringBuilder): Unit = Codec.put(v.streamKey)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): CloseStreamFor = CloseStreamFor(Codec.get().asInstanceOf[StreamId])
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): CloseStreamFor = CloseStreamFor(Codec.get().asInstanceOf[StreamId])
   }
 
   object OpenStreamForC extends S[OpenStreamFor] {
     override val id: Int = 19
 
-    override def put(v: OpenStreamFor)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = Codec.put(v.streamKey)
+    override def put(v: OpenStreamFor)(implicit b: ByteStringBuilder): Unit = Codec.put(v.streamKey)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): OpenStreamFor = OpenStreamFor(Codec.get().asInstanceOf[StreamId])
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): OpenStreamFor = OpenStreamFor(Codec.get().asInstanceOf[StreamId])
   }
 
   object StreamResyncRequestC extends S[StreamResyncRequest] {
     override val id: Int = 20
 
-    override def put(v: StreamResyncRequest)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = Codec.put(v.streamKey)
+    override def put(v: StreamResyncRequest)(implicit b: ByteStringBuilder): Unit = Codec.put(v.streamKey)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): StreamResyncRequest = StreamResyncRequest(Codec.get().asInstanceOf[StreamId])
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): StreamResyncRequest = StreamResyncRequest(Codec.get().asInstanceOf[StreamId])
   }
 
   object StreamMappingC extends S[StreamMapping] {
     override val id: Int = 21
 
-    override def put(v: StreamMapping)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: StreamMapping)(implicit b: ByteStringBuilder): Unit = {
       SubjectC.put(v.subj)
       OptionOfAnyC.put(v.mappedStreamKey)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): StreamMapping =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): StreamMapping =
       StreamMapping(SubjectC.get(), OptionOfAnyC.get().asInstanceOf[Option[StreamId]])
   }
 
@@ -556,161 +557,161 @@ private[serializer] object RSThreadUnsafeCodec {
   object StreamUpdateC extends S[StreamUpdate] {
     override val id: Int = 22
 
-    override def put(v: StreamUpdate)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: StreamUpdate)(implicit b: ByteStringBuilder): Unit = {
       Codec.put(v.key)
       Codec.put(v.tran)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): StreamUpdate =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): StreamUpdate =
       StreamUpdate(Codec.get().asInstanceOf[StreamId], Codec.get().asInstanceOf[StreamStateTransition])
   }
 
   object SignalPayloadC extends S[SignalPayload] {
     override val id: Int = 23
 
-    override def put(v: SignalPayload)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: SignalPayload)(implicit b: ByteStringBuilder): Unit = {
       SubjectC.put(v.subj)
       Codec.put(v.payload)
       LongC.put(v.expireAt)
       OptionOfAnyC.put(v.correlationId)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SignalPayload =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SignalPayload =
       SignalPayload(SubjectC.get(), Codec.get(), LongC.get(), OptionOfAnyC.get())
   }
 
   object SignalAckOkC extends S[SignalAckOk] {
     override val id: Int = 24
 
-    override def put(v: SignalAckOk)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: SignalAckOk)(implicit b: ByteStringBuilder): Unit = {
       OptionOfAnyC.put(v.correlationId)
       SubjectC.put(v.subj)
       OptionOfAnyC.put(v.payload)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SignalAckOk =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SignalAckOk =
       SignalAckOk(OptionOfAnyC.get(), SubjectC.get(), OptionOfAnyC.get())
   }
 
   object SignalAckFailedC extends S[SignalAckFailed] {
     override val id: Int = 25
 
-    override def put(v: SignalAckFailed)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: SignalAckFailed)(implicit b: ByteStringBuilder): Unit = {
       OptionOfAnyC.put(v.correlationId)
       SubjectC.put(v.subj)
       OptionOfAnyC.put(v.payload)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SignalAckFailed =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SignalAckFailed =
       SignalAckFailed(OptionOfAnyC.get(), SubjectC.get(), OptionOfAnyC.get())
   }
 
   object DownstreamDemandRequestC extends S[DownstreamDemandRequest] {
     override val id: Int = 26
 
-    override def put(v: DownstreamDemandRequest)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: DownstreamDemandRequest)(implicit b: ByteStringBuilder): Unit = {
       Codec.put(v.messageId)
       LongC.put(v.count)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): DownstreamDemandRequest =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): DownstreamDemandRequest =
       DownstreamDemandRequest(Codec.get().asInstanceOf[MessageId], LongC.get())
   }
 
   object SequentialMessageIdC extends S[SequentialMessageId] {
     override val id: Int = 27
 
-    override def put(v: SequentialMessageId)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: SequentialMessageId)(implicit b: ByteStringBuilder): Unit = {
       StringC.put(v.seed)
       LongC.put(v.sequence)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SequentialMessageId = SequentialMessageId(StringC.get(), LongC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SequentialMessageId = SequentialMessageId(StringC.get(), LongC.get())
   }
 
   object RandomStringMessageIdC extends S[RandomStringMessageId] {
     override val id: Int = 28
 
-    override def put(v: RandomStringMessageId)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = StringC.put(v.id)
+    override def put(v: RandomStringMessageId)(implicit b: ByteStringBuilder): Unit = StringC.put(v.id)
 
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): RandomStringMessageId = RandomStringMessageId(StringC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): RandomStringMessageId = RandomStringMessageId(StringC.get())
   }
 
   object LongMessageIdC extends S[LongMessageId] {
     override val id: Int = 29
 
-    override def put(v: LongMessageId)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = LongC.put(v.id)
+    override def put(v: LongMessageId)(implicit b: ByteStringBuilder): Unit = LongC.put(v.id)
 
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): LongMessageId = LongMessageId(LongC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): LongMessageId = LongMessageId(LongC.get())
   }
 
   object SimpleStreamIdC extends S[SimpleStreamId] {
     override val id: Int = 30
 
-    override def put(v: SimpleStreamId)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = StringC.put(v.id)
+    override def put(v: SimpleStreamId)(implicit b: ByteStringBuilder): Unit = StringC.put(v.id)
 
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SimpleStreamId = SimpleStreamId(StringC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SimpleStreamId = SimpleStreamId(StringC.get())
   }
 
   object CompoundStreamIdC extends S[CompoundStreamId[_]] {
     override val id: Int = 31
 
-    override def put(v: CompoundStreamId[_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: CompoundStreamId[_])(implicit b: ByteStringBuilder): Unit = {
       StringC.put(v.id)
       Codec.put(v.v)
     }
 
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): CompoundStreamId[Any] = CompoundStreamId(StringC.get(), Codec.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): CompoundStreamId[Any] = CompoundStreamId(StringC.get(), Codec.get())
   }
 
 
   object StringStreamStateC extends S[StringStreamState] {
     override val id: Int = 32
 
-    override def put(v: StringStreamState)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = StringC.put(v.value)
+    override def put(v: StringStreamState)(implicit b: ByteStringBuilder): Unit = StringC.put(v.value)
 
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): StringStreamState = StringStreamState(StringC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): StringStreamState = StringStreamState(StringC.get())
   }
 
   object DictionaryMapStreamStateC extends S[DictionaryMapStreamState] {
     override val id: Int = 33
 
-    override def put(v: DictionaryMapStreamState)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: DictionaryMapStreamState)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.seed)
       IntC.put(v.seq)
       ArrayOfAnyC.put(v.values)
       ArrayOfStringC.put(v.dict.fields)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): DictionaryMapStreamState =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): DictionaryMapStreamState =
       DictionaryMapStreamState(IntC.get(), IntC.get(), ArrayOfAnyC.get(), Dictionary(ArrayOfStringC.get()))
   }
 
   object DictionaryMapStreamTransitionPartialC extends S[DictionaryMapStreamTransitionPartial] {
     override val id: Int = 34
 
-    override def put(v: DictionaryMapStreamTransitionPartial)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: DictionaryMapStreamTransitionPartial)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.seed)
       IntC.put(v.seq)
       IntC.put(v.seq2)
       ArrayOfAnyC.put(v.diffs)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): DictionaryMapStreamTransitionPartial =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): DictionaryMapStreamTransitionPartial =
       DictionaryMapStreamTransitionPartial(IntC.get(), IntC.get(), IntC.get(), ArrayOfAnyC.get())
   }
 
   object DictionaryMapStreamState_NoChangeC extends S[DictionaryMapStreamState.NoChange.type] {
     override val id: Int = 35
 
-    override def put(v: DictionaryMapStreamState.NoChange.type)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {}
+    override def put(v: DictionaryMapStreamState.NoChange.type)(implicit b: ByteStringBuilder): Unit = {}
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): DictionaryMapStreamState.NoChange.type =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): DictionaryMapStreamState.NoChange.type =
       DictionaryMapStreamState.NoChange
   }
 
@@ -718,7 +719,7 @@ private[serializer] object RSThreadUnsafeCodec {
   object ListStreamStateC extends S[ListStreamState] {
     override val id: Int = 36
 
-    override def put(v: ListStreamState)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: ListStreamState)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.seed)
       IntC.put(v.seq)
       ListOfAnyC.put(v.list)
@@ -730,7 +731,7 @@ private[serializer] object RSThreadUnsafeCodec {
       }
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ListStreamState =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ListStreamState =
       ListStreamState(IntC.get(), IntC.get(), ListOfAnyC.get(), ListStreamState.ListSpecs(IntC.get(), b.getByte match {
         case 0 => ListStreamState.RejectAdd
         case 1 => ListStreamState.FromHead
@@ -741,14 +742,14 @@ private[serializer] object RSThreadUnsafeCodec {
   object ListStreamStateTransitionPartialC extends S[ListStreamStateTransitionPartial] {
     override val id: Int = 37
 
-    override def put(v: ListStreamStateTransitionPartial)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: ListStreamStateTransitionPartial)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.seed)
       IntC.put(v.seq)
       IntC.put(v.seq2)
       ListOfAnyC.put(v.list)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ListStreamStateTransitionPartial =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ListStreamStateTransitionPartial =
       ListStreamStateTransitionPartial(IntC.get(), IntC.get(), IntC.get(), ListOfAnyC.get().asInstanceOf[List[ListStreamState.Op]])
   }
 
@@ -756,33 +757,33 @@ private[serializer] object RSThreadUnsafeCodec {
   object ListStreamState_AddC extends S[ListStreamState.Add] {
     override val id: Int = 38
 
-    override def put(v: ListStreamState.Add)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: ListStreamState.Add)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.pos)
       Codec.put(v.v)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ListStreamState.Add =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ListStreamState.Add =
       ListStreamState.Add(IntC.get(), Codec.get())
   }
 
   object ListStreamState_ReplaceC extends S[ListStreamState.Replace] {
     override val id: Int = 39
 
-    override def put(v: ListStreamState.Replace)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: ListStreamState.Replace)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.pos)
       Codec.put(v.v)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ListStreamState.Replace =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ListStreamState.Replace =
       ListStreamState.Replace(IntC.get(), Codec.get())
   }
 
   object ListStreamState_RemoveC extends S[ListStreamState.Remove] {
     override val id: Int = 40
 
-    override def put(v: ListStreamState.Remove)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = IntC.put(v.pos)
+    override def put(v: ListStreamState.Remove)(implicit b: ByteStringBuilder): Unit = IntC.put(v.pos)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ListStreamState.Remove =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ListStreamState.Remove =
       ListStreamState.Remove(IntC.get())
   }
 
@@ -790,28 +791,28 @@ private[serializer] object RSThreadUnsafeCodec {
   object SetStreamStateC extends S[SetStreamState] {
     override val id: Int = 41
 
-    override def put(v: SetStreamState)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: SetStreamState)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.seed)
       IntC.put(v.seq)
       SetOfAnyC.put(v.set)
       BooleanC.put(v.specs.allowPartialUpdates)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SetStreamState =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SetStreamState =
       SetStreamState(IntC.get(), IntC.get(), SetOfAnyC.get(), SetStreamState.SetSpecs(BooleanC.get()))
   }
 
   object SetStreamTransitionPartialC extends S[SetStreamTransitionPartial] {
     override val id: Int = 42
 
-    override def put(v: SetStreamTransitionPartial)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: SetStreamTransitionPartial)(implicit b: ByteStringBuilder): Unit = {
       IntC.put(v.seed)
       IntC.put(v.seq)
       IntC.put(v.seq2)
       SeqOfAnyC.put(v.list)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SetStreamTransitionPartial =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SetStreamTransitionPartial =
       SetStreamTransitionPartial(IntC.get(), IntC.get(), IntC.get(), SeqOfAnyC.get().asInstanceOf[Seq[SetStreamState.SetOp]])
   }
 
@@ -819,120 +820,147 @@ private[serializer] object RSThreadUnsafeCodec {
   object SetStreamState_AddC extends S[SetStreamState.Add] {
     override val id: Int = 43
 
-    override def put(v: SetStreamState.Add)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: SetStreamState.Add)(implicit b: ByteStringBuilder): Unit = {
       Codec.put(v.el)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SetStreamState.Add =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SetStreamState.Add =
       SetStreamState.Add(Codec.get())
   }
 
   object SetStreamState_RemoveC extends S[SetStreamState.Remove] {
     override val id: Int = 44
 
-    override def put(v: SetStreamState.Remove)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = Codec.put(v.el)
+    override def put(v: SetStreamState.Remove)(implicit b: ByteStringBuilder): Unit = Codec.put(v.el)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): SetStreamState.Remove =
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): SetStreamState.Remove =
       SetStreamState.Remove(Codec.get())
   }
 
 
   object TopicKeyC extends S[TopicKey] {
     override val id: Int = 45
-    override def put(v: TopicKey)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = StringC.put(v.id)
+    override def put(v: TopicKey)(implicit b: ByteStringBuilder): Unit = StringC.put(v.id)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): TopicKey = TopicKey(StringC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): TopicKey = TopicKey(StringC.get())
   }
 
   object ServiceKeyC extends S[ServiceKey] {
     override val id: Int = 46
-    override def put(v: ServiceKey)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = StringC.put(v.id)
+    override def put(v: ServiceKey)(implicit b: ByteStringBuilder): Unit = StringC.put(v.id)
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): ServiceKey = ServiceKey(StringC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ServiceKey = ServiceKey(StringC.get())
   }
 
   object SubjectC extends S[Subject] {
     override val id: Int = 47
-    override def put(v: Subject)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
+    override def put(v: Subject)(implicit b: ByteStringBuilder): Unit = {
       ServiceKeyC.put(v.service)
       TopicKeyC.put(v.topic)
       StringC.put(v.tags)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Subject = Subject(ServiceKeyC.get(), TopicKeyC.get(), StringC.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Subject = Subject(ServiceKeyC.get(), TopicKeyC.get(), StringC.get())
   }
 
 
   object Tuple2OfAnyC extends S[Tuple2[_,_]] {
     override val id: Int = 48
 
-    override def put(v: Tuple2[_,_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = v match {
+    override def put(v: Tuple2[_,_])(implicit b: ByteStringBuilder): Unit = v match {
       case (a1,a2) => Codec.put(a1); Codec.put(a2)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Tuple2[_,_] = (Codec.get(),Codec.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Tuple2[_,_] = (Codec.get(),Codec.get())
 
   }
 
   object Tuple3OfAnyC extends S[Tuple3[_,_,_]] {
     override val id: Int = 49
 
-    override def put(v: Tuple3[_,_,_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = v match {
+    override def put(v: Tuple3[_,_,_])(implicit b: ByteStringBuilder): Unit = v match {
       case (a1,a2,a3) => Codec.put(a1); Codec.put(a2); Codec.put(a3)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Tuple3[_,_,_] = (Codec.get(),Codec.get(),Codec.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Tuple3[_,_,_] = (Codec.get(),Codec.get(),Codec.get())
 
   }
 
   object Tuple4OfAnyC extends S[Tuple4[_,_,_,_]] {
     override val id: Int = 50
 
-    override def put(v: Tuple4[_,_,_,_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = v match {
+    override def put(v: Tuple4[_,_,_,_])(implicit b: ByteStringBuilder): Unit = v match {
       case (a1,a2,a3,a4) => Codec.put(a1); Codec.put(a2); Codec.put(a3); Codec.put(a4)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Tuple4[_,_,_,_] = (Codec.get(),Codec.get(),Codec.get(),Codec.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Tuple4[_,_,_,_] = (Codec.get(),Codec.get(),Codec.get(),Codec.get())
 
   }
 
   object Tuple5OfAnyC extends S[Tuple5[_,_,_,_,_]] {
     override val id: Int = 51
 
-    override def put(v: Tuple5[_,_,_,_,_])(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = v match {
+    override def put(v: Tuple5[_,_,_,_,_])(implicit b: ByteStringBuilder): Unit = v match {
       case (a1,a2,a3,a4,a5) => Codec.put(a1); Codec.put(a2); Codec.put(a3); Codec.put(a4); Codec.put(a5)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Tuple5[_,_,_,_,_] = (Codec.get(),Codec.get(),Codec.get(),Codec.get(),Codec.get())
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Tuple5[_,_,_,_,_] = (Codec.get(),Codec.get(),Codec.get(),Codec.get(),Codec.get())
 
   }
 
   object NullC extends S[Any] {
     override val id: Int = 52
 
-    override def put(v: Any)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {}
+    override def put(v: Any)(implicit b: ByteStringBuilder): Unit = {}
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Any = null
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Any = null
+
+  }
+
+
+  object ByteStringC extends S[ByteString] {
+    override val id: Int = 53
+
+    override def put(v: ByteString)(implicit b: ByteStringBuilder): Unit = {
+      IntC.put(v.size)
+      b.append(v)
+    }
+
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): ByteString = {
+      val len = IntC.get()
+      ByteString(b.getBytes(len))
+    }
+
+  }
+
+  object JsValueC extends S[JsValue] {
+    override val id: Int = 54
+
+    override def put(v: JsValue)(implicit b: ByteStringBuilder): Unit = {
+      StringC.put(v.toString())
+    }
+
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): JsValue = {
+      Json.parse(StringC.get())
+    }
 
   }
 
   object KryoC extends S[Any] {
-    override val id: Int = 53
+    override val id: Int = 55
 
-    override def put(v: Any)(implicit b: ByteStringBuilder, kr: KryoCtx): Unit = {
-      try {
-        kr.kryo.writeClassAndObject(kr.buf, v)
-        val arr = kr.buf.toBytes
-        IntC.put(arr.length)
-        b.putBytes(arr)
-      } finally {
-        kr.buf.clear()
-      }
+    override def put(v: Any)(implicit b: ByteStringBuilder): Unit = {
+      val arr: Array[Byte] = KryoInjection(v)
+      IntC.put(arr.length)
+      b.putBytes(arr)
     }
 
-    override def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Any = {
-      val len = IntC.get()
-      kr.kryo.readClassAndObject(new Input(b.getBytes(len)))
+    override def get()(implicit b: ByteIterator, ec: ExternalCodecs): Any = {
+      val arr = b.getBytes(IntC.get())
+      KryoInjection.invert(arr) match {
+        case Success(x) => x
+        case _ => None
+      }
     }
 
   }
@@ -943,7 +971,7 @@ private[serializer] object RSThreadUnsafeCodec {
     val ReservedMask = 0xFF >> 1
     val NonReservedIndicator = 1 << 7
 
-    def put(v: Int)(implicit b: ByteStringBuilder, kr: KryoCtx) =
+    def put(v: Int)(implicit b: ByteStringBuilder) =
       if (v <= ReservedMask) b.putByte(v.toByte)
       else {
         if (v > 32767) throw new RuntimeException(s"Illegal EntityType value: $v")
@@ -951,7 +979,7 @@ private[serializer] object RSThreadUnsafeCodec {
         b.putByte(v.toByte)
       }
 
-    def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx) = {
+    def get()(implicit b: ByteIterator, ec: ExternalCodecs) = {
       val first = b.getByte
       val fr = first & ReservedMask
       if (fr == first) first.toInt else (fr << 8) | (b.getByte & 0xFF)
@@ -960,7 +988,7 @@ private[serializer] object RSThreadUnsafeCodec {
 
 
   object Codec {
-    def put(v: Any)(implicit b: ByteStringBuilder, kr: KryoCtx) = v match {
+    def put(v: Any)(implicit b: ByteStringBuilder) = v match {
       case x: Byte => ByteC.putWithType(x)
       case x: Short => ShortC.putWithType(x)
       case x: Int => IntC.putWithType(x)
@@ -1010,11 +1038,15 @@ private[serializer] object RSThreadUnsafeCodec {
       case x: Subject => SubjectC.putWithType(x)
       case x: Tuple2[_,_] => Tuple2OfAnyC.putWithType(x)
       case x: Tuple3[_,_,_] => Tuple3OfAnyC.putWithType(x)
+      case x: Tuple4[_,_,_,_] => Tuple4OfAnyC.putWithType(x)
+      case x: Tuple5[_,_,_,_,_] => Tuple5OfAnyC.putWithType(x)
+      case x: ByteString => ByteStringC.putWithType(x)
+      case x: JsValue => JsValueC.putWithType(x)
       case null => NullC.putWithType(Nil)
       case x => KryoC.putWithType(x)
     }
 
-    def get()(implicit b: ByteIterator, ec: ExternalCodecs, kr: KryoCtx): Any = EntityType.get() match {
+    def get()(implicit b: ByteIterator, ec: ExternalCodecs): Any = EntityType.get() match {
       case ByteC.id => ByteC.get()
       case ShortC.id => ShortC.get()
       case IntC.id => IntC.get()
@@ -1064,7 +1096,11 @@ private[serializer] object RSThreadUnsafeCodec {
       case SubjectC.id => SubjectC.get()
       case Tuple2OfAnyC.id => Tuple2OfAnyC.get()
       case Tuple3OfAnyC.id => Tuple3OfAnyC.get()
+      case Tuple4OfAnyC.id => Tuple4OfAnyC.get()
+      case Tuple5OfAnyC.id => Tuple5OfAnyC.get()
       case NullC.id => NullC.get()
+      case ByteStringC.id => ByteStringC.get()
+      case JsValueC.id => JsValueC.get()
       case KryoC.id => KryoC.get()
     }
   }
@@ -1075,7 +1111,7 @@ private[serializer] object RSThreadUnsafeCodec {
 private[serializer] class RSThreadUnsafeCodec {
 
   implicit val b = ByteString.newBuilder
-  implicit val kryo = new KryoCtx()
+  implicit val kryo = new Kryo()
 
   def encode(input: AnyRef): Array[Byte] = {
     b.clear()
@@ -1088,10 +1124,4 @@ private[serializer] class RSThreadUnsafeCodec {
     RSThreadUnsafeCodec.Codec.get().asInstanceOf[AnyRef]
   }
 
-}
-
-class KryoCtx {
-  val kryo = new Kryo()
-  kryo.setInstantiatorStrategy(new DefaultInstantiatorStrategy(new StdInstantiatorStrategy()))
-  val buf = new Output(4096, -1)
 }
