@@ -147,8 +147,6 @@ object BinaryCodec {
           case t: SignalAckFailed => Some(BinaryDialectSignalAckFailed(t.correlationId, t.payload))
           case t: SubscriptionClosed =>
             aliases get t.subj map { a =>
-              aliases -= t.subj
-              subjects -= a
               BinaryDialectSubscriptionClosed(a)
             }
           case _ => None
