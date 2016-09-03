@@ -1,18 +1,24 @@
 #!/bin/bash
 
+export DIR=$1
+
+mkdir -p $DIR
+
+export PW=`cat $DIR/password`
+
 
 # Create a JKS keystore that trusts the example CA, with the default password.
 keytool -import -v \
   -alias serverca \
-  -file gen/server-ca.crt \
+  -file $DIR/server-ca.crt \
   -storepass:env PW \
-  -keystore gen/server-ca-trust.jks << EOF
+  -keystore $DIR/server-ca-trust.jks << EOF
 yes
 EOF
 
 # List out the details of the store password.
 keytool -list -v \
-  -keystore gen/server-ca-trust.jks \
+  -keystore $DIR/server-ca-trust.jks \
   -storepass:env PW
 
 # #context

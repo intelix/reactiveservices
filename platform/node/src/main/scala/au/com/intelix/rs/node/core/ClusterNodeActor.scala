@@ -39,6 +39,7 @@ object ClusterNodeActor {
     case object ClustersDiscovered extends InfoE
     case object JoiningCluster extends InfoE
     case object JoinedCluster extends InfoE
+    case object RemovedFromCluster extends InfoE
     case object UnableToJoinCluster extends InfoE
     case object ClusterMergeTrigger extends InfoE
     case object StartingService extends InfoE
@@ -65,6 +66,7 @@ object ClusterNodeActor {
     case object JoinTimeout
     case object DiscoveryTimeout
     case object CheckState
+    case class MemberGone(addr: Address)
   }
 
 }
@@ -116,7 +118,7 @@ class ClusterNodeActor extends StatefulActor[Any] {
   def preStart(): Unit = {
     super.preStart()
     cluster.subscribe(self, initialStateMode = InitialStateAsEvents,
-      classOf[LeaderChanged])
+      classOf[LeaderChanged], classOf[MemberRemoved], classOf[MemberLeft], classOf[MemberExited])
   }
 
   override def postStop(): Unit = {
@@ -199,6 +201,22 @@ class ClusterNodeActor extends StatefulActor[Any] {
       runningServices -= actor
       context.stop(actor)
       stay()
+
+    case Event(MemberExited(m), _) =>
+      self ! InternalMessages.MemberGone(m.address)
+      stay()
+    case Event(MemberLeft(m), _) =>
+      self ! InternalMessages.MemberGone(m.address)
+      stay()
+    case Event(MemberRemoved(m, _), _) =>
+      self ! InternalMessages.MemberGone(m.address)
+      stay()
+
+    case Event(InternalMessages.MemberGone(a), _) if a == selfAddress =>
+      raise(Evt.RemovedFromCluster)
+      stop()
+    case Event(InternalMessages.MemberGone(a), _) => stay()
+
   }
 
 

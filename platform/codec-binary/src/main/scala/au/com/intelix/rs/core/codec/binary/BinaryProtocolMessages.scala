@@ -57,11 +57,11 @@ object BinaryProtocolMessages {
   case class BinaryDialectStreamStateTransitionUpdate(subjAlias: Int, topicStateTransition: StreamStateTransition) extends BinaryDialectOutbound
 
 
-  case class BinaryDialectSignal(subjAlias: Int, payload: Any, expireAt: Long, orderingGroup: Option[Any], correlationId: Option[Any]) extends Expirable with BinaryDialectInbound
+  case class BinaryDialectSignal(subj: Subject, payload: Any, expireAt: Long, orderingGroup: Option[Any], correlationId: Option[Any]) extends Expirable with BinaryDialectInbound
 
-  case class BinaryDialectSignalAckOk(subjAlias: Int, correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutbound
+  case class BinaryDialectSignalAckOk(correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutbound
 
-  case class BinaryDialectSignalAckFailed(subjAlias: Int, correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutbound
+  case class BinaryDialectSignalAckFailed(correlationId: Option[Any], payload: Option[Any]) extends BinaryDialectOutbound
 
 
 }

@@ -163,10 +163,10 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
       case BinaryDialectStreamStateTransitionUpdate(alias, trans) =>
         raise(Evt.ReceivedStreamStateTransitionUpdate, 'alias -> alias, 'transition -> trans)
         transition(alias, trans)
-      case BinaryDialectSignalAckOk(alias, correlation, payload) =>
-        raise(Evt.ReceivedSignalAckOk, 'alias -> alias, 'correlation -> correlation, 'payload -> payload)
-      case BinaryDialectSignalAckFailed(alias, correlation, payload) =>
-        raise(Evt.ReceivedSignalAckFailed, 'alias -> alias, 'correlation -> correlation, 'payload -> payload)
+      case BinaryDialectSignalAckOk(correlation, payload) =>
+        raise(Evt.ReceivedSignalAckOk, 'correlation -> correlation, 'payload -> payload)
+      case BinaryDialectSignalAckFailed(correlation, payload) =>
+        raise(Evt.ReceivedSignalAckFailed, 'correlation -> correlation, 'payload -> payload)
     }
 
     case OpenSubscriptionFromStub(subj, key, aggrInt) =>
@@ -176,7 +176,7 @@ class WebSocketClient(id: String, endpoint: String, port: Int)
     case ResetSubscriptionFromStub(subj) =>
       self ! BinaryDialectResetSubscription(aliasFor(subj))
     case SignalFromStub(subj, payload, expireAt, group, correlation) =>
-      self ! BinaryDialectSignal(aliasFor(subj), payload, expireAt, group, correlation)
+      self ! BinaryDialectSignal(subj, payload, expireAt, group, correlation)
 
   }
 

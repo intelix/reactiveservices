@@ -1,14 +1,16 @@
 #!/bin/bash
 
-mkdir -p gen
+export DIR=$1
 
-export PW=`cat gen/password`
+mkdir -p $DIR
+
+export PW=`cat $DIR/password`
 
 # Create a self signed key pair root CA certificate.
 keytool -genkeypair -v \
   -alias serverca \
   -dname "CN=serverCA, OU=Example Org, O=Example Company, L=San Francisco, ST=California, C=US" \
-  -keystore gen/server-ca.jks \
+  -keystore $DIR/server-ca.jks \
   -keypass:env PW \
   -storepass:env PW \
   -keyalg RSA \
@@ -20,8 +22,8 @@ keytool -genkeypair -v \
 # Export the exampleCA public certificate as exampleca.crt so that it can be used in trust stores.
 keytool -export -v \
   -alias serverca \
-  -file gen/server-ca.crt \
+  -file $DIR/server-ca.crt \
   -keypass:env PW \
   -storepass:env PW \
-  -keystore gen/server-ca.jks \
+  -keystore $DIR/server-ca.jks \
   -rfc

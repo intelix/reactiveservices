@@ -85,7 +85,6 @@ class RegionEndpointConnectorActor(regionId: String, endpoint: Endpoint) extends
 
   commonEvtFields('region -> regionId, 'endpoint -> s"${endpoint.host}:${endpoint.port}")
   evt(Evt.Cfg_Intervals, 'fast -> fastDiscoveryInterval, 'paced -> pacedDiscoveryInterval, 'cont -> continuousDiscoveryInterval)
-  evt(Evt.Cfg_SSL, 'enabled -> connectionCtx.isInstanceOf[InitialisedSSLContext])
 
   startWith(States.Querying, LocalData(fastDiscoveryInterval))
 

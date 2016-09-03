@@ -30,6 +30,7 @@ class RSThreadUnsafeCodecTest extends FlatSpec with Matchers with BeforeAndAfter
   }
 
   def builder = ByteString.newBuilder
+  def kryo = new KryoCtx()
 
 
   lazy val actorSystem = ActorSystem()
@@ -39,6 +40,7 @@ class RSThreadUnsafeCodecTest extends FlatSpec with Matchers with BeforeAndAfter
   "EntityType" should "convert correctly for all valid values" in {
     for {i <- 0 to 32767} {
       implicit val b = builder
+      implicit val k = kryo
       EntityType.put(i)
       implicit val it = b.result().iterator
       EntityType.get() should equal(i)
@@ -48,6 +50,7 @@ class RSThreadUnsafeCodecTest extends FlatSpec with Matchers with BeforeAndAfter
   it should "fail for all illegal values" in {
     for {i <- 32768 to 40000} {
       implicit val b = builder
+      implicit val k = kryo
       an[Exception] should be thrownBy EntityType.put(i)
     }
   }
@@ -55,11 +58,13 @@ class RSThreadUnsafeCodecTest extends FlatSpec with Matchers with BeforeAndAfter
   it should "have expected length when encoded" in {
     for {i <- 0 to 127} {
       implicit val b = builder
+      implicit val k = kryo
       EntityType.put(i)
       b.result().size should equal(1)
     }
     for {i <- 128 to 32767} {
       implicit val b = builder
+      implicit val k = kryo
       EntityType.put(i)
       b.result().size should equal(2)
     }
@@ -69,6 +74,7 @@ class RSThreadUnsafeCodecTest extends FlatSpec with Matchers with BeforeAndAfter
 
   private def validate(i: Any, maybeValidateLen: Option[Int]): Unit = {
     implicit val b = builder
+    implicit val k = kryo
     Codec.put(i)
     val r = b.result()
     implicit val it = r.iterator

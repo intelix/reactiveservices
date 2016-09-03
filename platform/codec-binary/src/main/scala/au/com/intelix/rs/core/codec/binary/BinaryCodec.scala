@@ -130,8 +130,12 @@ object BinaryCodec {
             aliases += subj -> id
             None
           case t: BinaryDialectOpenSubscription => subjects get t.subjAlias map (OpenSubscription(_, t.priorityKey, t.aggregationIntervalMs))
-          case t: BinaryDialectCloseSubscription => subjects get t.subjAlias map CloseSubscription
-          case t: BinaryDialectSignal => subjects get t.subjAlias map (Signal(_, t.payload, t.expireAt, t.orderingGroup, t.correlationId))
+          case t: BinaryDialectCloseSubscription => subjects get t.subjAlias map { s =>
+            aliases -= s
+            subjects -= t.subjAlias
+            CloseSubscription(s)
+          }
+          case t: BinaryDialectSignal => Some(Signal(t.subj, t.payload, t.expireAt, t.orderingGroup, t.correlationId))
           case _ => None
         }
 
@@ -139,9 +143,14 @@ object BinaryCodec {
           case t: InvalidRequest => aliases get t.subj map BinaryDialectInvalidRequest
           case t: ServiceNotAvailable => Some(BinaryDialectServiceNotAvailable(t.serviceKey))
           case t: StreamStateUpdate => aliases get t.subject map (BinaryDialectStreamStateUpdate(_, t.topicState))
-          case t: SignalAckOk => aliases get t.subj map (BinaryDialectSignalAckOk(_, t.correlationId, t.payload))
-          case t: SignalAckFailed => aliases get t.subj map (BinaryDialectSignalAckFailed(_, t.correlationId, t.payload))
-          case t: SubscriptionClosed => aliases get t.subj map BinaryDialectSubscriptionClosed
+          case t: SignalAckOk => Some(BinaryDialectSignalAckOk(t.correlationId, t.payload))
+          case t: SignalAckFailed => Some(BinaryDialectSignalAckFailed(t.correlationId, t.payload))
+          case t: SubscriptionClosed =>
+            aliases get t.subj map { a =>
+              aliases -= t.subj
+              subjects -= a
+              BinaryDialectSubscriptionClosed(a)
+            }
           case _ => None
         }
 
@@ -475,8 +484,8 @@ object BinaryCodec {
           case TypeStreamStateUpdate => BinaryDialectStreamStateUpdate(bytes.getInt, commonCodec.decode(bytes).asInstanceOf[StreamState])
           case TypePing => BinaryDialectPing(bytes.getInt)
           case TypeStreamStateTransitionUpdate => BinaryDialectStreamStateTransitionUpdate(bytes.getInt, commonCodec.decode(bytes).asInstanceOf[StreamStateTransition])
-          case TypeSignalAckOk => BinaryDialectSignalAckOk(bytes.getInt, OptionAnyCodecLogic.decode(bytes), OptionAnyCodecLogic.decode(bytes))
-          case TypeSignalAckFailed => BinaryDialectSignalAckFailed(bytes.getInt, OptionAnyCodecLogic.decode(bytes), OptionAnyCodecLogic.decode(bytes))
+          case TypeSignalAckOk => BinaryDialectSignalAckOk(OptionAnyCodecLogic.decode(bytes), OptionAnyCodecLogic.decode(bytes))
+          case TypeSignalAckFailed => BinaryDialectSignalAckFailed(OptionAnyCodecLogic.decode(bytes), OptionAnyCodecLogic.decode(bytes))
         }
       }
 
@@ -495,7 +504,7 @@ object BinaryCodec {
             SubjectCodecLogic.encode(x.subj, builder)
           case x: BinaryDialectPong => putId(TypePong); builder.putInt(x.id)
           case x: BinaryDialectSignal => putId(TypeSignal)
-            builder.putInt(x.subjAlias)
+            SubjectCodecLogic.encode(x.subj, builder)
             commonCodec.encode(x.payload, builder)
             val seconds = (x.expireAt - System.currentTimeMillis()) / 1000
             if (seconds < 1)
@@ -524,7 +533,7 @@ object BinaryCodec {
           case TypeCloseSubscription => BinaryDialectCloseSubscription(bytes.getInt)
           case TypeAlias => BinaryDialectAlias(bytes.getInt, SubjectCodecLogic.decode(bytes))
           case TypePong => BinaryDialectPong(bytes.getInt)
-          case TypeSignal => BinaryDialectSignal(bytes.getInt, commonCodec.decode(bytes), System.currentTimeMillis() + bytes.getInt * 1000, OptionAnyCodecLogic.decode(bytes), OptionAnyCodecLogic.decode(bytes))
+          case TypeSignal => BinaryDialectSignal(SubjectCodecLogic.decode(bytes), commonCodec.decode(bytes), System.currentTimeMillis() + bytes.getInt * 1000, OptionAnyCodecLogic.decode(bytes), OptionAnyCodecLogic.decode(bytes))
         }
       }
 
@@ -541,11 +550,9 @@ object BinaryCodec {
             builder.putInt(x.subjAlias)
             commonCodec.encode(x.topicStateTransition, builder)
           case x: BinaryDialectSignalAckOk => putId(TypeSignalAckOk)
-            builder.putInt(x.subjAlias)
             OptionAnyCodecLogic.encode(x.correlationId, builder)
             OptionAnyCodecLogic.encode(x.payload, builder)
           case x: BinaryDialectSignalAckFailed => putId(TypeSignalAckFailed)
-            builder.putInt(x.subjAlias)
             OptionAnyCodecLogic.encode(x.correlationId, builder)
             OptionAnyCodecLogic.encode(x.payload, builder)
           case x: BinaryDialectSubscriptionClosed => putId(TypeSubscriptionClosed); builder.putInt(x.subjAlias)
